@@ -733,36 +733,7 @@ function GamePage() {
         />
       )}
 
-      {/* Solo lives indicator */}
-      {isSolo && (phase === 'playing' || phase === 'boss') && (
-        <motion.div
-          className="pointer-events-none absolute left-1/2 top-2 z-30 -translate-x-1/2 sm:top-4"
-          initial={{ y: -20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.4, ease: EASE }}
-        >
-          <div className="flex items-center gap-1.5 rounded border border-dm-border bg-dm-bg/80 px-3 py-1.5 backdrop-blur-sm">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <motion.span
-                key={i}
-                className="text-base sm:text-lg"
-                animate={
-                  i < soloDeathsRemaining
-                    ? { scale: [1, 1.15, 1], opacity: 1 }
-                    : { scale: 1, opacity: 0.2 }
-                }
-                transition={
-                  i < soloDeathsRemaining
-                    ? { duration: 1.5, repeat: Infinity, delay: i * 0.3 }
-                    : {}
-                }
-              >
-                {i < soloDeathsRemaining ? '❤️' : '🖤'}
-              </motion.span>
-            ))}
-          </div>
-        </motion.div>
-      )}
+      {/* Solo lives indicator removed — lives shown in HUD */}
 
       {/* Virtual joystick (mobile) */}
       <VirtualJoystick

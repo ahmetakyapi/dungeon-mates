@@ -4,7 +4,6 @@ import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { PlayerState, GameState, DungeonRoom, PlayerClass, MonsterState } from '../../../shared/types';
 import { CLASS_STATS } from '../../../shared/types';
-import { SoloLives } from './SoloLives';
 import { KillFeed, createKillFeedEntry } from './KillFeed';
 import type { KillFeedEntry } from './KillFeed';
 import { PlayerHoverCard } from './PlayerHoverCard';
@@ -1206,7 +1205,15 @@ export function HUD({ player, gameState, fps, onPing, attackCooldownPct = 1, abi
       <div className="absolute right-2 top-2 sm:right-4 sm:top-4">
         {gameState.isSolo ? (
           <PixelFrame className="flex items-center gap-2 px-3 py-2">
-            <SoloLives livesRemaining={gameState.soloDeathsRemaining} />
+            <span className="font-pixel text-[8px] text-zinc-400 sm:text-[9px] lg:text-[10px]">Can:</span>
+            <span className="font-pixel text-[9px] text-dm-health sm:text-[10px] lg:text-[11px]">
+              {gameState.soloDeathsRemaining}/3
+            </span>
+            <span className="mx-1 text-[6px] text-zinc-600">|</span>
+            <span className="text-xs">🪙</span>
+            <span className="font-pixel text-[8px] text-dm-gold sm:text-[9px] lg:text-[10px]">
+              {player.score * 10}
+            </span>
           </PixelFrame>
         ) : (
           <PixelFrame className="p-2 sm:p-3">

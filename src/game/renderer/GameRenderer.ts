@@ -461,6 +461,9 @@ export class GameRenderer {
       this.renderTorchLights(ctx, camX, camY);
     }
 
+    // 2c. Highlight interactable tiles (chests, stairs) with pulsing glow
+    this.renderInteractableHighlights(ctx, state, camX, camY, localPlayerId);
+
     // 3. Render loot
     this.renderLoot(ctx, state, camX, camY);
 
@@ -1295,6 +1298,67 @@ export class GameRenderer {
     }
   }
 
+  /** Render glowing highlights around interactable tiles (chests, stairs) */
+  private renderInteractableHighlights(
+    ctx: CanvasRenderingContext2D,
+    state: GameState,
+    camX: number,
+    camY: number,
+    localPlayerId: string,
+  ): void {
+    const localPlayer = state.players[localPlayerId];
+    if (!localPlayer?.alive) return;
+
+    const tiles = state.dungeon.tiles;
+    const ppx = localPlayer.position.x;
+    const ppy = localPlayer.position.y;
+    const HIGHLIGHT_RADIUS = 3; // Show glow within 3 tiles
+
+    const startX = Math.max(0, Math.floor(ppx - HIGHLIGHT_RADIUS));
+    const endX = Math.min(state.dungeon.width - 1, Math.floor(ppx + HIGHLIGHT_RADIUS));
+    const startY = Math.max(0, Math.floor(ppy - HIGHLIGHT_RADIUS));
+    const endY = Math.min(state.dungeon.height - 1, Math.floor(ppy + HIGHLIGHT_RADIUS));
+
+    const pulse = 0.25 + Math.sin(this.animFrame * 0.3) * 0.15;
+
+    for (let ty = startY; ty <= endY; ty++) {
+      const row = tiles[ty];
+      if (!row) continue;
+      for (let tx = startX; tx <= endX; tx++) {
+        const tile = row[tx];
+        if (tile !== 'chest' && tile !== 'stairs') continue;
+
+        const dx = ppx - (tx + 0.5);
+        const dy = ppy - (ty + 0.5);
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > HIGHLIGHT_RADIUS) continue;
+
+        const sx = tx * TILE_SIZE - camX;
+        const sy = ty * TILE_SIZE - camY;
+
+        // Distance-based alpha falloff
+        const distAlpha = 1 - (dist / HIGHLIGHT_RADIUS);
+        const alpha = pulse * distAlpha;
+
+        const isChest = tile === 'chest';
+        const glowColor = isChest ? '#fbbf24' : '#38bdf8';
+
+        // Outer glow
+        ctx.globalAlpha = alpha * 0.4;
+        ctx.fillStyle = glowColor;
+        ctx.fillRect(sx - 2, sy - 2, TILE_SIZE + 4, TILE_SIZE + 4);
+
+        // Inner glow border
+        ctx.globalAlpha = alpha * 0.7;
+        ctx.strokeStyle = glowColor;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(sx - 0.5, sy - 0.5, TILE_SIZE + 1, TILE_SIZE + 1);
+
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+
   private renderLoot(
     ctx: CanvasRenderingContext2D,
     state: GameState,
@@ -1463,11 +1527,11 @@ export class GameRenderer {
       this.drawHealthBar(ctx, sx, sy + TILE_SIZE + 1, TILE_SIZE, player.hp, player.maxHp, player.id);
       this.drawManaBar(ctx, sx, sy + TILE_SIZE + 5, TILE_SIZE, player.mana, player.maxMana);
 
-      // "R" interaction indicator for local player near chests/stairs
+      // Interaction indicator for local player near chests/stairs
       if (player.id === localPlayerId) {
         const interactable = this.getNearbyInteractable(state, player.position.x, player.position.y);
         if (interactable) {
-          this.drawInteractIndicator(ctx, sx + TILE_SIZE / 2, sy - 14);
+          this.drawInteractIndicator(ctx, sx + TILE_SIZE / 2, sy - 16, interactable);
         }
       }
     }
@@ -1999,29 +2063,53 @@ export class GameRenderer {
     return null;
   }
 
-  /** Draw a floating "R" key prompt above the player */
-  private drawInteractIndicator(ctx: CanvasRenderingContext2D, x: number, y: number): void {
-    const bobOffset = Math.sin(this.animFrame * 0.4) * 1.5;
+  /** Draw a floating interaction prompt above the player, showing what can be done */
+  private drawInteractIndicator(ctx: CanvasRenderingContext2D, x: number, y: number, tileType: TileType): void {
+    const bobOffset = Math.sin(this.animFrame * 0.4) * 2;
     const iy = Math.floor(y + bobOffset);
     const ix = Math.floor(x);
 
-    // Background pill
-    const pillW = 10;
-    const pillH = 8;
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.fillRect(ix - pillW / 2, iy - pillH / 2, pillW, pillH);
+    const isChest = tileType === 'chest';
+    const label = isChest ? '[R] Aç' : '[R] İn';
+    const accentColor = isChest ? '#fbbf24' : '#38bdf8';
 
-    // Border
-    ctx.strokeStyle = '#fbbf24';
-    ctx.lineWidth = 0.5;
-    ctx.strokeRect(ix - pillW / 2, iy - pillH / 2, pillW, pillH);
-
-    // "R" text
-    ctx.font = 'bold 5px monospace';
+    // Measure text width
+    ctx.font = 'bold 4px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#fbbf24';
-    ctx.fillText('R', ix, iy);
+    const textW = ctx.measureText(label).width;
+
+    const pillW = Math.ceil(textW) + 6;
+    const pillH = 8;
+    const px = ix - Math.floor(pillW / 2);
+    const py = iy - Math.floor(pillH / 2);
+
+    // Pulsing glow behind
+    const pulse = 0.3 + Math.sin(this.animFrame * 0.5) * 0.15;
+    ctx.globalAlpha = pulse;
+    ctx.fillStyle = accentColor;
+    ctx.fillRect(px - 1, py - 1, pillW + 2, pillH + 2);
+    ctx.globalAlpha = 1;
+
+    // Background pill
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillRect(px, py, pillW, pillH);
+
+    // Border
+    ctx.strokeStyle = accentColor;
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(px, py, pillW, pillH);
+
+    // Label text
+    ctx.fillStyle = accentColor;
+    ctx.fillText(label, ix, iy);
+
+    // Small arrow pointing down
+    ctx.fillStyle = accentColor;
+    ctx.globalAlpha = 0.8;
+    ctx.fillRect(ix - 1, iy + Math.floor(pillH / 2) + 1, 2, 2);
+    ctx.fillRect(ix, iy + Math.floor(pillH / 2) + 3, 1, 1);
+    ctx.globalAlpha = 1;
   }
 
   destroy(): void {

@@ -169,12 +169,12 @@ function SlideClasses() {
 // --- Slide 3: Zindanı Keşfet ---
 
 const DUNGEON_ITEMS = [
-  'Odadaki tum canavarlari oldur → kapilar acilir',
-  'Sandiklari ac (R) → can iksiri, mana iksiri veya guclendirme dusurur',
-  'Merdivenleri kullan (R) → bir sonraki kata ilerle (tum canavarlar temizlenmeli)',
-  'Yetenegini kullan (E) → sinifa ozel guclu saldiri (mana/bekleme suresi var)',
-  '5. katta boss\'u yen → zafer!',
-  'Oyuncu sayisi arttikca zorluk artar! (2: Normal, 3: Zor, 4: Cok Zor)',
+  'Odadaki tüm canavarları öldür → kapılar açılır',
+  '📦 Sandıklara yaklaş ve R tuşuna bas → loot düşürür (altın parlama ile belirtilir)',
+  '🪜 Merdivenlere yaklaş ve R tuşuna bas → bir sonraki kata ilerle (mavi parlama ile belirtilir)',
+  '✨ Yeteneğini kullan (E) → sınıfa özel güçlü saldırı (mana/bekleme süresi var)',
+  '👹 5. katta boss\'u yen → zafer!',
+  '⚖️ Oyuncu sayısı arttıkça zorluk artar! (2: Normal, 3: Zor, 4: Çok Zor)',
 ] as const;
 
 function SlideDungeon() {
