@@ -292,7 +292,7 @@ Environment variable olarak `ALLOWED_ORIGINS` değerini frontend domain'ine ayar
 
 ---
 
-## Teknoloji Yığını
+## Tech Stack
 
 | Katman | Teknoloji | Amaç |
 |--------|-----------|------|
