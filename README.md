@@ -9,48 +9,48 @@
 <h1 align="center">Dungeon Mates</h1>
 
 <p align="center">
-  <strong>Co-op Zindan Macerasi</strong><br/>
-  <em>2-4 kisilik gercek zamanli multiplayer pixel art dungeon crawler</em>
+  <strong>Co-op Zindan Macerası</strong><br/>
+  <em>2–4 kişilik gerçek zamanlı multiplayer pixel art dungeon crawler</em>
 </p>
 
 <p align="center">
-  Arkadaslarinla birlikte zindanin derinliklerine dal.<br/>
-  Prosedural olarak uretilen karanlik zindanlarda canavarlarla savas, loot topla, boss'lari yen.
+  Arkadaşlarınla birlikte zindanın derinliklerine dal.<br/>
+  Prosedürel olarak üretilen karanlık zindanlarda canavarlarla savaş, loot topla, boss'ları yen.
 </p>
 
 ---
 
-## Oyun Hakkinda
+## Oyun Hakkında
 
-**Dungeon Mates**, tarayici tabanli bir co-op dungeon crawler oyunudur. Herhangi bir indirme veya kurulum gerektirmeden, oda kodu ile arkadaslarini davet edip birlikte oynayabilirsin. Her oyun benzersizdir — zindanlar prosedural olarak uretilir, canavar dagilimlari rastgeledir ve zorluk oyuncu sayisina gore dinamik olarak olceklenir.
+**Dungeon Mates**, tarayıcı tabanlı bir co-op dungeon crawler oyunudur. Herhangi bir indirme veya kurulum gerektirmeden, oda kodu ile arkadaşlarını davet edip birlikte oynayabilirsin. Her oyun benzersizdir — zindanlar prosedürel olarak üretilir, canavar dağılımları rastgeledir ve zorluk oyuncu sayısına göre dinamik olarak ölçeklenir.
 
-### Nasil Oynanir
+### Nasıl Oynanır
 
-1. **Oda Olustur** — 4 haneli benzersiz oda kodu al
-2. **Arkadaslarini Davet Et** — Kodu paylas, odaya katilsinlar
-3. **Sinifini Sec** — Savasci, Buyucu veya Okcu
+1. **Oda Oluştur** — 4 haneli benzersiz oda kodu al
+2. **Arkadaşlarını Davet Et** — Kodu paylaş, odaya katılsınlar
+3. **Sınıfını Seç** — Savaşçı, Büyücü veya Okçu
 4. **Zindana Dal** — 5 kat, her katta canavarlar, son katta boss
 
-### Temel Mekanikler
+### Kontroller
 
-| Kontrol | Masaustu | Mobil |
-|---------|----------|-------|
-| Hareket | WASD / Ok Tuslari | Sol Joystick |
-| Saldiri | Space | Saldiri Butonu |
+| Eylem | Masaüstü | Mobil |
+|-------|----------|-------|
+| Hareket | WASD / Ok Tuşları | Sol Joystick |
+| Saldırı | Space | Saldırı Butonu |
 | Yetenek | E | Yetenek Butonu |
-| Etkilesim | R (Sandik/Merdiven) | Etkilesim Butonu |
+| Etkileşim | R (Sandık / Merdiven) | Etkileşim Butonu |
 | Sprint | Shift | — |
 | Sohbet | Enter | — |
 
 ---
 
-## Kahraman Siniflari
+## Kahraman Sınıfları
 
 <table>
   <tr>
-    <td align="center"><strong>Savasci</strong></td>
-    <td align="center"><strong>Buyucu</strong></td>
-    <td align="center"><strong>Okcu</strong></td>
+    <td align="center"><strong>Savaşçı</strong></td>
+    <td align="center"><strong>Büyücü</strong></td>
+    <td align="center"><strong>Okçu</strong></td>
   </tr>
   <tr>
     <td align="center">120 HP / 15 ATK / 10 DEF</td>
@@ -58,182 +58,179 @@
     <td align="center">90 HP / 12 ATK / 5 DEF</td>
   </tr>
   <tr>
-    <td>Yakin mesafe tank. Kalkan Duvari (E) ile hasari %70 azaltir. Kizil pelerin, boynutlu migfer, arma kalkan.</td>
-    <td>Alan hasarci. Buz Firtinasi (E) ile cevre hasari + yavaslatma. Asa kristali, takimyildizi desenli cuppesi.</td>
-    <td>Uzak menzilli DPS. Ok Yagmuru (E) ile 5 ok yelpaze atis. Runik yay, ok sadagi, kukuletali pelerin.</td>
+    <td>Yakın mesafe tank. <strong>Kalkan Duvarı</strong> (E) ile hasarı %70 azaltır. Kızıl pelerin, boynuzlu miğfer, armalı kalkan.</td>
+    <td>Alan hasarcı. <strong>Buz Fırtınası</strong> (E) ile çevre hasarı + yavaşlatma. Asa kristali, takımyıldızı desenli cüppesi.</td>
+    <td>Uzak menzilli DPS. <strong>Ok Yağmuru</strong> (E) ile 5 ok yelpaze atış. Runik yay, ok sadağı, kukuletalı pelerin.</td>
   </tr>
 </table>
 
 ---
 
-## Canavar Bestiary
+## Canavar Ansiklopedisi
 
-Oyunda 9 farkli canavar tipi bulunur. Her biri benzersiz AI davranisina, sprite tasarimina ve zorluk seviyesine sahiptir.
+Oyunda 9 farklı canavar tipi bulunur. Her biri benzersiz AI davranışına, sprite tasarımına ve zorluk seviyesine sahiptir.
 
-| Canavar | HP | Saldiri | Ozellik |
+| Canavar | HP | Saldırı | Özellik |
 |---------|---:|--------:|---------|
-| **Fare** | 12 | 4 | Surulerde (2-3) gelir, hizli ve duzensiz hareket |
-| **Slime** | 20 | 5 | Sicrar, 3 renk varyanti (yesil/buz/ates) |
-| **Yarasa** | 15 | 6 | Cok hizli, duzensiz ucus paterni |
-| **Iskelet** | 30 | 8 | Kilicli, kalkanli, cene tikirdamasi |
-| **Orumcek** | 25 | 7 | Ag firlatir → oyuncuyu yavaslatir |
-| **Mantar** | 45 | 8 | Zehir aurasi, yavaslatma, tanky |
-| **Hayalet** | 35 | 14 | Duvarlardan gecer, faz degistirir (dokunulmaz) |
-| **Goblin** | 40 | 10 | Savas boyali, diken sopali, dusuk HP'de kacar |
-| **Boss Demon** | 300 | 25 | Sarj saldirisi, alan hasari, minion cagirir |
+| **Fare** | 12 | 4 | Sürülerde (2–3) gelir, hızlı ve düzensiz hareket |
+| **Slime** | 20 | 5 | Sıçrar, 3 renk varyantı (yeşil / buz / ateş) |
+| **Yarasa** | 15 | 6 | Çok hızlı, düzensiz uçuş paterni |
+| **İskelet** | 30 | 8 | Kılıçlı, kalkanlı, çene tıkırdaması |
+| **Örümcek** | 25 | 7 | Ağ fırlatır → oyuncuyu yavaşlatır |
+| **Mantar** | 45 | 8 | Zehir aurası, yavaşlatma, dayanıklı |
+| **Hayalet** | 35 | 14 | Duvarlardan geçer, faz değiştirir (dokunulmaz) |
+| **Goblin** | 40 | 10 | Savaş boyalı, dikenli sopalı, düşük HP'de kaçar |
+| **Boss Demon** | 300 | 25 | Şarj saldırısı, alan hasarı, minion çağırır |
 
-### Kat Bazli Zorluk
+### Kat Bazlı Zorluk
 
-- **Kat 1**: Fare, Slime, Yarasa (giris)
-- **Kat 2**: + Iskelet, Orumcek
-- **Kat 3**: + Goblin, Hayalet, Mantar
-- **Kat 4**: Tum tipler, zor agirlikli
-- **Kat 5**: Boss Demon + minion ordusu
+- **Kat 1** — Fare, Slime, Yarasa _(giriş)_
+- **Kat 2** — + İskelet, Örümcek
+- **Kat 3** — + Goblin, Hayalet, Mantar
+- **Kat 4** — Tüm tipler, zor ağırlıklı
+- **Kat 5** — Boss Demon + minion ordusu
 
 ---
 
 ## Dinamik Zorluk Sistemi
 
-Oyun, oyuncu sayisina gore otomatik olarak olceklenir:
+Oyun, oyuncu sayısına göre otomatik olarak ölçeklenir:
 
-| Ozellik | Solo | 2 Kisi | 3 Kisi | 4 Kisi |
+| Özellik | Solo | 2 Kişi | 3 Kişi | 4 Kişi |
 |---------|:----:|:------:|:------:|:------:|
-| Harita Boyutu | 48x48 | 56x56 | 64x64 | 72x72 |
-| Canavar Carpani | 0.7x | 1.0x | 1.5x | 2.0x |
+| Harita Boyutu | 48×48 | 56×56 | 64×64 | 72×72 |
+| Canavar Çarpanı | 0.7x | 1.0x | 1.5x | 2.0x |
 | Canavar HP | 1.0x | 1.35x | 1.70x | 2.05x |
 | Boss HP | 300 | 450 | 600 | 750 |
-| Loot Carpani | 1.5x | 1.0x | 1.2x | 1.4x |
-| XP Kazanimi | %100 | %75 | %60 | %50 |
-| Kat Arasi Iyilesme | %40 | %30 | %25 | %20 |
+| Loot Çarpanı | 1.5x | 1.0x | 1.2x | 1.4x |
+| XP Kazanımı | %100 | %75 | %60 | %50 |
+| Kat Arası İyileşme | %40 | %30 | %25 | %20 |
 
 ---
 
 ## Teknik Mimari
 
-### Genel Bakis
-
 ```
-Tarayici (Next.js)          WebSocket           Sunucu (Node.js)
-+------------------+       (Socket.IO)       +------------------+
-|  React UI        | <--------------------> |  GameRoom        |
-|  Canvas Renderer |   gercek zamanli       |  Monster AI      |
-|  Input Manager   |   20 tick/sn           |  Collision       |
-|  Sound Engine    |                        |  Dungeon Gen     |
-|  Particle System |                        |  Loot System     |
-+------------------+                        +------------------+
-        |                                           |
-    shared/types.ts  <-- Ortak tip tanimlari -->  shared/types.ts
+Tarayıcı (Next.js)          WebSocket           Sunucu (Node.js)
+┌──────────────────┐       (Socket.IO)       ┌──────────────────┐
+│  React UI        │ ◄──────────────────────►│  GameRoom        │
+│  Canvas Renderer │    gerçek zamanlı       │  Monster AI      │
+│  Input Manager   │    20 tick/sn           │  Collision       │
+│  Sound Engine    │                         │  Dungeon Gen     │
+│  Particle System │                         │  Loot System     │
+└──────────────────┘                         └──────────────────┘
+         │                                           │
+     shared/types.ts  ◄── Ortak tip tanımları ──►  shared/types.ts
 ```
 
 ### Sunucu Otoritesi
 
-Tum oyun mantigi sunucu tarafinda calisir. Client sadece input gonderir ve state render eder — **hile onleme** icin server-authoritative mimari.
+Tüm oyun mantığı sunucu tarafında çalışır. Client sadece input gönderir ve state render eder — **hile önleme** için server-authoritative mimari.
 
-- **Tick Rate**: 20 FPS (50ms aralik)
-- **Input Throttle**: Client ~22fps (45ms) ile input gonderir
-- **One-shot Actions**: Saldiri/yetenek/etkilesim ayri socket event olarak gonderilir (kayip onleme)
-- **State Broadcast**: Her tick'te tam oyun durumu tum client'lara yayinlanir
+- **Tick Rate**: 20 FPS (50ms aralık)
+- **Input Throttle**: Client ~22fps (45ms) ile input gönderir
+- **One-shot Actions**: Saldırı / yetenek / etkileşim ayrı socket event olarak gönderilir (kayıp önleme)
+- **State Broadcast**: Her tick'te tam oyun durumu tüm client'lara yayınlanır
 
 ### Render Pipeline
 
-Oyun HTML5 Canvas uzerinde pixel-art tarzinda render edilir:
+Oyun HTML5 Canvas üzerinde pixel-art tarzında render edilir:
 
-1. **Mantiksal Cozunurluk**: 480x270 (masaustu), 280x210 (mobil)
-2. **Offscreen Buffer**: Piksel artifact'larini onlemek icin
-3. **Render Katmanlari**: Zemin → Cevre Dekor → Loot → Canavarlar → Mermiler → Oyuncular → Parcaciklar → Sis → UI
-4. **Dinamik Aydinlatma**: Entity bazli isik (mesale, oyuncu, canavar, loot)
-5. **Sis Sistemi**: 3 durumlu (gizli/kesif/gorunur) fog of war
-6. **Kalite Otomatigi**: FPS izleme ile otomatik kalite ayarlama (Low/Medium/High)
+1. **Mantıksal Çözünürlük** — 480×270 (masaüstü), 280×210 (mobil)
+2. **Offscreen Buffer** — Piksel artifact'larını önlemek için
+3. **Render Katmanları** — Zemin → Çevre Dekor → Loot → Canavarlar → Mermiler → Oyuncular → Parçacıklar → Sis → UI
+4. **Dinamik Aydınlatma** — Entity bazlı ışık (meşale, oyuncu, canavar, loot)
+5. **Fog of War** — 3 durumlu (gizli / keşif / görünür)
+6. **Kalite Otomatiği** — FPS izleme ile otomatik kalite ayarlama (Low / Medium / High)
 
-### Prosedural Sprite Sistemi
+### Prosedürel Sprite Sistemi
 
-Oyundaki tum sprite'lar **prosedural olarak cizilir** — sprite sheet kullanilmaz. Her karakter, canavar, tile ve efekt piksel piksel Canvas API ile olusturulur:
+Oyundaki tüm sprite'lar **prosedürel olarak çizilir** — sprite sheet kullanılmaz. Her karakter, canavar, tile ve efekt piksel piksel Canvas API ile oluşturulur:
 
-- **2,588 satir** sprite render kodu
-- Her canavar icin benzersiz animasyon (yurume, saldiri, olum, ozel efektler)
-- Frame-bazli animasyon sistemi (8 FPS anim tick)
+- **~2.600 satır** sprite render kodu
+- Her canavar için benzersiz animasyon (yürüme, saldırı, ölüm, özel efektler)
+- Frame bazlı animasyon sistemi (8 FPS anim tick)
 - Offscreen sprite cache ile performans optimizasyonu
 - Hasar flash, nefes alma, pelerin dalgalanma gibi detaylar
 
-### Parcacik Sistemi
+### Parçacık Sistemi
 
-Pool-bazli parcacik motoru (768 oncelik onbellekli parcacik):
+Pool bazlı parçacık motoru (768 öncelik önbellekli parçacık):
 
-- **30+ efekt**: Hit spark, kan, buyu patlamasi, ates izi, zehir bulutu, ag atisi, hayalet faz, boss slam...
-- **Oncelik sistemi**: Ambient parcaciklar (dusuk) combat'tan once geri donusturulur
-- **Fizik**: Yercekimi, surtunme, aci bazli hiz
+- **30+ efekt** — Hit spark, kan, büyü patlaması, ateş izi, zehir bulutu, ağ atışı, hayalet faz, boss slam...
+- **Öncelik sistemi** — Ambient parçacıklar (düşük) combat'tan önce geri dönüştürülür
+- **Fizik** — Yerçekimi, sürtünme, açı bazlı hız
 
-### Zindan Uretimi
+### Zindan Üretimi
 
-**BSP (Binary Space Partition)** algoritmasi ile prosedural zindan uretimi:
+**BSP (Binary Space Partition)** algoritması ile prosedürel zindan üretimi:
 
-- Dengeli oda dagilimindan rastgele sekilli, birbirine bagli odalar uretir
-- Oda boyutlari: 7x7 ile 13x13 tile arasi
-- Koridorlarla baglanti, kapi yerlestirme
-- Boss odasi, baslangic odasi, sandik ve merdiven yerlestirme
-- Harita boyutu oyuncu sayisina gore dinamik
+- Dengeli oda dağılımından rastgele şekilli, birbirine bağlı odalar üretir
+- Oda boyutları: 7×7 – 13×13 tile arası
+- Koridorlarla bağlantı, kapı yerleştirme
+- Boss odası, başlangıç odası, sandık ve merdiven yerleştirme
+- Harita boyutu oyuncu sayısına göre dinamik
 
 ### Ses Motoru
 
-Web Audio API tabanli retro ses sentezleyici:
+Web Audio API tabanlı retro ses sentezleyici:
 
-- Prosedural ses efektleri (dalga formu sentezi)
-- Sinif bazli saldiri sesleri (kilic, ates topu, ok)
-- Cooldown/debounce sistemi (ses ustu uste binmez)
-- Efekt bazli ayarlanabilir ses sicaklik haritasi
+- Prosedürel ses efektleri (dalga formu sentezi)
+- Sınıf bazlı saldırı sesleri (kılıç, ateş topu, ok)
+- Cooldown / debounce sistemi (ses üstüste binmez)
 
 ---
 
-## Proje Yapisi
+## Proje Yapısı
 
 ```
 dungeon-mates/
-  shared/
-    types.ts                 # Ortak tip tanimlari, sabitler, istatistikler
-  server/
-    index.ts                 # Socket.IO sunucu giris noktasi
-    GameRoom.ts              # Oda yonetimi, oyun dongusu, combat
-    entities/
-      Player.ts              # Oyuncu entity, sinif yetenekleri
-      Monster.ts             # Canavar AI, 9 farkli davranis
-      Projectile.ts          # Mermi fizigi, carpisma
-    dungeon/
-      DungeonGenerator.ts    # BSP zindan uretici
-  src/
-    app/
-      page.tsx               # Landing page
-      game/page.tsx           # Ana oyun sayfasi (tum fazlar)
-      layout.tsx              # Root layout, fontlar, metadata
-      globals.css             # Global stiller, animasyonlar
-    components/
-      game/
-        HUD.tsx               # Heads-up display (HP, mana, minimap, combo)
-        ClassSelect.tsx       # Sinif secim ekrani
-        TutorialOverlay.tsx   # Oyun ici tutorial
-        GameOverScreen.tsx    # Bitis istatistikleri
-        ChatBox.tsx           # Oyun ici sohbet
-        WaitingScreen.tsx     # Sunucu bekleme ekrani
-        VirtualJoystick.tsx   # Mobil dokunmatik kontroller
-        ...12 diger bilesen
-      ui/
-        PixelButton.tsx       # Pixel-art buton
-        PixelInput.tsx        # Pixel-art input
-    hooks/
-      useGameSocket.ts        # WebSocket baglanti & event yonetimi
-      useGameLoop.ts          # Oyun dongusu (requestAnimationFrame)
-      useSound.ts             # Ses efekt yonetimi
-    game/
-      renderer/
-        GameRenderer.ts       # Ana canvas render (2,129 satir)
-        SpriteRenderer.ts     # Prosedural sprite cizim (2,588 satir)
-        ParticleSystem.ts     # Parcacik motoru (1,106 satir)
-      audio/
-        SoundManager.ts       # Web Audio sentezleyici
-      input/
-        InputManager.ts       # Klavye + gamepad girdi yonetimi
+├── shared/
+│   └── types.ts                 # Ortak tip tanımları, sabitler, istatistikler
+├── server/
+│   ├── index.ts                 # Socket.IO sunucu giriş noktası
+│   ├── GameRoom.ts              # Oda yönetimi, oyun döngüsü, combat
+│   ├── entities/
+│   │   ├── Player.ts            # Oyuncu entity, sınıf yetenekleri
+│   │   ├── Monster.ts           # Canavar AI, 9 farklı davranış
+│   │   └── Projectile.ts        # Mermi fiziği, çarpışma
+│   └── dungeon/
+│       └── DungeonGenerator.ts  # BSP zindan üretici
+└── src/
+    ├── app/
+    │   ├── page.tsx             # Landing page
+    │   ├── game/page.tsx        # Ana oyun sayfası (tüm fazlar)
+    │   ├── layout.tsx           # Root layout, fontlar, metadata
+    │   └── globals.css          # Global stiller, animasyonlar
+    ├── components/
+    │   ├── game/
+    │   │   ├── HUD.tsx              # HP, mana, minimap, combo sayacı
+    │   │   ├── ClassSelect.tsx      # Sınıf seçim ekranı
+    │   │   ├── TutorialOverlay.tsx  # Oyun içi tutorial
+    │   │   ├── GameOverScreen.tsx   # Bitiş istatistikleri
+    │   │   ├── ChatBox.tsx          # Oyun içi sohbet
+    │   │   ├── WaitingScreen.tsx    # Sunucu bekleme ekranı
+    │   │   ├── VirtualJoystick.tsx  # Mobil dokunmatik kontroller
+    │   │   └── ...                  # +11 diğer bileşen
+    │   └── ui/
+    │       ├── PixelButton.tsx      # Pixel-art buton
+    │       └── PixelInput.tsx       # Pixel-art input
+    ├── hooks/
+    │   ├── useGameSocket.ts     # WebSocket bağlantı & event yönetimi
+    │   ├── useGameLoop.ts       # Oyun döngüsü (requestAnimationFrame)
+    │   └── useSound.ts          # Ses efekt yönetimi
+    └── game/
+        ├── renderer/
+        │   ├── GameRenderer.ts      # Ana canvas render (~2.100 satır)
+        │   ├── SpriteRenderer.ts    # Prosedürel sprite çizim (~2.600 satır)
+        │   └── ParticleSystem.ts    # Parçacık motoru (~1.100 satır)
+        ├── audio/
+        │   └── SoundManager.ts      # Web Audio sentezleyici
+        └── input/
+            └── InputManager.ts      # Klavye + gamepad girdi yönetimi
 ```
 
-**Toplam**: ~38 kaynak dosya, ~15,000+ satir TypeScript
+**Toplam**: 38 kaynak dosya, ~15.000+ satır TypeScript
 
 ---
 
@@ -244,96 +241,95 @@ dungeon-mates/
 - Node.js 18+
 - npm 9+
 
-### Yerel Gelistirme
+### Yerel Geliştirme
 
 ```bash
 # Repo'yu klonla
 git clone https://github.com/ahmetakyapi/dungeon-mates.git
 cd dungeon-mates
 
-# Bagimliliklari kur
+# Bağımlılıkları kur
 npm install
 
-# Gelistirme sunucusunu baslat (client + server ayni anda)
+# Geliştirme sunucusunu başlat (client + server aynı anda)
 npm run dev
 ```
 
-Tarayicida ac: `http://localhost:3002`
+Tarayıcıda aç: **http://localhost:3002**
 
-Sunucu otomatik olarak `localhost:3001` uzerinde calisir.
+Sunucu otomatik olarak `localhost:3001` üzerinde çalışır.
 
 ### Environment Variables
 
 ```env
 NEXT_PUBLIC_WS_URL=http://localhost:3001   # WebSocket sunucu URL'i
 PORT=3001                                   # Sunucu portu
-ALLOWED_ORIGINS=*                           # CORS izinleri
+ALLOWED_ORIGINS=*                           # CORS izinleri (production'da domain belirt)
 ```
 
 ---
 
 ## Deploy
 
-### Frontend (Vercel)
+### Frontend — Vercel
 
 ```bash
 npm run build
 ```
 
-Vercel'de environment variable olarak `NEXT_PUBLIC_WS_URL` degerini backend sunucu adresine ayarla.
+Vercel'de environment variable olarak `NEXT_PUBLIC_WS_URL` değerini backend sunucu adresine ayarla.
 
-### Backend (Render / Railway / VPS)
+### Backend — Render / Railway / VPS
 
 ```bash
 npm run build:server
 npm run start:server
 ```
 
-**Render Free Tier**: Sunucu uykuya gecebilir. Oyun, sunucu uyanana kadar animasyonlu bekleme ekrani gosterir (ipuclari, ilerleme cubugu, dungeon animasyonu).
+> **Render Free Tier**: Sunucu uykuya geçebilir (~30–50sn). Oyun, sunucu uyanana kadar animasyonlu bekleme ekranı gösterir (ipuçları, ilerleme çubuğu, zindan animasyonu).
 
-Environment variable olarak `ALLOWED_ORIGINS` degerini frontend domain'ine ayarla.
+Environment variable olarak `ALLOWED_ORIGINS` değerini frontend domain'ine ayarla.
 
 ---
 
-## Teknoloji Yigini
+## Teknoloji Yığını
 
-| Katman | Teknoloji | Amac |
+| Katman | Teknoloji | Amaç |
 |--------|-----------|------|
 | Framework | Next.js 14 (App Router) | SSR, routing, build |
-| Gercek Zaman | Socket.IO 4.7 | WebSocket multiplayer |
+| Gerçek Zaman | Socket.IO 4.7 | WebSocket multiplayer |
 | Render | HTML5 Canvas | Pixel-art oyun render |
-| UI | React 18 + Framer Motion | Animasyonlu arayuz |
-| Stil | Tailwind CSS 3.4 | Responsive tasarim |
-| Ses | Web Audio API | Prosedural ses sentezi |
-| Dil | TypeScript 5.4 (strict) | End-to-end tip guvenligi |
+| UI | React 18 + Framer Motion | Animasyonlu arayüz |
+| Stil | Tailwind CSS 3.4 | Responsive tasarım |
+| Ses | Web Audio API | Prosedürel ses sentezi |
+| Dil | TypeScript 5.4 (strict) | End-to-end tip güvenliği |
 | ID | nanoid | Benzersiz entity kimlikleri |
 
 ---
 
-## Ozellikler Ozeti
+## Özellikler
 
-- **Gercek Zamanli Co-op**: 2-4 oyuncu, oda kodu ile aninda baglanti
-- **Solo Mod**: Tek basina 3 canla oyna
-- **Prosedural Zindanlar**: Her oyun benzersiz harita
-- **9 Canavar Tipi**: Farkli AI, sprite ve zorluk
-- **3 Kahraman Sinifi**: Benzersiz yetenekler ve oyun tarzlari
-- **Dinamik Zorluk**: Oyuncu sayisina gore otomatik olcekleme
-- **Pixel Art Gorseller**: 2,500+ satir prosedural sprite kodu
-- **Dinamik Aydinlatma**: Entity bazli isik ve golge sistemi
-- **Parcacik Efektleri**: 30+ efekt, 768 parcacik havuzu
-- **Mobil Destek**: Dokunmatik kontroller, responsive UI
-- **Gamepad Destegi**: Xbox/PlayStation controller uyumlulugu
-- **Oyun Ici Sohbet**: Gercek zamanli takim iletisimi
-- **Fog of War**: Kesif bazli gorunum sistemi
-- **Loot Sistemi**: 5 farkli drop, sinif bazli denge
-- **Seviye Atlama**: XP sistemi, stat buyumesi
-- **Boss Savasi**: Ozel mekanikler, sahne efektleri
-- **Prosedural Ses**: Web Audio sentezleyici, sinif bazli efektler
-- **Sunucu Otoritesi**: Hile onleme mimari
-- **4K Destek**: 3xl/4xl breakpoint'lari ile ultra genis ekran uyumu
+- **Gerçek Zamanlı Co-op** — 2–4 oyuncu, oda kodu ile anında bağlantı
+- **Solo Mod** — Tek başına 3 canla oyna
+- **Prosedürel Zindanlar** — Her oyun benzersiz harita
+- **9 Canavar Tipi** — Farklı AI, sprite ve zorluk
+- **3 Kahraman Sınıfı** — Benzersiz yetenekler ve oyun tarzları
+- **Dinamik Zorluk** — Oyuncu sayısına göre otomatik ölçekleme
+- **Pixel Art Görseller** — 2.500+ satır prosedürel sprite kodu
+- **Dinamik Aydınlatma** — Entity bazlı ışık ve gölge sistemi
+- **Parçacık Efektleri** — 30+ efekt, 768 parçacık havuzu
+- **Mobil Destek** — Dokunmatik kontroller, responsive UI
+- **Gamepad Desteği** — Xbox / PlayStation controller uyumluluğu
+- **Oyun İçi Sohbet** — Gerçek zamanlı takım iletişimi
+- **Fog of War** — Keşif bazlı görünüm sistemi
+- **Loot Sistemi** — 5 farklı drop, sınıf bazlı denge
+- **Seviye Atlama** — XP sistemi, stat büyümesi
+- **Boss Savaşı** — Özel mekanikler, sahne efektleri
+- **Sunucu Otoritesi** — Hile önleme mimari
+- **4K Destek** — 3xl / 4xl breakpoint'ları ile ultra geniş ekran uyumu
 
 ---
 
 <p align="center">
-  <sub>Ahmet Akyapi tarafindan gelistirilmistir.</sub>
+  <sub>Ahmet Akyapı tarafından geliştirilmiştir.</sub>
 </p>
