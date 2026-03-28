@@ -695,6 +695,9 @@ export class GameRenderer {
       const sx = Math.floor(wx - camX);
       const sy = Math.floor(wy - camY);
 
+      const dirX = proj.direction?.x ?? proj.velocity.x;
+      const dirY = proj.direction?.y ?? proj.velocity.y;
+
       // Trail effect (skip on low quality)
       if (this.quality !== 'low') {
         ctx.globalAlpha = 0.3;
@@ -706,11 +709,13 @@ export class GameRenderer {
           this.animFrame,
           proj.velocity.x,
           proj.velocity.y,
+          dirX,
+          dirY,
         );
         ctx.globalAlpha = 1;
       }
 
-      this.sprites.drawProjectile(ctx, sx, sy, proj.type, this.animFrame, proj.velocity.x, proj.velocity.y);
+      this.sprites.drawProjectile(ctx, sx, sy, proj.type, this.animFrame, proj.velocity.x, proj.velocity.y, dirX, dirY);
     }
   }
 

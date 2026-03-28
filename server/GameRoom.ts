@@ -400,19 +400,25 @@ export class GameRoom {
       }
     }
 
+    // Build monster target list for auto-aim
+    const monsterTargets = Array.from(this.monsters.values()).map((m) => ({
+      position: { ...m.state.position },
+      alive: m.state.alive,
+    }));
+
     // Process player inputs
     for (const [socketId, player] of this.players) {
       const input = this.playerInputs.get(socketId);
       if (!input) continue;
 
-      const projectile = player.processInput(input, this.tiles, this.tick);
+      const projectile = player.processInput(input, this.tiles, this.tick, monsterTargets);
       if (projectile) {
         this.projectiles.set(projectile.state.id, projectile);
       }
 
       // Process ability
       if (input.ability) {
-        const abilityResult = player.useAbility();
+        const abilityResult = player.useAbility(monsterTargets);
         if (abilityResult) {
           switch (abilityResult.type) {
             case 'shield_wall':

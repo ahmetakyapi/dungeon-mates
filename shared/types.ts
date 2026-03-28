@@ -137,6 +137,7 @@ export type ProjectileState = {
   ownerId: string;
   position: Vec2;
   velocity: Vec2;
+  direction: Vec2;
   damage: number;
   lifetime: number;
   type: 'arrow' | 'fireball' | 'sword_slash';

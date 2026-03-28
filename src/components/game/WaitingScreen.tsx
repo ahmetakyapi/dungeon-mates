@@ -27,13 +27,13 @@ const GAME_TIPS = [
   'Minimap\'i takip et — düşmanları ve takım arkadaşlarını görebilirsin',
   'Sprint için Shift tuşuna bas — hızla hareket et',
   'ESC ile oyunu duraklatabilirsin',
-  'Her sınıfın kendine özel yeteneği var — class seçiminde incele',
+  'Her sınıfın kendine özel yeteneği var — sınıf seçiminde incele',
 ] as const;
 
 const FUN_FACTS = [
   '3 farklı sınıf, her biri benzersiz yetenek ve saldırı stiline sahip',
   'Zindanlar her oyunda rastgele üretilir — hiçbir oyun bir diğerine benzemez',
-  '2-4 kişi ile kooperatif oynayabilir veya solo meydan okumayı deneyebilirsin',
+  '2-4 kişi ile co-op oynayabilir veya solo meydan okumayı deneyebilirsin',
 ] as const;
 
 // ─── PARTICLES ─────────────────────────────────────────────

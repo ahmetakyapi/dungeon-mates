@@ -96,6 +96,7 @@ function GamePage() {
   const prevMonsterCountRef = useRef(0);
   const prevHpRef = useRef<number | null>(null);
   const prevLevelRef = useRef<number | null>(null);
+  const prevAttackingRef = useRef(false);
 
   const handleInput = useCallback(
     (input: PlayerInput) => {
@@ -223,6 +224,22 @@ function GamePage() {
   }, [localPlayer?.abilityCooldownTicks, localPlayer?.class]);
 
   // === Sound Effects ===
+
+  // Attack sound
+  useEffect(() => {
+    if (!localPlayer) return;
+    const wasAttacking = prevAttackingRef.current;
+    prevAttackingRef.current = localPlayer.attacking;
+
+    // Only play on transition from false -> true
+    if (localPlayer.attacking && !wasAttacking) {
+      switch (localPlayer.class) {
+        case 'warrior': sound.playSwordSlash(); break;
+        case 'archer': sound.playArrowShoot(); break;
+        case 'mage': sound.playFireball(); break;
+      }
+    }
+  }, [localPlayer?.attacking, localPlayer?.class, sound]);
 
   // Phase change sounds
   useEffect(() => {

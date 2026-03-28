@@ -1053,11 +1053,13 @@ export class SpriteRenderer {
     frame: number,
     vx = 0,
     vy = 0,
+    dirX = 0,
+    dirY = 0,
   ): void {
     switch (type) {
       case 'arrow': this.drawArrowProjectile(ctx, x, y, vx, vy); break;
       case 'fireball': this.drawFireballProjectile(ctx, x, y, frame); break;
-      case 'sword_slash': this.drawSwordSlashProjectile(ctx, x, y, frame); break;
+      case 'sword_slash': this.drawSwordSlashProjectile(ctx, x, y, frame, dirX, dirY); break;
     }
   }
 
@@ -1067,22 +1069,36 @@ export class SpriteRenderer {
     const cos = Math.cos(angle);
     const sin = Math.sin(angle);
 
-    // Arrow length = 7px
-    const len = 7;
+    // Arrow length = 9px
+    const len = 9;
     const tipX = Math.floor(x + cos * len);
     const tipY = Math.floor(y + sin * len);
-    const tailX = Math.floor(x - cos * 2);
-    const tailY = Math.floor(y - sin * 2);
+    const tailX = Math.floor(x - cos * 3);
+    const tailY = Math.floor(y - sin * 3);
 
-    // Draw arrow as line segments at angle
-    // Metal tip (2px)
+    // Motion trail (fading copies behind)
+    ctx.globalAlpha = 0.15;
+    const t1x = Math.floor(x - cos * 6);
+    const t1y = Math.floor(y - sin * 6);
+    px(ctx, t1x, t1y, 1, 1, '#78350f');
+
+    ctx.globalAlpha = 0.25;
+    const t2x = Math.floor(x - cos * 4);
+    const t2y = Math.floor(y - sin * 4);
+    px(ctx, t2x, t2y, 1, 1, '#92400e');
+    ctx.globalAlpha = 1;
+
+    // Metal tip (arrowhead)
     px(ctx, tipX, tipY, 2, 1, '#9ca3af');
     px(ctx, tipX - Math.floor(cos), tipY - Math.floor(sin), 1, 1, '#6b7280');
+    px(ctx, tipX + Math.floor(sin), tipY - Math.floor(cos), 1, 1, '#9ca3af');
+    px(ctx, tipX - Math.floor(sin), tipY + Math.floor(cos), 1, 1, '#9ca3af');
 
     // Wood shaft
-    const midX = Math.floor(x + cos * 2);
-    const midY = Math.floor(y + sin * 2);
+    const midX = Math.floor(x + cos * 3);
+    const midY = Math.floor(y + sin * 3);
     px(ctx, midX, midY, 1, 1, '#92400e');
+    px(ctx, Math.floor(x + cos), Math.floor(y + sin), 1, 1, '#78350f');
     px(ctx, x, y, 1, 1, '#78350f');
     px(ctx, Math.floor(x - cos), Math.floor(y - sin), 1, 1, '#78350f');
 
@@ -1090,6 +1106,8 @@ export class SpriteRenderer {
     px(ctx, tailX, tailY, 1, 1, '#fbbf24');
     px(ctx, tailX + Math.floor(sin), tailY - Math.floor(cos), 1, 1, '#f59e0b');
     px(ctx, tailX - Math.floor(sin), tailY + Math.floor(cos), 1, 1, '#f59e0b');
+    px(ctx, tailX + Math.floor(sin * 2), tailY - Math.floor(cos * 2), 1, 1, '#d97706');
+    px(ctx, tailX - Math.floor(sin * 2), tailY + Math.floor(cos * 2), 1, 1, '#d97706');
   }
 
   private drawFireballProjectile(ctx: CanvasRenderingContext2D, x: number, y: number, frame: number): void {
@@ -1123,21 +1141,64 @@ export class SpriteRenderer {
     ctx.globalAlpha = 1;
   }
 
-  private drawSwordSlashProjectile(ctx: CanvasRenderingContext2D, x: number, y: number, frame: number): void {
+  private drawSwordSlashProjectile(ctx: CanvasRenderingContext2D, x: number, y: number, frame: number, dirX: number, dirY: number): void {
     const slashPhase = frame % 4;
+    const progress = slashPhase / 3; // 0 to 1
 
-    // Arc-shaped white/silver trail that fades
-    ctx.globalAlpha = 0.8 - slashPhase * 0.15;
+    // Determine primary direction angle
+    const angle = Math.atan2(dirY || 0, dirX || 1);
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
 
-    // Main arc
-    px(ctx, x - 3 + slashPhase, y - 5, 2, 10, '#e5e7eb');
-    px(ctx, x - 2 + slashPhase, y - 4, 3, 8, '#ffffff');
+    // Perpendicular for arc sweep
+    const perpX = -sin;
+    const perpY = cos;
 
-    // Star particles
-    ctx.globalAlpha = 0.6;
-    px(ctx, x - 1 + slashPhase * 2, y - 6, 1, 1, '#ffffff');
-    px(ctx, x + 2 - slashPhase, y + 4, 1, 1, '#fef3c7');
-    px(ctx, x + slashPhase, y - 3, 1, 1, '#ffffff');
+    // Arc sweep: start from one side, sweep to the other
+    const sweepStart = -1 + progress * 2; // -1 to 1
+    const arcRadius = 10;
+    const arcWidth = 12;
+
+    // Main slash arc (multiple segments along the sweep)
+    const segments = 5;
+    for (let i = 0; i < segments; i++) {
+      const t = sweepStart + (i / segments) * 0.8;
+      if (t < -1 || t > 1) continue;
+
+      const segAlpha = 0.9 - Math.abs(t - sweepStart) * 0.3 - progress * 0.2;
+      ctx.globalAlpha = Math.max(0, segAlpha);
+
+      const ox = Math.floor(cos * arcRadius * 0.6 + perpX * t * arcWidth);
+      const oy = Math.floor(sin * arcRadius * 0.6 + perpY * t * arcWidth);
+
+      // White/silver slash trail
+      px(ctx, x + ox, y + oy, 2, 2, '#ffffff');
+      px(ctx, x + ox - 1, y + oy - 1, 1, 1, '#e5e7eb');
+    }
+
+    // Leading edge glow
+    const edgeT = sweepStart + 0.8;
+    const edgeAlpha = 0.8 - progress * 0.3;
+    ctx.globalAlpha = Math.max(0, edgeAlpha);
+    const edgeX = Math.floor(cos * arcRadius * 0.6 + perpX * edgeT * arcWidth);
+    const edgeY = Math.floor(sin * arcRadius * 0.6 + perpY * edgeT * arcWidth);
+    px(ctx, x + edgeX, y + edgeY, 3, 3, '#fef3c7');
+
+    // Directional spark particles
+    ctx.globalAlpha = 0.7 - progress * 0.3;
+    for (let s = 0; s < 3; s++) {
+      const sparkT = sweepStart + s * 0.3;
+      const sparkDist = arcRadius * (0.4 + s * 0.15);
+      const sparkX = Math.floor(cos * sparkDist * 0.5 + perpX * sparkT * arcWidth * 1.2);
+      const sparkY = Math.floor(sin * sparkDist * 0.5 + perpY * sparkT * arcWidth * 1.2);
+      px(ctx, x + sparkX, y + sparkY, 1, 1, s === 0 ? '#ffffff' : '#fef3c7');
+    }
+
+    // Center flash on early frames
+    if (slashPhase < 2) {
+      ctx.globalAlpha = 0.4 - progress * 0.3;
+      px(ctx, x - 1, y - 1, 3, 3, '#ffffff');
+    }
 
     ctx.globalAlpha = 1;
   }

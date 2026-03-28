@@ -294,7 +294,7 @@ export function ClassSelect({
         animate={{ opacity: 1 }}
         transition={{ delay: 0.2 }}
       >
-        Zindana kimle dalacaksın?
+        Hangi sınıfla dalacaksın?
       </motion.p>
 
       {/* Class cards — stack vertically on small screens, horizontal on larger */}

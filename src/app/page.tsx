@@ -33,13 +33,13 @@ const STAT_LABELS = [
 const FEATURES = [
   {
     icon: '⚔️',
-    title: 'Kooperatif Macera',
+    title: 'Co-op Macera',
     desc: '2-4 kişi birlikte oyna, birbirinizi destekleyin',
     color: '#ef4444',
   },
   {
     icon: '🗺️',
-    title: 'Prosedürel Zindanlar',
+    title: 'Rastgele Zindanlar',
     desc: 'Her oyunda rastgele üretilen farklı haritalar',
     color: '#3b82f6',
   },
@@ -643,7 +643,7 @@ export default function HomePage() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5, duration: 0.3 }}
           >
-            Kooperatif Zindan Macerası
+            Co-op Zindan Macerası
           </motion.p>
 
           {/* Gate */}

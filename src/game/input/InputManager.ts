@@ -18,7 +18,7 @@ const KEY_BINDINGS = {
   toggleMap: ['Tab'] as const,
 } as const;
 
-const ATTACK_DEBOUNCE_MS = 300; // Match server-side attack cooldown
+const ATTACK_DEBOUNCE_MS = 100; // Minimal debounce; server handles cooldowns
 
 export class InputManager {
   private readonly keysDown: Set<string> = new Set();
@@ -160,7 +160,7 @@ export class InputManager {
       }
     }
 
-    const attack = this.attackPressed || this.gamepadAttackPressed;
+    const attack = this.attackPressed || this.gamepadAttackPressed || this.isDown(KEY_BINDINGS.attack) || this.isGamepadButtonDown(0);
     const ability = this.abilityPressed || this.gamepadAbilityPressed;
     const interact = this.interactPressed || this.gamepadInteractPressed;
     const toggleMap = this.toggleMapPressed;

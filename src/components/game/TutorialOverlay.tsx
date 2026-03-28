@@ -199,7 +199,7 @@ function SlideDungeon() {
 const TIPS = [
   'Takım halinde hareket et — yalnız kalma!',
   'Can iksirleri canavar öldürdüğünde düşer',
-  'Büyücünün mana\'sı var — dikkatli kullan',
+  'Büyücünün manası sınırlı — dikkatli kullan',
   'Yeteneğin (E) hazır olduğunda HUD\'da parlak görünür',
   'Sandıklar her zaman loot verir — kaçırma!',
   'Odadaki tüm canavarları öldürünce kapılar açılır',

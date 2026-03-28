@@ -30,6 +30,8 @@ const SOLO_NO_COMBAT_THRESHOLD = 100; // ticks without damage before HP regen
 const SOLO_MAX_DEATHS = 3;
 const SOLO_RESPAWN_DELAY_TICKS = 3 * TICK_RATE;
 
+export type MonsterTarget = { position: Vec2; alive: boolean };
+
 export class Player {
   public state: PlayerState;
   public totalDeaths: number;
@@ -104,7 +106,7 @@ export class Player {
     this.spawnPosition = { ...pos };
   }
 
-  processInput(input: PlayerInput, tiles: TileType[][], currentTick: number): Projectile | null {
+  processInput(input: PlayerInput, tiles: TileType[][], currentTick: number, monsters: MonsterTarget[] = []): Projectile | null {
     // Tick down ability cooldown
     if (this.abilityCooldownTicks > 0) this.abilityCooldownTicks--;
 
@@ -186,7 +188,8 @@ export class Player {
         this.attackAnimTicks = 4;
         this.state.attacking = true;
         this.state.lastAttackTime = currentTick;
-        projectile = this.createAttack();
+        const aimDir = this.findNearestTarget(monsters);
+        projectile = this.createAttack(aimDir ?? undefined);
       }
     }
 
@@ -205,8 +208,11 @@ export class Player {
     return projectile;
   }
 
-  private createAttack(): Projectile | null {
-    const dir = this.getFacingVector();
+  private createAttack(aimDir?: Vec2): Projectile | null {
+    if (aimDir) {
+      this.applyAimFacing(aimDir);
+    }
+    const dir = aimDir ?? this.getFacingVector();
     const classStats = CLASS_STATS[this.state.class];
 
     const spawnPos: Vec2 = {
@@ -245,6 +251,32 @@ export class Player {
           'fireball',
         );
       }
+    }
+  }
+
+  findNearestTarget(monsters: MonsterTarget[]): Vec2 | null {
+    const range = CLASS_STATS[this.state.class].attackRange;
+    let closest: { dir: Vec2; dist: number } | null = null;
+
+    for (const m of monsters) {
+      if (!m.alive) continue;
+      const dx = m.position.x - this.state.position.x;
+      const dy = m.position.y - this.state.position.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist <= range * 1.5 && dist > 0.01 && (!closest || dist < closest.dist)) {
+        closest = { dir: { x: dx / dist, y: dy / dist }, dist };
+      }
+    }
+
+    return closest?.dir ?? null;
+  }
+
+  private applyAimFacing(aimDir: Vec2): void {
+    if (Math.abs(aimDir.x) > Math.abs(aimDir.y)) {
+      this.state.facing = aimDir.x > 0 ? 'right' : 'left';
+    } else {
+      this.state.facing = aimDir.y > 0 ? 'down' : 'up';
     }
   }
 
@@ -386,7 +418,7 @@ export class Player {
     this.state.defense = Math.floor(baseStats.defense * multiplier);
   }
 
-  useAbility(): ServerAbilityResult | null {
+  useAbility(monsters: MonsterTarget[] = []): ServerAbilityResult | null {
     if (this.abilityCooldownTicks > 0) return null;
 
     switch (this.state.class) {
@@ -414,8 +446,13 @@ export class Player {
         this.state.mana -= 20;
         this.abilityActiveTicks = 10; // 0.5 saniye görsel geri bildirim
         this.abilityCooldownTicks = 200; // 10 saniye
+        // Auto-aim toward nearest target
+        const aimDir = this.findNearestTarget(monsters);
+        if (aimDir) {
+          this.applyAimFacing(aimDir);
+        }
+        const baseDir = aimDir ?? this.getFacingVector();
         // 5 ok yelpaze şeklinde (60 derece açı)
-        const baseDir = this.getFacingVector();
         const spreadAngle = Math.PI / 3; // 60 derece toplam
         const arrows: Projectile[] = [];
         for (let i = 0; i < 5; i++) {

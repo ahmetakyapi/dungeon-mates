@@ -40,6 +40,7 @@ export class Projectile {
       ownerId,
       position: { x: position.x, y: position.y },
       velocity: { x: direction.x * speed, y: direction.y * speed },
+      direction: { x: direction.x, y: direction.y },
       damage,
       lifetime: config.lifetime * TICK_RATE,
       type,

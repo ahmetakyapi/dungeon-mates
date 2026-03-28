@@ -16,9 +16,9 @@ const pressStart2P = Press_Start_2P({
 });
 
 export const metadata: Metadata = {
-  title: 'Dungeon Mates — Kooperatif Zindan Macerası',
+  title: 'Dungeon Mates — Co-op Zindan Macerası',
   description:
-    'Arkadaşlarınla birlikte zindanın derinliklerine dal! 2-4 kişilik kooperatif pixel art dungeon crawler.',
+    'Arkadaşlarınla birlikte zindanın derinliklerine dal! 2-4 kişilik co-op pixel art dungeon crawler.',
 };
 
 export const viewport: Viewport = {

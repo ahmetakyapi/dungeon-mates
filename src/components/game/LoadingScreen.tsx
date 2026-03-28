@@ -25,7 +25,7 @@ const GAME_TIPS: Record<number, readonly string[]> = {
   1: [
     'İlk kat — acele etme, kontrollere alış.',
     'İskeletler yavaştır ama güçlüdür — mesafe koru.',
-    'Slime\'lar kolay ama sürü halinde tehlikeli.',
+    'Balçıklar kolay ama sürü halinde tehlikeli.',
   ],
   2: [
     'İkinci katta yarasalar var — hızlı hareket et!',
