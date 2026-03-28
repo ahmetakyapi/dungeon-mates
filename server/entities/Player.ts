@@ -42,6 +42,7 @@ export class Player {
   private abilityActiveTicks: number;
   private speedBoostMultiplier: number;
   private speedBoostTicks: number;
+  private attackAnimTicks: number;
 
   constructor(id: string, name: string, spawnPos: Vec2) {
     this.spawnPosition = { ...spawnPos };
@@ -54,6 +55,7 @@ export class Player {
     this.abilityActiveTicks = 0;
     this.speedBoostMultiplier = 1;
     this.speedBoostTicks = 0;
+    this.attackAnimTicks = 0;
 
     this.state = {
       id,
@@ -168,13 +170,20 @@ export class Player {
 
     // Attack
     let projectile: Projectile | null = null;
-    this.state.attacking = false;
+
+    if (this.attackAnimTicks > 0) {
+      this.attackAnimTicks--;
+      this.state.attacking = true;
+    } else {
+      this.state.attacking = false;
+    }
 
     if (input.attack) {
       const cooldown = classStats.attackCooldown;
       const tickCooldown = Math.ceil(cooldown / (1000 / TICK_RATE));
 
       if (currentTick - this.state.lastAttackTime >= tickCooldown) {
+        this.attackAnimTicks = 4;
         this.state.attacking = true;
         this.state.lastAttackTime = currentTick;
         projectile = this.createAttack();
@@ -403,6 +412,7 @@ export class Player {
       case 'archer': {
         if (this.state.mana < 20) return null;
         this.state.mana -= 20;
+        this.abilityActiveTicks = 10; // 0.5 saniye görsel geri bildirim
         this.abilityCooldownTicks = 200; // 10 saniye
         // 5 ok yelpaze şeklinde (60 derece açı)
         const baseDir = this.getFacingVector();

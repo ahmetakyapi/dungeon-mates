@@ -608,34 +608,49 @@ export class GameRoom {
       this.loot.delete(lootId);
     }
 
-    // Sandık ve merdiven etkileşimi
-    for (const player of this.players.values()) {
+    // Sandık ve merdiven etkileşimi (R tuşu ile, 1.5 tile yarıçapında)
+    const INTERACT_RADIUS = 1.5;
+    for (const [socketId, player] of this.players) {
       if (!player.state.alive) continue;
-      const tileX = Math.floor(player.state.position.x);
-      const tileY = Math.floor(player.state.position.y);
+      const input = this.playerInputs.get(socketId);
+      if (!input?.interact) continue;
+      input.interact = false; // Consume the interact input
 
-      if (tileY >= 0 && tileY < this.tiles.length && tileX >= 0 && tileX < this.tiles[0].length) {
-        // Sandık etkileşimi
-        if (this.tiles[tileY][tileX] === 'chest' && !this.openedChests.has(this.posKey(tileX, tileY))) {
-          this.openedChests.add(this.posKey(tileX, tileY));
-          this.tiles[tileY][tileX] = 'floor';
+      const px = player.state.position.x;
+      const py = player.state.position.y;
+      const startX = Math.max(0, Math.floor(px - INTERACT_RADIUS));
+      const endX = Math.min(this.tiles[0].length - 1, Math.floor(px + INTERACT_RADIUS));
+      const startY = Math.max(0, Math.floor(py - INTERACT_RADIUS));
+      const endY = Math.min(this.tiles.length - 1, Math.floor(py + INTERACT_RADIUS));
 
-          this.io.to(this.roomCode).emit('game:chest_opened', { x: tileX, y: tileY });
+      for (let ty = startY; ty <= endY; ty++) {
+        for (let tx = startX; tx <= endX; tx++) {
+          const dx = px - (tx + 0.5);
+          const dy = py - (ty + 0.5);
+          if (dx * dx + dy * dy > INTERACT_RADIUS * INTERACT_RADIUS) continue;
 
-          // 2-4 loot düşür
-          const lootCount = 2 + Math.floor(Math.random() * 3);
-          for (let i = 0; i < lootCount; i++) {
-            this.dropLoot({ x: tileX + 0.5, y: tileY + 0.5 });
+          // Sandık etkileşimi
+          if (this.tiles[ty][tx] === 'chest' && !this.openedChests.has(this.posKey(tx, ty))) {
+            this.openedChests.add(this.posKey(tx, ty));
+            this.tiles[ty][tx] = 'floor';
+
+            this.io.to(this.roomCode).emit('game:chest_opened', { x: tx, y: ty });
+
+            // 2-4 loot düşür
+            const lootCount = 2 + Math.floor(Math.random() * 3);
+            for (let i = 0; i < lootCount; i++) {
+              this.dropLoot({ x: tx + 0.5, y: ty + 0.5 });
+            }
           }
-        }
 
-        // Merdiven etkileşimi
-        if (this.tiles[tileY][tileX] === 'stairs') {
-          const allRoomsCleared = this.rooms.every(r => r.cleared || r.isStartRoom);
-          if (allRoomsCleared && this.currentFloor < this.maxFloors) {
-            this.io.to(this.roomCode).emit('game:stairs_used');
-            this.advanceToNextFloor();
-            break;
+          // Merdiven etkileşimi
+          if (this.tiles[ty][tx] === 'stairs') {
+            const allRoomsCleared = this.rooms.every(r => r.cleared || r.isStartRoom);
+            if (allRoomsCleared && this.currentFloor < this.maxFloors) {
+              this.io.to(this.roomCode).emit('game:stairs_used');
+              this.advanceToNextFloor();
+              break;
+            }
           }
         }
       }

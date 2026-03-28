@@ -12,8 +12,8 @@ import { SpriteRenderer } from './SpriteRenderer';
 import { ParticleSystem } from './ParticleSystem';
 
 // Logical render resolution
-const LOGICAL_WIDTH_DESKTOP = 320;
-const LOGICAL_HEIGHT_DESKTOP = 240;
+const LOGICAL_WIDTH_DESKTOP = 480;
+const LOGICAL_HEIGHT_DESKTOP = 270;
 const LOGICAL_WIDTH_MOBILE = 280;
 const LOGICAL_HEIGHT_MOBILE = 210;
 
@@ -562,11 +562,8 @@ export class GameRenderer {
         this.canvas.style.height = `${h}px`;
       }
     } else {
-      const scaleX = Math.floor(w / this.logicalWidth) || 1;
-      const scaleY = Math.floor(h / this.logicalHeight) || 1;
-      const scale = Math.min(scaleX, scaleY);
-      const newW = this.logicalWidth * scale;
-      const newH = this.logicalHeight * scale;
+      const newW = w;
+      const newH = h;
       if (this.canvas.width !== newW || this.canvas.height !== newH) {
         this.canvas.width = newW;
         this.canvas.height = newH;

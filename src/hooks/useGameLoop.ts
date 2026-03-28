@@ -129,9 +129,7 @@ export function useGameLoop({
 
     // Handle resize
     const handleResize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      renderer?.resize(canvas.width, canvas.height);
+      renderer?.resize(window.innerWidth, window.innerHeight);
     };
 
     handleResize();
