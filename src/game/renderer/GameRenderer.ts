@@ -6,7 +6,7 @@
 // ==========================================
 
 import type { GameState, PlayerState, MonsterState, ProjectileState, LootState, TileType } from '../../../shared/types';
-import { TILE_SIZE, CLASS_STATS, MONSTER_STATS } from '../../../shared/types';
+import { TILE_SIZE, CLASS_STATS, MONSTER_STATS, LOOT_TABLE } from '../../../shared/types';
 import { Camera } from './Camera';
 import { SpriteRenderer } from './SpriteRenderer';
 import { ParticleSystem } from './ParticleSystem';
@@ -27,6 +27,8 @@ const QUALITY_PRESETS = {
 type QualityLevel = keyof typeof QUALITY_PRESETS;
 
 // Damage number floating text
+type DamageNumberKind = 'damage' | 'heal' | 'gold' | 'critical';
+
 type DamageNumber = {
   x: number;
   y: number;
@@ -34,6 +36,8 @@ type DamageNumber = {
   color: string;
   life: number;
   maxLife: number;
+  kind: DamageNumberKind;
+  scale: number;
 };
 
 const DAMAGE_NUMBER_DURATION = 1.2;
@@ -102,8 +106,23 @@ export class GameRenderer {
   private torchPositions: Array<{ x: number; y: number }> = [];
   private torchCacheTick = -1;
 
+  // Film grain noise canvas (pre-generated, cycled)
+  private grainCanvas: HTMLCanvasElement | null = null;
+  private grainPhase = 0;
+
+  // Low HP vignette pulse timer
+  private lowHpPulseTimer = 0;
+
+  // Torch flame animation frame
+  private torchFlameFrame = 0;
+  private torchFlameTimer = 0;
+
   // Pre-created radial gradient canvas for fog (avoids creating gradients per-frame)
   private fogGradientCanvas: HTMLCanvasElement | null = null;
+
+  // Lighting overlay canvas
+  private lightingCanvas: HTMLCanvasElement | null = null;
+  private lightingCtx: CanvasRenderingContext2D | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -140,6 +159,15 @@ export class GameRenderer {
 
     // Pre-create fog gradient canvas
     this.createFogGradientCanvas();
+
+    // Pre-create film grain canvas
+    this.createGrainCanvas();
+
+    // Create lighting overlay canvas
+    this.lightingCanvas = document.createElement('canvas');
+    this.lightingCanvas.width = this.logicalWidth;
+    this.lightingCanvas.height = this.logicalHeight;
+    this.lightingCtx = this.lightingCanvas.getContext('2d');
   }
 
   /** Get the camera instance (for external zoom control, etc.) */
@@ -160,17 +188,57 @@ export class GameRenderer {
   }
 
   /** Add a floating damage number */
-  addDamageNumber(x: number, y: number, amount: number, isHealing: boolean): void {
+  addDamageNumber(x: number, y: number, amount: number, isHealing: boolean, kind?: DamageNumberKind): void {
     if (this.damageNumbers.length >= MAX_DAMAGE_NUMBERS) {
       this.damageNumbers.shift();
     }
+
+    let resolvedKind: DamageNumberKind = kind ?? (isHealing ? 'heal' : 'damage');
+    let color: string;
+    let text: string;
+    let scale = 1;
+
+    switch (resolvedKind) {
+      case 'heal':
+        color = '#4ade80';
+        text = `+${amount}`;
+        break;
+      case 'gold':
+        color = '#fbbf24';
+        text = `+${amount}g`;
+        break;
+      case 'critical':
+        color = '#ff6b6b';
+        text = `${amount}!`;
+        scale = 1.5;
+        break;
+      case 'damage':
+      default:
+        color = '#ef4444';
+        text = `${amount}`;
+        resolvedKind = 'damage';
+        break;
+    }
+
+    // Stack nearby numbers: offset Y if another number is very close
+    for (let i = 0; i < this.damageNumbers.length; i++) {
+      const dn = this.damageNumbers[i];
+      const dx = Math.abs(dn.x - x);
+      const dy = Math.abs(dn.y - y);
+      if (dx < 8 && dy < 8 && dn.life > dn.maxLife * 0.7) {
+        y -= 6;
+      }
+    }
+
     this.damageNumbers.push({
       x,
       y,
-      text: isHealing ? `+${amount}` : `${amount}`,
-      color: isHealing ? '#4ade80' : '#ef4444',
+      text,
+      color,
       life: DAMAGE_NUMBER_DURATION,
       maxLife: DAMAGE_NUMBER_DURATION,
+      kind: resolvedKind,
+      scale,
     });
   }
 
@@ -251,13 +319,20 @@ export class GameRenderer {
     if (preset.particles) {
       this.particles.update(dt);
 
-      // Spawn ambient dust particles
+      // Spawn ambient dust particles (more frequent)
       this.dustSpawnTimer += dt;
-      if (this.dustSpawnTimer >= 0.5) {
-        this.dustSpawnTimer -= 0.5;
+      if (this.dustSpawnTimer >= 0.3) {
+        this.dustSpawnTimer -= 0.3;
         const camX = this.camera.scrollX;
         const camY = this.camera.scrollY;
         this.particles.emitDustAmbient(camX, camY, this.logicalWidth, this.logicalHeight);
+
+        // Occasional water drip in explored rooms
+        if (Math.random() < 0.15) {
+          const dripX = camX + Math.random() * this.logicalWidth;
+          const dripY = camY + Math.random() * this.logicalHeight * 0.3;
+          this.particles.emitDrip(dripX, dripY);
+        }
       }
 
       // Boss aura particles
@@ -330,7 +405,7 @@ export class GameRenderer {
     // 1. Render tiles
     this.renderTiles(ctx, state, camX, camY, startTileX, startTileY, endTileX, endTileY);
 
-    // 2. Render torch light sources on floor
+    // 2. Render torch light sources on floor (additive glow on top)
     if (preset.effects) {
       this.renderTorchLights(ctx, camX, camY);
     }
@@ -338,37 +413,39 @@ export class GameRenderer {
     // 3. Render loot
     this.renderLoot(ctx, state, camX, camY);
 
-    // 4. Render monsters
+    // 5. Render monsters
     this.renderMonsters(ctx, state, camX, camY);
 
-    // 5. Render projectiles
+    // 6. Render projectiles
     this.renderProjectiles(ctx, state, camX, camY);
 
-    // 6. Render players
+    // 7. Render players
     this.renderPlayers(ctx, state, camX, camY, localPlayerId);
 
-    // 7. Render particles
+    // 8. Render particles
     if (preset.particles) {
       this.particles.render(ctx, camX, camY);
     }
 
-    // 8. Render damage numbers
+    // 9. Render damage numbers
     this.renderDamageNumbers(ctx, camX, camY);
 
-    // 9. Render fog of war (with gradient edges)
+    // 10. Render fog of war (with gradient edges)
     this.renderFog(ctx, state, camX, camY, startTileX, startTileY, endTileX, endTileY, localPlayerId);
 
-    // 10. Post-processing effects (drawn on top of everything)
+    // 11. Post-processing effects (drawn on top of everything)
     if (preset.effects) {
-      // Red tint as player HP gets lower
+      // Low HP: pulsing red vignette (not flat tint)
       if (localPlayer && localPlayer.alive) {
         const hpRatio = localPlayer.hp / localPlayer.maxHp;
         if (hpRatio < 0.5) {
-          const intensity = (1 - hpRatio / 0.5) * 0.25; // max 0.25 alpha at 0 hp
-          ctx.globalAlpha = intensity;
-          ctx.fillStyle = '#ef4444';
-          ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
-          ctx.globalAlpha = 1;
+          this.lowHpPulseTimer += dt * 3;
+          const pulse = 0.5 + Math.sin(this.lowHpPulseTimer) * 0.5; // 0..1 pulse
+          const baseIntensity = (1 - hpRatio / 0.5) * 0.3; // max 0.3 at 0 hp
+          const intensity = baseIntensity * (0.6 + pulse * 0.4); // pulsing between 60%-100%
+          this.renderRedVignette(ctx, intensity);
+        } else {
+          this.lowHpPulseTimer = 0;
         }
       }
 
@@ -381,6 +458,9 @@ export class GameRenderer {
         ctx.fillStyle = '#7f1d1d';
         ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
         ctx.globalAlpha = 1;
+
+        // Heat distortion effect (subtle wave via shifting scanlines)
+        this.renderHeatDistortion(ctx, nowSec);
       }
 
       // Vignette effect during boss fights
@@ -390,6 +470,9 @@ export class GameRenderer {
         // Subtle vignette always
         this.renderVignette(ctx, 0.15);
       }
+
+      // Subtle film grain overlay
+      this.renderFilmGrain(ctx, dt);
     }
 
     // Screen flash overlay
@@ -428,25 +511,271 @@ export class GameRenderer {
     ctx.fillRect(0, 0, w, h);
   }
 
-  /** Render light circles at torch positions */
+  /** Render pulsing red vignette for low HP */
+  private renderRedVignette(ctx: CanvasRenderingContext2D, intensity: number): void {
+    const w = this.logicalWidth;
+    const h = this.logicalHeight;
+    const cx = w / 2;
+    const cy = h / 2;
+    const radius = Math.max(cx, cy);
+
+    const gradient = ctx.createRadialGradient(cx, cy, radius * 0.3, cx, cy, radius * 1.1);
+    gradient.addColorStop(0, 'rgba(0,0,0,0)');
+    gradient.addColorStop(0.5, 'rgba(127,29,29,0)');
+    gradient.addColorStop(1, `rgba(220,38,38,${intensity})`);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, w, h);
+  }
+
+  /** Render subtle film grain noise overlay */
+  private renderFilmGrain(ctx: CanvasRenderingContext2D, dt: number): void {
+    if (!this.grainCanvas) return;
+    this.grainPhase += dt;
+    // Cycle grain every ~0.1s by shifting the source
+    if (this.grainPhase > 0.1) {
+      this.grainPhase -= 0.1;
+      this.createGrainCanvas(); // regenerate noise
+    }
+    ctx.globalAlpha = 0.03; // very subtle
+    ctx.drawImage(this.grainCanvas, 0, 0, this.logicalWidth, this.logicalHeight);
+    ctx.globalAlpha = 1;
+  }
+
+  /** Create grain noise canvas (small, tiled) */
+  private createGrainCanvas(): void {
+    const size = 64;
+    if (!this.grainCanvas) {
+      this.grainCanvas = document.createElement('canvas');
+      this.grainCanvas.width = size;
+      this.grainCanvas.height = size;
+    }
+    const gCtx = this.grainCanvas.getContext('2d');
+    if (!gCtx) return;
+    const imageData = gCtx.createImageData(size, size);
+    const data = imageData.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const v = Math.random() * 255;
+      data[i] = v;
+      data[i + 1] = v;
+      data[i + 2] = v;
+      data[i + 3] = 255;
+    }
+    gCtx.putImageData(imageData, 0, 0);
+  }
+
+  /** Render heat distortion for boss room (subtle horizontal scanline shift) */
+  private renderHeatDistortion(ctx: CanvasRenderingContext2D, time: number): void {
+    // Very subtle: shift a few scanlines horizontally by 1px based on sine wave
+    const w = this.logicalWidth;
+    const h = this.logicalHeight;
+    ctx.globalAlpha = 0.04;
+    for (let y = 0; y < h; y += 4) {
+      const shift = Math.sin(time * 2 + y * 0.15) * 1.5;
+      ctx.drawImage(this.offscreen, 0, y, w, 2, shift, y, w, 2);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /** Render warm light circles at torch positions with animated flame sprites */
   private renderTorchLights(ctx: CanvasRenderingContext2D, camX: number, camY: number): void {
+    // Update torch flame animation (cycle 3 patterns at ~6fps)
+    this.torchFlameTimer += 1;
+    if (this.torchFlameTimer >= 2) {
+      this.torchFlameTimer = 0;
+      this.torchFlameFrame = (this.torchFlameFrame + 1) % 3;
+    }
+
     for (let i = 0; i < this.torchPositions.length; i++) {
       const torch = this.torchPositions[i];
       const sx = torch.x - camX;
       const sy = torch.y - camY;
 
       // Skip off-screen torches
-      if (sx < -24 || sx > this.logicalWidth + 24 || sy < -24 || sy > this.logicalHeight + 24) continue;
+      if (sx < -30 || sx > this.logicalWidth + 30 || sy < -30 || sy > this.logicalHeight + 30) continue;
 
-      // Small circle of brighter illumination
-      const lightRadius = 20;
-      const gradient = ctx.createRadialGradient(sx, sy, 0, sx, sy, lightRadius);
-      gradient.addColorStop(0, 'rgba(255,200,100,0.12)');
-      gradient.addColorStop(0.5, 'rgba(255,160,60,0.06)');
-      gradient.addColorStop(1, 'rgba(255,120,20,0)');
+      // Warm-colored light circle (larger, warmer tint)
+      const lightRadius = 24;
+      const flicker = 1 + Math.sin(this.animFrame * 0.7 + i * 1.3) * 0.08;
+      const r = lightRadius * flicker;
+      const gradient = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
+      gradient.addColorStop(0, 'rgba(255,180,80,0.15)');
+      gradient.addColorStop(0.3, 'rgba(255,150,50,0.10)');
+      gradient.addColorStop(0.6, 'rgba(255,120,30,0.04)');
+      gradient.addColorStop(1, 'rgba(255,100,20,0)');
       ctx.fillStyle = gradient;
-      ctx.fillRect(sx - lightRadius, sy - lightRadius, lightRadius * 2, lightRadius * 2);
+      ctx.fillRect(sx - r, sy - r, r * 2, r * 2);
+
+      // Enhanced flame sprite (5x8px, animated 3 patterns)
+      this.drawEnhancedFlame(ctx, Math.floor(sx) - 2, Math.floor(sy) - 8, this.torchFlameFrame, i);
+
+      // Smoke wisps above flame (2-3 gray pixels rising)
+      const smokeAlpha = 0.2 + Math.sin(this.animFrame * 0.5 + i * 2) * 0.1;
+      ctx.globalAlpha = smokeAlpha;
+      ctx.fillStyle = '#6b7280';
+      ctx.fillRect(Math.floor(sx) + (this.torchFlameFrame % 2), Math.floor(sy) - 11, 1, 1);
+      ctx.fillRect(Math.floor(sx) - 1 + ((this.torchFlameFrame + 1) % 2), Math.floor(sy) - 13, 1, 1);
+      if (this.torchFlameFrame === 2) {
+        ctx.fillRect(Math.floor(sx) + 1, Math.floor(sy) - 14, 1, 1);
+      }
+      ctx.globalAlpha = 1;
     }
+  }
+
+  /** Draw an enhanced flame sprite (5x8px) with 3 animation frames */
+  private drawEnhancedFlame(ctx: CanvasRenderingContext2D, x: number, y: number, frame: number, seed: number): void {
+    // Core white (hottest center)
+    // Mid yellow
+    // Outer orange
+    // Tip red
+    switch (frame) {
+      case 0:
+        // Tall narrow flame
+        ctx.fillStyle = '#ef4444'; // Red tip
+        ctx.fillRect(x + 1, y, 3, 2);
+        ctx.fillStyle = '#f97316'; // Orange outer
+        ctx.fillRect(x + 1, y + 2, 3, 2);
+        ctx.fillStyle = '#fbbf24'; // Yellow mid
+        ctx.fillRect(x + 1, y + 4, 3, 2);
+        ctx.fillStyle = '#fef3c7'; // White core
+        ctx.fillRect(x + 2, y + 3, 1, 3);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(x + 2, y + 5, 1, 2);
+        break;
+      case 1:
+        // Wide swaying flame
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(x, y + 1, 2, 1);
+        ctx.fillRect(x + 3, y, 2, 1);
+        ctx.fillStyle = '#f97316';
+        ctx.fillRect(x, y + 2, 5, 2);
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillRect(x + 1, y + 4, 3, 2);
+        ctx.fillStyle = '#fef3c7';
+        ctx.fillRect(x + 2, y + 4, 1, 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(x + 2, y + 5, 1, 2);
+        break;
+      case 2:
+        // Flickering split flame
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(x + 1, y, 1, 2);
+        ctx.fillRect(x + 3, y, 1, 2);
+        ctx.fillStyle = '#f97316';
+        ctx.fillRect(x, y + 2, 5, 2);
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillRect(x + 1, y + 4, 3, 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(x + 2, y + 4, 1, 3);
+        break;
+    }
+  }
+
+  /** Dynamic lighting system -- creates atmospheric dungeon lighting */
+  private renderLighting(
+    ctx: CanvasRenderingContext2D,
+    state: GameState,
+    camX: number,
+    camY: number,
+    localPlayerId: string,
+    isBossPhase: boolean,
+  ): void {
+    const lCtx = this.lightingCtx;
+    const lCanvas = this.lightingCanvas;
+    if (!lCtx || !lCanvas) return;
+
+    if (lCanvas.width !== this.logicalWidth || lCanvas.height !== this.logicalHeight) {
+      lCanvas.width = this.logicalWidth;
+      lCanvas.height = this.logicalHeight;
+    }
+
+    lCtx.globalCompositeOperation = 'source-over';
+    lCtx.fillStyle = 'rgba(0,0,0,0.35)';
+    lCtx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
+
+    lCtx.globalCompositeOperation = 'destination-out';
+
+    for (let i = 0; i < this.torchPositions.length; i++) {
+      const torch = this.torchPositions[i];
+      const sx = torch.x - camX;
+      const sy = torch.y - camY;
+      if (sx < -50 || sx > this.logicalWidth + 50 || sy < -50 || sy > this.logicalHeight + 50) continue;
+      const flickerScale = 1 + Math.sin(this.animFrame * 0.7 + i * 1.3) * 0.06;
+      const radius = 40 * flickerScale;
+      const gradient = lCtx.createRadialGradient(sx, sy, 0, sx, sy, radius);
+      gradient.addColorStop(0, 'rgba(0,0,0,0.9)');
+      gradient.addColorStop(0.3, 'rgba(0,0,0,0.6)');
+      gradient.addColorStop(0.6, 'rgba(0,0,0,0.3)');
+      gradient.addColorStop(1, 'rgba(0,0,0,0)');
+      lCtx.fillStyle = gradient;
+      lCtx.fillRect(sx - radius, sy - radius, radius * 2, radius * 2);
+    }
+
+    const lp = state.players[localPlayerId];
+    if (lp && lp.alive) {
+      const plx = lp.position.x * TILE_SIZE + TILE_SIZE / 2 - camX;
+      const ply = lp.position.y * TILE_SIZE + TILE_SIZE / 2 - camY;
+      const playerRadius = 30;
+      const pg = lCtx.createRadialGradient(plx, ply, 0, plx, ply, playerRadius);
+      pg.addColorStop(0, 'rgba(0,0,0,0.7)');
+      pg.addColorStop(0.4, 'rgba(0,0,0,0.4)');
+      pg.addColorStop(0.7, 'rgba(0,0,0,0.15)');
+      pg.addColorStop(1, 'rgba(0,0,0,0)');
+      lCtx.fillStyle = pg;
+      lCtx.fillRect(plx - playerRadius, ply - playerRadius, playerRadius * 2, playerRadius * 2);
+    }
+
+    const allP = Object.values(state.players);
+    for (let i = 0; i < allP.length; i++) {
+      const p = allP[i];
+      if (!p.alive || p.id === localPlayerId) continue;
+      const ppx = p.position.x * TILE_SIZE + TILE_SIZE / 2 - camX;
+      const ppy = p.position.y * TILE_SIZE + TILE_SIZE / 2 - camY;
+      const oR = 24;
+      const og = lCtx.createRadialGradient(ppx, ppy, 0, ppx, ppy, oR);
+      og.addColorStop(0, 'rgba(0,0,0,0.5)');
+      og.addColorStop(0.5, 'rgba(0,0,0,0.2)');
+      og.addColorStop(1, 'rgba(0,0,0,0)');
+      lCtx.fillStyle = og;
+      lCtx.fillRect(ppx - oR, ppy - oR, oR * 2, oR * 2);
+    }
+
+    const lootArr = Object.values(state.loot);
+    for (let i = 0; i < lootArr.length; i++) {
+      const lt = lootArr[i];
+      const lx = lt.position.x * TILE_SIZE + TILE_SIZE / 2 - camX;
+      const ly = lt.position.y * TILE_SIZE + TILE_SIZE / 2 - camY;
+      if (lx < -16 || lx > this.logicalWidth + 16 || ly < -16 || ly > this.logicalHeight + 16) continue;
+      const lr = 10;
+      const lg = lCtx.createRadialGradient(lx, ly, 0, lx, ly, lr);
+      lg.addColorStop(0, 'rgba(0,0,0,0.5)');
+      lg.addColorStop(0.6, 'rgba(0,0,0,0.2)');
+      lg.addColorStop(1, 'rgba(0,0,0,0)');
+      lCtx.fillStyle = lg;
+      lCtx.fillRect(lx - lr, ly - lr, lr * 2, lr * 2);
+    }
+
+    if (isBossPhase) {
+      const mons = Object.values(state.monsters);
+      for (let i = 0; i < mons.length; i++) {
+        const m = mons[i];
+        if (m.type === 'boss_demon' && m.alive) {
+          const bx = m.position.x * TILE_SIZE + TILE_SIZE - camX;
+          const by = m.position.y * TILE_SIZE + TILE_SIZE - camY;
+          const bR = 50;
+          const bPulse = 1 + Math.sin(this.animFrame * 0.4) * 0.1;
+          const bg = lCtx.createRadialGradient(bx, by, 0, bx, by, bR * bPulse);
+          bg.addColorStop(0, 'rgba(0,0,0,0.8)');
+          bg.addColorStop(0.4, 'rgba(0,0,0,0.4)');
+          bg.addColorStop(0.7, 'rgba(0,0,0,0.15)');
+          bg.addColorStop(1, 'rgba(0,0,0,0)');
+          lCtx.fillStyle = bg;
+          lCtx.fillRect(bx - bR, by - bR, bR * 2, bR * 2);
+        }
+      }
+    }
+
+    lCtx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(lCanvas, 0, 0);
   }
 
   /** Emit trail particles for active projectiles */
@@ -626,7 +955,11 @@ export class GameRenderer {
         const sx = tx * TILE_SIZE - camX;
         const sy = ty * TILE_SIZE - camY;
 
-        this.sprites.drawTile(ctx, sx, sy, tile as TileType, roomCleared, tx, ty);
+        this.sprites.drawTile(
+          ctx, sx, sy, tile as TileType, roomCleared, tx, ty,
+          tiles, state.dungeon.width, state.dungeon.height,
+          this.animFrame,
+        );
       }
     }
   }
@@ -637,6 +970,7 @@ export class GameRenderer {
     camX: number,
     camY: number,
   ): void {
+    const preset = QUALITY_PRESETS[this.quality];
     const lootEntries = Object.values(state.loot);
     for (let i = 0; i < lootEntries.length; i++) {
       const loot: LootState = lootEntries[i];
@@ -644,6 +978,12 @@ export class GameRenderer {
       const wy = loot.position.y * TILE_SIZE;
       if (!this.camera.isVisible(wx, wy, TILE_SIZE, TILE_SIZE)) continue;
       this.sprites.drawLoot(ctx, wx - camX, wy - camY, loot.type, this.animFrame);
+
+      // Loot glow particle (throttled: 1 per loot every 4 anim frames)
+      if (preset.particles && this.animFrame % 4 === i % 4) {
+        const lootColor = LOOT_TABLE[loot.type]?.color ?? '#fbbf24';
+        this.particles.emitLootGlow(wx + TILE_SIZE / 2, wy, lootColor);
+      }
     }
   }
 
@@ -821,24 +1161,67 @@ export class GameRenderer {
     hp: number,
     maxHp: number,
   ): void {
-    const barHeight = 2;
+    const isBoss = maxHp >= 200;
+    const barHeight = isBoss ? 6 : 4;
     const ratio = Math.max(0, hp / maxHp);
 
+    // Background with 1px dark border
+    ctx.fillStyle = '#0a0a14';
+    ctx.fillRect(x - 1, y - 1, width + 2, barHeight + 2);
+
+    // Inner background
     ctx.fillStyle = '#1a1a2e';
     ctx.fillRect(x, y, width, barHeight);
 
-    if (ratio > 0.5) {
-      ctx.fillStyle = '#4ade80';
-    } else if (ratio > 0.25) {
-      ctx.fillStyle = '#fbbf24';
-    } else {
-      ctx.fillStyle = '#ef4444';
-    }
-    ctx.fillRect(x, y, Math.ceil(width * ratio), barHeight);
+    // Health fill with gradient coloring
+    const filledWidth = Math.ceil(width * ratio);
+    if (filledWidth > 0) {
+      // Color based on health ratio
+      if (ratio > 0.6) {
+        ctx.fillStyle = '#4ade80';
+      } else if (ratio > 0.4) {
+        ctx.fillStyle = '#facc15';
+      } else if (ratio > 0.2) {
+        ctx.fillStyle = '#f97316';
+      } else {
+        ctx.fillStyle = '#ef4444';
+      }
+      ctx.fillRect(x, y, filledWidth, barHeight);
 
+      // Lighter top half for inner highlight
+      ctx.globalAlpha = 0.3;
+      if (ratio > 0.6) {
+        ctx.fillStyle = '#86efac';
+      } else if (ratio > 0.4) {
+        ctx.fillStyle = '#fde68a';
+      } else if (ratio > 0.2) {
+        ctx.fillStyle = '#fdba74';
+      } else {
+        ctx.fillStyle = '#fca5a5';
+      }
+      ctx.fillRect(x, y, filledWidth, Math.floor(barHeight / 2));
+      ctx.globalAlpha = 1;
+
+      // Inner shadow at top of bar
+      ctx.globalAlpha = 0.2;
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(x, y, filledWidth, 1);
+      ctx.globalAlpha = 1;
+    }
+
+    // Boss health bar pulsing glow when low
+    if (isBoss && ratio < 0.3 && ratio > 0) {
+      const pulse = 0.1 + Math.sin(Date.now() * 0.005) * 0.06;
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(x - 2, y - 2, width + 4, barHeight + 4);
+      ctx.globalAlpha = 1;
+    }
+
+    // Outer border
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 0.5;
-    ctx.strokeRect(x, y, width, barHeight);
+    ctx.strokeRect(x - 1, y - 1, width + 2, barHeight + 2);
   }
 
   private renderDamageNumbers(
@@ -846,20 +1229,42 @@ export class GameRenderer {
     camX: number,
     camY: number,
   ): void {
-    ctx.font = '5px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
     for (let i = 0; i < this.damageNumbers.length; i++) {
       const dn = this.damageNumbers[i];
       const progress = 1 - dn.life / dn.maxLife;
-      const floatY = progress * 12;
+      const floatY = progress * 16;
 
-      ctx.globalAlpha = Math.max(0, 1 - progress);
+      // Scale-up animation: start at scale, shrink to 1x
+      const scaleProgress = Math.min(1, progress * 5); // first 20% of life
+      const currentScale = dn.scale + (1 - dn.scale) * scaleProgress;
+
+      // Alpha: fade out in last 40%
+      const alpha = progress < 0.6 ? 1 : Math.max(0, 1 - (progress - 0.6) / 0.4);
+      ctx.globalAlpha = alpha;
+
+      // Font size based on kind
+      const baseSize = dn.kind === 'critical' ? 7 : 6;
+      const fontSize = Math.round(baseSize * currentScale);
+      ctx.font = `bold ${fontSize}px monospace`;
+
+      const dx = Math.floor(dn.x - camX);
+      const dy = Math.floor(dn.y - camY - floatY);
+
+      // Shadow/outline for readability
       ctx.fillStyle = '#000000';
-      ctx.fillText(dn.text, Math.floor(dn.x - camX + 1), Math.floor(dn.y - camY - floatY + 1));
+      ctx.fillText(dn.text, dx + 1, dy + 1);
+      ctx.fillText(dn.text, dx - 1, dy - 1);
+      ctx.fillText(dn.text, dx + 1, dy - 1);
+      ctx.fillText(dn.text, dx - 1, dy + 1);
+
+      // Main color
       ctx.fillStyle = dn.color;
-      ctx.fillText(dn.text, Math.floor(dn.x - camX), Math.floor(dn.y - camY - floatY));
+      ctx.fillText(dn.text, dx, dy);
+
+      // Critical hit screen shake (triggered in addDamageNumber caller)
     }
     ctx.globalAlpha = 1;
   }
@@ -1052,19 +1457,25 @@ export class GameRenderer {
         const wx = p.position.x * TILE_SIZE + TILE_SIZE / 2;
         const wy = p.position.y * TILE_SIZE;
         if (diff > 0) {
-          this.addDamageNumber(wx, wy, diff, false);
+          // Critical hit detection (>25% of max HP in one hit)
+          const isCritical = diff > p.maxHp * 0.25;
+          this.addDamageNumber(wx, wy, diff, false, isCritical ? 'critical' : 'damage');
           if (preset.particles) {
             this.particles.emitHit(wx, wy);
           }
-          // Camera shake on player damage
-          this.camera.shakeTakeDamage();
+          // Camera shake on player damage (stronger for criticals)
+          if (isCritical) {
+            this.camera.shake(8, 300);
+          } else {
+            this.camera.shakeTakeDamage();
+          }
 
           // Screen flash when player takes big damage (>30% HP)
           if (p.id === localPlayerId && diff > p.maxHp * 0.3) {
             this.triggerScreenFlash('#ffffff', 0.5);
           }
         } else {
-          this.addDamageNumber(wx, wy, Math.abs(diff), true);
+          this.addDamageNumber(wx, wy, Math.abs(diff), true, 'heal');
           if (preset.particles) {
             this.particles.emitHealEffect(wx, wy + TILE_SIZE / 2);
           }
@@ -1091,10 +1502,14 @@ export class GameRenderer {
         const wx = m.position.x * TILE_SIZE + TILE_SIZE / 2;
         const wy = m.position.y * TILE_SIZE;
         if (diff > 0) {
-          this.addDamageNumber(wx, wy, diff, false);
+          // Critical hit on monster (>30% of max HP)
+          const isCrit = diff > m.maxHp * 0.3;
+          this.addDamageNumber(wx, wy, diff, false, isCrit ? 'critical' : 'damage');
           if (preset.particles) {
             this.particles.emitHit(wx, wy, MONSTER_STATS[m.type].color);
           }
+          // Tiny screen shake on hit impact
+          this.camera.shake(1, 80);
         }
       }
       if (prev !== undefined && m.hp <= 0 && (prev > 0)) {
@@ -1181,6 +1596,9 @@ export class GameRenderer {
     this.fogCacheCanvas = null;
     this.fogCacheCtx = null;
     this.fogGradientCanvas = null;
+    this.grainCanvas = null;
+    this.lightingCanvas = null;
+    this.lightingCtx = null;
     this.torchPositions = [];
   }
 }

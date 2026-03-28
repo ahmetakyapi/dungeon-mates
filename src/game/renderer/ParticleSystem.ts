@@ -136,47 +136,113 @@ export class ParticleSystem {
 
   // ===== PRESET EFFECTS =====
 
-  /** hit_spark: 5-8 white/yellow particles burst from impact, fast, short life */
+  /** hit_spark: 10-12 white/yellow particles burst from impact + white core flash */
   emitHitSpark(x: number, y: number): void {
+    // Main spark burst (wider spread, more particles)
     this.emit({
       x, y,
-      count: 5 + Math.floor(Math.random() * 4),
-      color: ['#ffffff', '#fef3c7', '#fbbf24'],
-      speedMin: 60, speedMax: 120,
+      count: 10 + Math.floor(Math.random() * 3),
+      color: ['#ffffff', '#fef3c7', '#fbbf24', '#f59e0b'],
+      speedMin: 70, speedMax: 150,
       sizeMin: 1, sizeMax: 2,
-      lifeMin: 0.15, lifeMax: 0.3,
+      lifeMin: 0.12, lifeMax: 0.35,
       gravity: 0,
-      friction: 0.9,
+      friction: 0.88,
       shrink: true,
     });
-  }
-
-  /** blood_splatter: 3-5 red particles, slow gravity, medium life */
-  emitBloodSplatter(x: number, y: number): void {
+    // White core flash (2-3 bright white particles, larger, very short life)
     this.emit({
       x, y,
-      count: 3 + Math.floor(Math.random() * 3),
-      color: ['#ef4444', '#dc2626', '#991b1b'],
-      speedMin: 15, speedMax: 40,
-      sizeMin: 1, sizeMax: 3,
-      lifeMin: 0.3, lifeMax: 0.6,
-      gravity: 30,
-      friction: 0.95,
-      shrink: true,
-    });
-  }
-
-  /** magic_burst: 10-15 purple/blue particles in circle, expanding, fading */
-  emitMagicBurst(x: number, y: number): void {
-    this.emit({
-      x, y,
-      count: 10 + Math.floor(Math.random() * 6),
-      color: ['#a78bfa', '#8b5cf6', '#6366f1', '#3b82f6', '#ffffff'],
-      speedMin: 20, speedMax: 60,
-      sizeMin: 1, sizeMax: 2,
-      lifeMin: 0.4, lifeMax: 0.8,
-      gravity: -15,
+      count: 2 + Math.floor(Math.random() * 2),
+      color: '#ffffff',
+      speedMin: 10, speedMax: 30,
+      sizeMin: 2, sizeMax: 3,
+      lifeMin: 0.06, lifeMax: 0.12,
+      gravity: 0,
       fadeOut: true,
+      shrink: true,
+    });
+  }
+
+  /** blood_splatter: 4-6 red particles with droplet physics + persistent ground drops */
+  emitBloodSplatter(x: number, y: number): void {
+    // Main splatter (darker core, brighter edges)
+    this.emit({
+      x, y,
+      count: 4 + Math.floor(Math.random() * 3),
+      color: ['#7f1d1d', '#991b1b', '#dc2626', '#ef4444'],
+      speedMin: 20, speedMax: 50,
+      sizeMin: 1, sizeMax: 3,
+      lifeMin: 0.3, lifeMax: 0.7,
+      gravity: 40,
+      friction: 0.93,
+      shrink: true,
+    });
+    // Bright edge droplets (bounce/stick effect via high friction + gravity)
+    this.emit({
+      x, y,
+      count: 2 + Math.floor(Math.random() * 2),
+      color: ['#ef4444', '#f87171'],
+      speedMin: 30, speedMax: 60,
+      sizeMin: 1, sizeMax: 1,
+      lifeMin: 0.5, lifeMax: 1.0,
+      gravity: 60,
+      friction: 0.85,
+      fadeOut: true,
+      shrink: false,
+    });
+    // Ground persist drops (tiny, almost stationary, long life)
+    this.emit({
+      x, y,
+      count: 1 + Math.floor(Math.random() * 2),
+      color: ['#7f1d1d', '#450a0a'],
+      speedMin: 5, speedMax: 12,
+      sizeMin: 1, sizeMax: 2,
+      lifeMin: 1.5, lifeMax: 3.0,
+      gravity: 20,
+      friction: 0.8,
+      fadeOut: true,
+      shrink: false,
+    });
+  }
+
+  /** magic_burst: Spiral pattern with color gradient + runic symbols */
+  emitMagicBurst(x: number, y: number): void {
+    // Spiral emission pattern (particles placed in spiral, outward velocity)
+    const spiralCount = 12 + Math.floor(Math.random() * 5);
+    for (let i = 0; i < spiralCount; i++) {
+      const p = this.acquire();
+      if (!p) return;
+      const angle = (i / spiralCount) * Math.PI * 4; // 2 full rotations
+      const radius = (i / spiralCount) * 8;
+      const speed = 25 + Math.random() * 40;
+
+      p.x = x + Math.cos(angle) * radius;
+      p.y = y + Math.sin(angle) * radius;
+      p.vx = Math.cos(angle) * speed;
+      p.vy = Math.sin(angle) * speed;
+      p.life = 0.5 + Math.random() * 0.5;
+      p.maxLife = p.life;
+      // Color gradient through lifecycle (bright -> dim via color selection)
+      p.color = ['#e0e7ff', '#c7d2fe', '#a78bfa', '#8b5cf6', '#6366f1'][Math.floor(Math.random() * 5)];
+      p.size = 1 + Math.random();
+      p.gravity = -15;
+      p.friction = 0.97;
+      p.fadeOut = true;
+      p.shrink = true;
+    }
+    // Runic symbol particles (square, special colors, slower, larger)
+    this.emit({
+      x, y,
+      count: 3 + Math.floor(Math.random() * 2),
+      color: ['#c084fc', '#e9d5ff', '#fef3c7'],
+      speedMin: 8, speedMax: 20,
+      sizeMin: 2, sizeMax: 3,
+      lifeMin: 0.6, lifeMax: 1.0,
+      gravity: -20,
+      friction: 0.96,
+      fadeOut: true,
+      shrink: false,
     });
   }
 
@@ -194,19 +260,53 @@ export class ParticleSystem {
     });
   }
 
-  /** fire_trail: 2-3 orange/red particles behind fireball */
+  /** fire_trail: Multi-layer fire (red base -> orange -> yellow -> white tip) + smoke + embers */
   emitFireTrail(x: number, y: number): void {
+    // Main fire trail (red base to yellow tip gradient)
     this.emit({
       x, y,
       count: 2 + Math.floor(Math.random() * 2),
-      color: ['#f97316', '#ef4444', '#fbbf24'],
+      color: ['#ef4444', '#f97316', '#fbbf24', '#fde68a', '#ffffff'],
       speedMin: 5, speedMax: 20,
       sizeMin: 1, sizeMax: 3,
-      lifeMin: 0.1, lifeMax: 0.25,
+      lifeMin: 0.1, lifeMax: 0.3,
       gravity: -10,
       fadeOut: true,
       shrink: true,
     });
+    // Smoke particles (gray, rise slowly, larger)
+    if (Math.random() < 0.4) {
+      this.emit({
+        x, y,
+        count: 1,
+        color: ['#4b5563', '#6b7280', '#374151'],
+        speedMin: 3, speedMax: 8,
+        sizeMin: 2, sizeMax: 3,
+        lifeMin: 0.3, lifeMax: 0.6,
+        gravity: -8,
+        friction: 0.97,
+        fadeOut: true,
+        shrink: false,
+        angleMin: -Math.PI * 0.75,
+        angleMax: -Math.PI * 0.25,
+      });
+    }
+    // Ember particles (tiny, rise fast, orange)
+    if (Math.random() < 0.3) {
+      this.emit({
+        x, y,
+        count: 1,
+        color: ['#f97316', '#fb923c'],
+        speedMin: 15, speedMax: 35,
+        sizeMin: 1, sizeMax: 1,
+        lifeMin: 0.15, lifeMax: 0.35,
+        gravity: -25,
+        fadeOut: true,
+        shrink: true,
+        angleMin: -Math.PI * 0.8,
+        angleMax: -Math.PI * 0.2,
+      });
+    }
   }
 
   /** gold_sparkle: 3 gold particles floating up */
@@ -442,22 +542,41 @@ export class ParticleSystem {
     });
   }
 
-  /** torch_flame: 2-3 orange/yellow particles rising from torch position */
+  /** torch_flame: 3-5 flame particles rising + smoke wisps */
   emitTorchFlame(x: number, y: number): void {
+    // Main flame particles (more colors, slight horizontal drift)
     this.emit({
-      x: x + (Math.random() - 0.5) * 2,
+      x: x + (Math.random() - 0.5) * 3,
       y,
-      count: 2 + Math.floor(Math.random() * 2),
-      color: ['#f97316', '#fbbf24', '#fef3c7'],
-      speedMin: 5, speedMax: 15,
-      sizeMin: 1, sizeMax: 2,
-      lifeMin: 0.15, lifeMax: 0.35,
-      gravity: -30,
+      count: 3 + Math.floor(Math.random() * 3),
+      color: ['#ff6600', '#ff9900', '#ffcc00', '#ffffff'],
+      speedMin: 6, speedMax: 18,
+      sizeMin: 2, sizeMax: 3,
+      lifeMin: 0.3, lifeMax: 0.6,
+      gravity: -35,
       fadeOut: true,
       shrink: true,
       angleMin: -Math.PI * 0.75,
       angleMax: -Math.PI * 0.25,
     });
+    // Smoke wisps (gray, slower, larger, less frequent)
+    if (Math.random() < 0.3) {
+      this.emit({
+        x: x + (Math.random() - 0.5) * 2,
+        y: y - 3,
+        count: 1,
+        color: ['#4b5563', '#6b7280'],
+        speedMin: 2, speedMax: 6,
+        sizeMin: 2, sizeMax: 3,
+        lifeMin: 0.4, lifeMax: 0.8,
+        gravity: -12,
+        friction: 0.98,
+        fadeOut: true,
+        shrink: false,
+        angleMin: -Math.PI * 0.7,
+        angleMax: -Math.PI * 0.3,
+      });
+    }
   }
 
   /** ice_storm: Blue/cyan particles swirling around mage ability area */
@@ -506,6 +625,100 @@ export class ParticleSystem {
       gravity: -10,
       fadeOut: true,
       shrink: true,
+    });
+  }
+
+  /** footstep: 2-3 tiny dust particles when player/monster walks */
+  emitFootstep(x: number, y: number): void {
+    this.emit({
+      x, y,
+      count: 2 + Math.floor(Math.random() * 2),
+      color: '#4a4a4a',
+      speedMin: 3, speedMax: 10,
+      sizeMin: 1, sizeMax: 1,
+      lifeMin: 0.15, lifeMax: 0.2,
+      gravity: 0,
+      friction: 0.9,
+      fadeOut: true,
+      shrink: false,
+      angleMin: -Math.PI,
+      angleMax: 0,
+    });
+  }
+
+  /** loot_glow: 1 particle rising slowly above loot item */
+  emitLootGlow(x: number, y: number, color: string): void {
+    this.emit({
+      x: x + (Math.random() - 0.5) * 4,
+      y,
+      count: 1,
+      color,
+      speedMin: 3, speedMax: 8,
+      sizeMin: 1, sizeMax: 1,
+      lifeMin: 0.5, lifeMax: 0.8,
+      gravity: -15,
+      fadeOut: true,
+      shrink: false,
+      angleMin: -Math.PI * 0.7,
+      angleMax: -Math.PI * 0.3,
+    });
+  }
+
+  /** door_open: 10-15 stone/dust particles bursting outward from door */
+  emitDoorOpen(x: number, y: number): void {
+    this.emit({
+      x, y,
+      count: 10 + Math.floor(Math.random() * 6),
+      color: ['#6b6b6b', '#8b8b8b', '#5a5a5a', '#9a9a9a'],
+      speedMin: 20, speedMax: 60,
+      sizeMin: 1, sizeMax: 3,
+      lifeMin: 0.3, lifeMax: 0.8,
+      gravity: 50,
+      friction: 0.93,
+      fadeOut: true,
+      shrink: true,
+    });
+  }
+
+  /** ability_ready: 8 particles in expanding ring, class-colored */
+  emitAbilityReady(x: number, y: number, classColor: string): void {
+    for (let i = 0; i < 8; i++) {
+      const p = this.acquire();
+      if (!p) return;
+      const angle = (i / 8) * Math.PI * 2;
+      const speed = 40 + Math.random() * 20;
+
+      p.x = x;
+      p.y = y;
+      p.vx = Math.cos(angle) * speed;
+      p.vy = Math.sin(angle) * speed;
+      p.life = 0.3 + Math.random() * 0.15;
+      p.maxLife = p.life;
+      p.color = i % 2 === 0 ? classColor : '#ffffff';
+      p.size = 1.5;
+      p.gravity = 0;
+      p.friction = 0.94;
+      p.fadeOut = true;
+      p.shrink = true;
+    }
+  }
+
+  /** drip: Single water drip particle falling down */
+  emitDrip(x: number, y: number): void {
+    this.emit({
+      x,
+      y,
+      count: 1,
+      color: ['#60a5fa', '#93c5fd'],
+      speedMin: 1, speedMax: 3,
+      sizeMin: 1, sizeMax: 1,
+      lifeMin: 0.8, lifeMax: 1.5,
+      gravity: 40,
+      friction: 0.99,
+      fadeOut: true,
+      shrink: false,
+      angleMin: Math.PI * 0.4,
+      angleMax: Math.PI * 0.6,
     });
   }
 
@@ -583,8 +796,8 @@ export class ParticleSystem {
 
   /** Check if ambient dust should spawn (call from renderer with camera coords) */
   shouldSpawnDust(): boolean {
-    if (this.dustTimer >= 0.5) {
-      this.dustTimer -= 0.5;
+    if (this.dustTimer >= 0.3) {
+      this.dustTimer -= 0.3;
       return true;
     }
     return false;

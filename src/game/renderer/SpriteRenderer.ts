@@ -23,6 +23,11 @@ const lighten = (hex: string, amount: number): string => {
   return `rgb(${Math.min(255, Math.floor(r + (255 - r) * amount))},${Math.min(255, Math.floor(g + (255 - g) * amount))},${Math.min(255, Math.floor(b + (255 - b) * amount))})`;
 };
 
+const withAlpha = (hex: string, alpha: number): string => {
+  const [r, g, b] = hexToRgb(hex);
+  return `rgba(${r},${g},${b},${alpha})`;
+};
+
 // Pixel helper: draws a filled rect at pixel-art scale
 const px = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string): void => {
   ctx.fillStyle = color;
@@ -98,9 +103,44 @@ export class SpriteRenderer {
     return this.hitFlashTimers.has(entityId);
   }
 
+  // ===== ENTITY SHADOW =====
+
+  /** Draw an elliptical semi-transparent shadow beneath an entity */
+  drawEntityShadow(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ): void {
+    const shadowW = Math.max(4, Math.floor(width * 0.7));
+    const shadowH = Math.max(2, Math.floor(height * 0.15));
+    const cx = x + Math.floor(width / 2);
+    const cy = y + height - 1;
+    // Light source from upper-left: offset shadow slightly right and down
+    const offsetX = 1;
+    const offsetY = 0;
+
+    ctx.save();
+    ctx.globalAlpha = 0.2;
+    ctx.beginPath();
+    ctx.ellipse(
+      cx + offsetX,
+      cy + offsetY,
+      Math.floor(shadowW / 2),
+      shadowH,
+      0,
+      0,
+      Math.PI * 2,
+    );
+    ctx.fillStyle = '#000000';
+    ctx.fill();
+    ctx.restore();
+  }
+
   // ===== PLAYER SPRITES =====
 
-  /** Draw a player character (16x16 pixel art) — detailed per class */
+  /** Draw a player character (16x16 pixel art) -- detailed per class */
   drawPlayer(
     ctx: CanvasRenderingContext2D,
     x: number,
@@ -112,25 +152,26 @@ export class SpriteRenderer {
     flashWhite = false,
     abilityActive = false,
   ): void {
-    // Shadow beneath
-    ctx.globalAlpha = 0.3;
-    px(ctx, x + 3, y + 14, 10, 2, '#000000');
-    ctx.globalAlpha = 1;
+    // Elliptical shadow beneath
+    this.drawEntityShadow(ctx, x, y, 16, 16);
+
+    // Idle breathing: subtle Y oscillation every ~30 frames
+    const breatheY = Math.sin(frame * 0.21) * 0.6;
 
     if (flashWhite) {
-      this.drawPlayerWhiteFlash(ctx, x, y, playerClass, facing, attacking, frame);
+      this.drawPlayerWhiteFlash(ctx, x, y + breatheY, playerClass, facing, attacking, frame);
       return;
     }
 
     switch (playerClass) {
       case 'warrior':
-        this.drawWarrior(ctx, x, y, facing, attacking, frame);
+        this.drawWarrior(ctx, x, y + breatheY, facing, attacking, frame);
         break;
       case 'mage':
-        this.drawMage(ctx, x, y, facing, attacking, frame);
+        this.drawMage(ctx, x, y + breatheY, facing, attacking, frame);
         break;
       case 'archer':
-        this.drawArcher(ctx, x, y, facing, attacking, frame);
+        this.drawArcher(ctx, x, y + breatheY, facing, attacking, frame);
         break;
     }
 
@@ -162,19 +203,24 @@ export class SpriteRenderer {
     attacking: boolean,
     frame: number,
   ): void {
-    // Draw entire player silhouette in white
+    // Draw entire player silhouette with red tint overlay for damage
     const walkY = WALK_OFFSETS[frame % 4];
     const legOff = frame % 2;
+    const flashColor = '#ff8888'; // red-tinted white for damage indication
     // Head
-    px(ctx, x + 5, y + 1, 6, 5, '#ffffff');
+    px(ctx, x + 5, y + 1, 6, 5, flashColor);
     // Body
-    px(ctx, x + 4, y + 6 + walkY, 8, 5, '#ffffff');
+    px(ctx, x + 4, y + 6 + walkY, 8, 5, flashColor);
     // Arms
-    px(ctx, x + 2, y + 6 + walkY, 2, 5, '#ffffff');
-    px(ctx, x + 12, y + 6 + walkY, 2, 5, '#ffffff');
+    px(ctx, x + 2, y + 6 + walkY, 2, 5, flashColor);
+    px(ctx, x + 12, y + 6 + walkY, 2, 5, flashColor);
     // Legs
-    px(ctx, x + 5, y + 11, 2, 3 + legOff, '#ffffff');
-    px(ctx, x + 9, y + 11, 2, 3 - legOff, '#ffffff');
+    px(ctx, x + 5, y + 11, 2, 3 + legOff, flashColor);
+    px(ctx, x + 9, y + 11, 2, 3 - legOff, flashColor);
+    // Red tint overlay
+    ctx.globalAlpha = 0.3;
+    px(ctx, x + 2, y + 1, 14, 14, '#ff0000');
+    ctx.globalAlpha = 1;
     // Outline
     this.drawOutline(ctx, x, y, 16, 16, '#ffffff');
   }
@@ -191,57 +237,78 @@ export class SpriteRenderer {
     const isHoriz = facing === 'left' || facing === 'right';
     const facingRight = facing === 'right';
     const facingUp = facing === 'up';
+    // Arm swing offset for walking
+    const armSwing = Math.sin(frame * 1.2) * 1;
 
     // Steel boots
     px(ctx, x + 4, y + 13 + legOff, 3, 2, '#6b7280');
     px(ctx, x + 9, y + 13 - legOff, 3, 2, '#6b7280');
+    // Boot highlight
+    px(ctx, x + 4, y + 13 + legOff, 1, 1, '#9ca3af');
+    px(ctx, x + 9, y + 13 - legOff, 1, 1, '#9ca3af');
 
-    // Legs (dark armor)
+    // Legs (dark armor) -- more pronounced movement
     px(ctx, x + 5, y + 11, 2, 3 + legOff, '#991b1b');
     px(ctx, x + 9, y + 11, 2, 3 - legOff, '#991b1b');
 
-    // Red cape flowing behind
+    // Red cape flowing behind -- direction-aware
     if (!facingUp) {
-      const capeWave = Math.sin(frame * 0.8) * 1;
+      const capeDir = facingRight ? -1 : 1;
+      const capeWave = Math.sin(frame * 0.8) * 1.5;
       px(ctx, x + 5, y + 7 + walkY, 6, 5, '#b91c1c');
-      px(ctx, x + 4 + capeWave, y + 10 + walkY, 8, 2, '#991b1b');
+      px(ctx, x + 4 + capeWave * capeDir * 0.3, y + 10 + walkY, 8, 2, '#991b1b');
+      // Cape edge detail
+      px(ctx, x + 5, y + 11 + walkY, 1, 1, '#7f1d1d');
+      px(ctx, x + 10, y + 11 + walkY, 1, 1, '#7f1d1d');
+      // Cape flow highlights
+      px(ctx, x + 6, y + 8 + walkY, 2, 1, '#dc2626');
     }
 
-    // Body — full plate armor
+    // Body -- full plate armor
     px(ctx, x + 4, y + 6 + walkY, 8, 5, '#9ca3af'); // steel body
     px(ctx, x + 5, y + 6 + walkY, 6, 1, '#d1d5db'); // chest highlight
     px(ctx, x + 6, y + 8 + walkY, 4, 1, '#fbbf24'); // gold belt
+    // Armor plate lines
+    px(ctx, x + 7, y + 7 + walkY, 1, 3, '#6b7280'); // center line
 
-    // Shield on left arm
-    const shieldSide = facingRight ? -1 : 1;
+    // Shield on arm -- with light reflection
+    const glintOffset = (frame % 8);
     if (isHoriz) {
       const sx2 = facingRight ? x + 1 : x + 12;
       px(ctx, sx2, y + 5 + walkY, 3, 6, '#6b7280');
       px(ctx, sx2, y + 6 + walkY, 3, 4, '#3b82f6');
       px(ctx, sx2 + 1, y + 7 + walkY, 1, 2, '#fbbf24'); // shield emblem
+      // Reflect light -- moving highlight
+      const reflectY = y + 6 + walkY + (glintOffset % 4);
+      if (reflectY < y + 10 + walkY) {
+        px(ctx, sx2 + 2, reflectY, 1, 1, '#93c5fd');
+      }
     } else {
       px(ctx, x + 2, y + 6 + walkY, 3, 5, '#6b7280');
       px(ctx, x + 2, y + 7 + walkY, 3, 3, '#3b82f6');
+      // Shield reflection
+      px(ctx, x + 4, y + 7 + walkY + (glintOffset % 3), 1, 1, '#93c5fd');
     }
 
-    // Right arm (sword arm)
-    const armX = facingRight ? x + 12 : x + 2;
+    // Right arm (sword arm) with swing
     if (!isHoriz) {
-      px(ctx, x + 12, y + 6 + walkY, 2, 5, '#9ca3af');
+      px(ctx, x + 12, y + 6 + walkY + armSwing * 0.3, 2, 5, '#9ca3af');
     } else {
       const swordArmX = facingRight ? x + 12 : x + 2;
       px(ctx, swordArmX, y + 6 + walkY, 2, 5, '#9ca3af');
     }
 
-    // Sword
+    // Sword with glint pixel
+    const swordGlintPos = (frame % 12);
     if (attacking) {
       // Attack: horizontal slash with motion blur trail
       const slashDir = facingRight ? 1 : -1;
       if (isHoriz) {
-        // Horizontal slash
         const bladeX = facingRight ? x + 14 : x - 6;
-        px(ctx, bladeX, y + 4 + walkY, 6, 1, '#d1d5db'); // blade
+        px(ctx, bladeX, y + 4 + walkY, 6, 1, '#d1d5db');
         px(ctx, bladeX, y + 5 + walkY, 6, 1, '#e5e7eb');
+        // Sword glint on blade
+        px(ctx, bladeX + (swordGlintPos % 5), y + 4 + walkY, 1, 1, '#ffffff');
         // Motion trail
         ctx.globalAlpha = 0.4;
         px(ctx, bladeX - slashDir * 2, y + 3 + walkY, 8, 3, '#ffffff');
@@ -249,41 +316,53 @@ export class SpriteRenderer {
         px(ctx, bladeX - slashDir * 4, y + 2 + walkY, 10, 5, '#ffffff');
         ctx.globalAlpha = 1;
       } else {
-        // Vertical slash
         const bladeY = facingUp ? y - 4 : y + 14;
         px(ctx, x + 10, bladeY, 1, 6, '#d1d5db');
         px(ctx, x + 11, bladeY, 1, 6, '#e5e7eb');
+        px(ctx, x + 10, bladeY + (swordGlintPos % 5), 1, 1, '#ffffff');
         ctx.globalAlpha = 0.3;
         px(ctx, x + 8, bladeY, 5, 6, '#ffffff');
         ctx.globalAlpha = 1;
       }
-      px(ctx, x + 11, y + 10 + walkY, 2, 2, '#78350f'); // handle always visible
+      px(ctx, x + 11, y + 10 + walkY, 2, 2, '#78350f');
     } else {
-      // Idle: sword held down
-      px(ctx, x + 12, y + 4 + walkY, 1, 7, '#9ca3af'); // blade
-      px(ctx, x + 13, y + 4 + walkY, 1, 7, '#d1d5db'); // blade highlight
-      px(ctx, x + 12, y + 10 + walkY, 2, 2, '#78350f'); // handle
+      // Idle: sword held down with moving glint
+      px(ctx, x + 12, y + 4 + walkY, 1, 7, '#9ca3af');
+      px(ctx, x + 13, y + 4 + walkY, 1, 7, '#d1d5db');
+      // Glint moves along blade
+      const glintY = y + 4 + walkY + (swordGlintPos % 6);
+      if (glintY < y + 10 + walkY) {
+        px(ctx, x + 13, glintY, 1, 1, '#ffffff');
+      }
+      px(ctx, x + 12, y + 10 + walkY, 2, 2, '#78350f');
     }
 
     // Head
-    px(ctx, x + 5, y + 2, 6, 4, '#fcd5b4'); // face
-    // Horned helmet
-    px(ctx, x + 4, y + 1, 8, 2, '#6b7280'); // helmet base
-    px(ctx, x + 5, y + 0, 6, 1, '#9ca3af'); // helmet top
-    px(ctx, x + 3, y - 1, 2, 3, '#fbbf24'); // left horn
-    px(ctx, x + 11, y - 1, 2, 3, '#fbbf24'); // right horn
+    px(ctx, x + 5, y + 2, 6, 4, '#fcd5b4');
+    // Horned helmet with visor
+    px(ctx, x + 4, y + 1, 8, 2, '#6b7280');
+    px(ctx, x + 5, y + 0, 6, 1, '#9ca3af');
+    px(ctx, x + 3, y - 1, 2, 3, '#fbbf24');
+    px(ctx, x + 11, y - 1, 2, 3, '#fbbf24');
+    // Helmet visor slit
+    if (facing !== 'up') {
+      px(ctx, x + 5, y + 2, 6, 1, '#4b5563'); // visor
+      px(ctx, x + 6, y + 2, 4, 1, '#374151'); // visor slit
+    }
 
     // Face details
     if (facing !== 'up') {
-      px(ctx, x + 6, y + 3, 1, 1, '#1a1a2e'); // left eye
-      px(ctx, x + 9, y + 3, 1, 1, '#1a1a2e'); // right eye
+      px(ctx, x + 6, y + 3, 1, 1, '#1a1a2e');
+      px(ctx, x + 9, y + 3, 1, 1, '#1a1a2e');
     }
 
     // Shoulder pads (gold trim)
     px(ctx, x + 3, y + 5 + walkY, 2, 2, '#fbbf24');
     px(ctx, x + 11, y + 5 + walkY, 2, 2, '#fbbf24');
+    // Shoulder highlights
+    px(ctx, x + 3, y + 5 + walkY, 1, 1, '#fde68a');
+    px(ctx, x + 11, y + 5 + walkY, 1, 1, '#fde68a');
 
-    // 1px black outline
     this.drawSpriteOutline(ctx, x, y);
   }
 
@@ -295,38 +374,48 @@ export class SpriteRenderer {
     frame: number,
   ): void {
     const walkY = WALK_OFFSETS[frame % 4];
-    const breathe = Math.sin(frame * 0.3) * 0.5;
-    const isHoriz = facing === 'left' || facing === 'right';
     const facingRight = facing === 'right';
-    const facingUp = facing === 'up';
+    // Robe billow when moving
+    const robeBillow = Math.sin(frame * 0.6) * 1;
 
     // Flowing purple robe (long, covers legs partially)
-    px(ctx, x + 3, y + 7 + walkY, 10, 6, '#7c3aed'); // main robe
-    px(ctx, x + 2, y + 10 + walkY, 12, 3, '#6d28d9'); // robe bottom (flowing)
-    px(ctx, x + 4, y + 13, 3, 2, '#5b21b6'); // left foot peeks out
-    px(ctx, x + 9, y + 13, 3, 2, '#5b21b6'); // right foot
+    px(ctx, x + 3, y + 7 + walkY, 10, 6, '#7c3aed');
+    px(ctx, x + 2 + robeBillow * 0.3, y + 10 + walkY, 12, 3, '#6d28d9'); // robe bottom (flowing/billowing)
+    px(ctx, x + 4, y + 13, 3, 2, '#5b21b6');
+    px(ctx, x + 9, y + 13, 3, 2, '#5b21b6');
+    // Robe edge detail
+    px(ctx, x + 2, y + 12 + walkY, 1, 1, '#5b21b6');
+    px(ctx, x + 13, y + 12 + walkY, 1, 1, '#5b21b6');
 
-    // Runic patterns on robe
-    px(ctx, x + 5, y + 9 + walkY, 1, 1, '#c4b5fd');
-    px(ctx, x + 7, y + 10 + walkY, 1, 1, '#c4b5fd');
-    px(ctx, x + 10, y + 9 + walkY, 1, 1, '#c4b5fd');
+    // Runic patterns on robe -- animated shift
+    const runeShift = (frame % 12) < 6 ? 0 : 1;
+    px(ctx, x + 5 + runeShift, y + 9 + walkY, 1, 1, '#c4b5fd');
+    px(ctx, x + 7 - runeShift, y + 10 + walkY, 1, 1, '#ddd6fe');
+    px(ctx, x + 10 + runeShift, y + 9 + walkY, 1, 1, '#c4b5fd');
+    // Additional rune symbols
+    px(ctx, x + 4, y + 11 + walkY, 1, 1, '#a78bfa');
+    px(ctx, x + 8 + runeShift, y + 11 + walkY, 1, 1, '#a78bfa');
+    px(ctx, x + 11, y + 10 + walkY, 1, 1, '#c4b5fd');
 
     // Body
-    px(ctx, x + 4, y + 5 + walkY, 8, 3, '#8b5cf6'); // upper robe
+    px(ctx, x + 4, y + 5 + walkY, 8, 3, '#8b5cf6');
     px(ctx, x + 5, y + 5 + walkY, 6, 1, '#a78bfa'); // collar highlight
 
     // Arms (robe sleeves)
     px(ctx, x + 2, y + 6 + walkY, 2, 4, '#7c3aed');
     px(ctx, x + 12, y + 6 + walkY, 2, 4, '#7c3aed');
 
-    // Staff with glowing crystal
+    // Staff with glowing/pulsing crystal
     const staffX = facingRight ? x + 13 : x + 1;
+    const crystalPulse = 0.5 + Math.sin(frame * 0.4) * 0.5; // 0..1 pulsing
+    const crystalGlow = crystalPulse > 0.7;
     if (attacking) {
       // Staff raised, magic circle beneath
-      px(ctx, staffX, y - 2, 1, 14, '#78350f'); // staff
-      px(ctx, staffX - 1, y - 3, 3, 3, '#a78bfa'); // crystal
-      // Glowing crystal core
-      px(ctx, staffX, y - 2, 1, 1, '#ffffff');
+      px(ctx, staffX, y - 2, 1, 14, '#78350f');
+      px(ctx, staffX - 1, y - 3, 3, 3, '#a78bfa');
+      // Glowing crystal core -- pulsing
+      px(ctx, staffX, y - 2, 1, 1, crystalGlow ? '#ffffff' : '#ddd6fe');
+      px(ctx, staffX - 1, y - 4, 3, 1, withAlpha('#c4b5fd', crystalPulse * 0.6)); // crystal glow aura
       // Magic circle beneath player
       ctx.globalAlpha = 0.4 + Math.sin(frame * 0.5) * 0.2;
       px(ctx, x + 1, y + 13, 14, 1, '#a78bfa');
@@ -335,9 +424,25 @@ export class SpriteRenderer {
       px(ctx, x + 15, y + 12, 1, 2, '#a78bfa');
       ctx.globalAlpha = 1;
     } else {
-      px(ctx, staffX, y + 1, 1, 12, '#78350f'); // staff
-      px(ctx, staffX - 1, y + 0, 3, 2, '#a78bfa'); // crystal
-      px(ctx, staffX, y + 0, 1, 1, '#ffffff'); // glow
+      px(ctx, staffX, y + 1, 1, 12, '#78350f');
+      px(ctx, staffX - 1, y + 0, 3, 2, '#a78bfa');
+      px(ctx, staffX, y + 0, 1, 1, crystalGlow ? '#ffffff' : '#ddd6fe');
+      // Crystal glow aura
+      if (crystalGlow) {
+        ctx.globalAlpha = 0.3;
+        px(ctx, staffX - 1, y - 1, 3, 1, '#c4b5fd');
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // Magic particle trail when moving (walkY !== 0 implies motion)
+    if (walkY !== 0) {
+      ctx.globalAlpha = 0.4;
+      const trailX = x + 6 + Math.sin(frame * 0.7) * 3;
+      const trailY = y + 14 + Math.cos(frame * 0.5) * 1;
+      px(ctx, trailX, trailY, 1, 1, '#c4b5fd');
+      px(ctx, trailX + 2, trailY - 1, 1, 1, '#a78bfa');
+      ctx.globalAlpha = 1;
     }
 
     // White beard
@@ -351,17 +456,18 @@ export class SpriteRenderer {
 
     // Glowing eyes
     if (facing !== 'up') {
-      px(ctx, x + 6, y + 3, 1, 1, '#c4b5fd'); // left eye (glowing)
-      px(ctx, x + 9, y + 3, 1, 1, '#c4b5fd'); // right eye
+      const eyeGlow = crystalGlow ? '#ddd6fe' : '#c4b5fd';
+      px(ctx, x + 6, y + 3, 1, 1, eyeGlow);
+      px(ctx, x + 9, y + 3, 1, 1, eyeGlow);
     }
 
     // Pointed wizard hat with gem
-    px(ctx, x + 4, y + 1, 8, 2, '#7c3aed'); // brim
+    px(ctx, x + 4, y + 1, 8, 2, '#7c3aed');
     px(ctx, x + 5, y + 0, 6, 1, '#6d28d9');
     px(ctx, x + 6, y - 1, 4, 1, '#5b21b6');
     px(ctx, x + 7, y - 2, 2, 1, '#4c1d95');
-    // Gem on hat
-    px(ctx, x + 7, y + 0, 2, 1, '#fbbf24');
+    // Gem on hat -- pulsing
+    px(ctx, x + 7, y + 0, 2, 1, crystalGlow ? '#fde68a' : '#fbbf24');
 
     this.drawSpriteOutline(ctx, x, y);
   }
@@ -375,69 +481,97 @@ export class SpriteRenderer {
   ): void {
     const walkY = WALK_OFFSETS[frame % 4];
     const legOff = frame % 2;
-    const isHoriz = facing === 'left' || facing === 'right';
     const facingRight = facing === 'right';
     const facingUp = facing === 'up';
+    // Arm swing
+    const armSwing = Math.sin(frame * 1.0) * 1;
 
-    // Legs
-    px(ctx, x + 5, y + 11, 2, 3 + legOff, '#374151'); // dark pants
+    // Legs -- more pronounced movement
+    px(ctx, x + 5, y + 11, 2, 3 + legOff, '#374151');
     px(ctx, x + 9, y + 11, 2, 3 - legOff, '#374151');
 
-    // Boots
+    // Boots with detail
     px(ctx, x + 4, y + 13 + legOff, 3, 2, '#78350f');
     px(ctx, x + 9, y + 13 - legOff, 3, 2, '#78350f');
+    // Boot lace/stitching
+    px(ctx, x + 5, y + 13 + legOff, 1, 1, '#92400e');
+    px(ctx, x + 10, y + 13 - legOff, 1, 1, '#92400e');
 
-    // Leather armor body
-    px(ctx, x + 4, y + 6 + walkY, 8, 5, '#854d0e'); // torso
+    // Leather armor body with stitch detail
+    px(ctx, x + 4, y + 6 + walkY, 8, 5, '#854d0e');
     px(ctx, x + 5, y + 6 + walkY, 6, 1, '#a16207'); // chest highlight
     px(ctx, x + 6, y + 8 + walkY, 4, 1, '#713f12'); // belt
+    // Stitch lines on leather
+    px(ctx, x + 5, y + 7 + walkY, 1, 1, '#713f12');
+    px(ctx, x + 7, y + 7 + walkY, 1, 1, '#713f12');
+    px(ctx, x + 9, y + 7 + walkY, 1, 1, '#713f12');
+    px(ctx, x + 10, y + 9 + walkY, 1, 1, '#713f12');
 
     // Green hooded cloak
-    px(ctx, x + 3, y + 4 + walkY, 10, 4, '#15803d'); // cloak body
-    px(ctx, x + 3, y + 8 + walkY, 2, 4, '#166534'); // cloak left drape
-    px(ctx, x + 11, y + 8 + walkY, 2, 4, '#166534'); // cloak right drape
+    px(ctx, x + 3, y + 4 + walkY, 10, 4, '#15803d');
+    px(ctx, x + 3, y + 8 + walkY, 2, 4, '#166534');
+    px(ctx, x + 11, y + 8 + walkY, 2, 4, '#166534');
 
-    // Arms with bracers
-    px(ctx, x + 2, y + 6 + walkY, 2, 4, '#854d0e'); // left arm
-    px(ctx, x + 2, y + 9 + walkY, 2, 1, '#713f12'); // left bracer
-    px(ctx, x + 12, y + 6 + walkY, 2, 4, '#854d0e'); // right arm
-    px(ctx, x + 12, y + 9 + walkY, 2, 1, '#713f12'); // right bracer
+    // Arms with bracers and swing
+    px(ctx, x + 2, y + 6 + walkY + armSwing * 0.3, 2, 4, '#854d0e');
+    px(ctx, x + 2, y + 9 + walkY, 2, 1, '#713f12');
+    px(ctx, x + 12, y + 6 + walkY - armSwing * 0.3, 2, 4, '#854d0e');
+    px(ctx, x + 12, y + 9 + walkY, 2, 1, '#713f12');
 
-    // Quiver on back (arrows visible)
+    // Quiver on back (arrows visible -- staggered tips)
     if (!facingUp) {
-      px(ctx, x + 10, y + 3 + walkY, 3, 6, '#78350f'); // quiver
-      px(ctx, x + 10, y + 2 + walkY, 1, 1, '#9ca3af'); // arrow tip 1
-      px(ctx, x + 11, y + 1 + walkY, 1, 1, '#9ca3af'); // arrow tip 2
-      px(ctx, x + 12, y + 2 + walkY, 1, 1, '#9ca3af'); // arrow tip 3
+      px(ctx, x + 10, y + 3 + walkY, 3, 6, '#78350f');
+      // Arrow tips with varying heights
+      px(ctx, x + 10, y + 2 + walkY, 1, 1, '#9ca3af');
+      px(ctx, x + 11, y + 1 + walkY, 1, 1, '#9ca3af');
+      px(ctx, x + 12, y + 2 + walkY, 1, 1, '#9ca3af');
+      // Quiver strap
+      px(ctx, x + 10, y + 4 + walkY, 1, 1, '#5c3d1e');
     }
 
-    // Bow in left hand
+    // Bow in hand
     const bowX = facingRight ? x + 14 : x + 0;
     if (attacking) {
-      // Draw and release arrow pose
-      px(ctx, bowX, y + 3 + walkY, 1, 8, '#78350f'); // bow stave
-      px(ctx, bowX + (facingRight ? -1 : 1), y + 3 + walkY, 1, 1, '#78350f'); // bow curve top
-      px(ctx, bowX + (facingRight ? -1 : 1), y + 10 + walkY, 1, 1, '#78350f'); // bow curve bottom
-      // Bowstring pulled back
+      // Drawn bow with tension
+      px(ctx, bowX, y + 3 + walkY, 1, 8, '#78350f');
+      px(ctx, bowX + (facingRight ? -1 : 1), y + 3 + walkY, 1, 1, '#78350f');
+      px(ctx, bowX + (facingRight ? -1 : 1), y + 10 + walkY, 1, 1, '#78350f');
+      // Bowstring pulled back -- taut
       const stringX = facingRight ? bowX - 2 : bowX + 2;
       px(ctx, stringX, y + 4 + walkY, 1, 6, '#fbbf24');
+      // String tension highlight
+      px(ctx, stringX, y + 7 + walkY, 1, 1, '#fef3c7');
       // Arrow being released
       const arrowDir = facingRight ? 1 : -1;
-      px(ctx, bowX + arrowDir * 2, y + 7 + walkY, 4, 1, '#d1d5db'); // shaft
-      px(ctx, bowX + arrowDir * 5, y + 6 + walkY, 1, 3, '#9ca3af'); // arrowhead
+      px(ctx, bowX + arrowDir * 2, y + 7 + walkY, 4, 1, '#d1d5db');
+      px(ctx, bowX + arrowDir * 5, y + 6 + walkY, 1, 3, '#9ca3af');
     } else {
-      // Bow at rest
+      // Bow at rest with visible string tension
       px(ctx, bowX, y + 4 + walkY, 1, 7, '#78350f');
       px(ctx, bowX + (facingRight ? 1 : -1), y + 4 + walkY, 1, 1, '#78350f');
       px(ctx, bowX + (facingRight ? 1 : -1), y + 10 + walkY, 1, 1, '#78350f');
-      px(ctx, bowX + (facingRight ? 1 : -1), y + 5 + walkY, 1, 5, '#fbbf24'); // string
+      // String at rest (slight curve)
+      px(ctx, bowX + (facingRight ? 1 : -1), y + 5 + walkY, 1, 5, '#fbbf24');
+      // String highlight at center
+      px(ctx, bowX + (facingRight ? 1 : -1), y + 7 + walkY, 1, 1, '#fef3c7');
     }
 
     // Head
     px(ctx, x + 5, y + 2, 6, 4, '#fcd5b4');
-    // Hood
+    // Hood -- directional shadow
     px(ctx, x + 4, y + 1, 8, 2, '#15803d');
     px(ctx, x + 5, y + 0, 6, 1, '#166534');
+    // Hood shadow on face depends on facing direction
+    if (facing !== 'up') {
+      if (facingRight) {
+        px(ctx, x + 5, y + 2, 2, 1, '#d4a574'); // shadow on left side
+      } else if (facing === 'left') {
+        px(ctx, x + 9, y + 2, 2, 1, '#d4a574'); // shadow on right side
+      } else {
+        // facing down -- shadow on top of face
+        px(ctx, x + 5, y + 2, 6, 1, '#d4a574');
+      }
+    }
 
     // Face
     if (facing !== 'up') {
@@ -463,15 +597,15 @@ export class SpriteRenderer {
     const stats = MONSTER_STATS[type];
     const renderSize = Math.floor(TILE_SIZE * stats.size);
 
-    // Shadow beneath
-    ctx.globalAlpha = 0.3;
-    const shadowW = Math.min(renderSize, 14);
-    px(ctx, x + (renderSize - shadowW) / 2, y + renderSize - 2, shadowW, 2, '#000000');
-    ctx.globalAlpha = 1;
+    // Elliptical shadow beneath
+    this.drawEntityShadow(ctx, x, y, renderSize, renderSize);
 
     if (flashWhite) {
-      // Draw white silhouette
-      px(ctx, x + 2, y + 2, renderSize - 4, renderSize - 4, '#ffffff');
+      // White silhouette with red tint
+      px(ctx, x + 2, y + 2, renderSize - 4, renderSize - 4, '#ff8888');
+      ctx.globalAlpha = 0.3;
+      px(ctx, x + 2, y + 2, renderSize - 4, renderSize - 4, '#ff0000');
+      ctx.globalAlpha = 1;
       return;
     }
 
@@ -488,95 +622,179 @@ export class SpriteRenderer {
     const wobble = WALK_OFFSETS[frame % 4];
     const attacking = false; // TODO: pass attacking state
 
-    // Skull
-    px(ctx, x + 4, y + 1, 8, 6, '#e5e7eb'); // skull base
-    px(ctx, x + 5, y + 0, 6, 1, '#d1d5db'); // skull top
-    px(ctx, x + 3, y + 2, 1, 4, '#d1d5db'); // skull left
-    px(ctx, x + 12, y + 2, 1, 4, '#d1d5db'); // skull right
+    // Tattered cloth remnants hanging off bones
+    ctx.globalAlpha = 0.6;
+    px(ctx, x + 3, y + 7, 2, 4, '#4b5563');
+    px(ctx, x + 11, y + 8, 2, 3, '#374151');
+    px(ctx, x + 6, y + 6, 4, 1, '#4b5563');
+    // Cloth sway
+    const clothSway = Math.sin(frame * 0.5) * 0.5;
+    px(ctx, x + 3 + clothSway, y + 11, 1, 2, '#374151');
+    ctx.globalAlpha = 1;
 
-    // Glowing red eye sockets
-    px(ctx, x + 5, y + 2, 2, 2, '#1a1a2e'); // left socket
-    px(ctx, x + 9, y + 2, 2, 2, '#1a1a2e'); // right socket
-    px(ctx, x + 5, y + 2, 1, 1, '#ef4444'); // left glow
-    px(ctx, x + 10, y + 2, 1, 1, '#ef4444'); // right glow
+    // Skull
+    px(ctx, x + 4, y + 1, 8, 6, '#e5e7eb');
+    px(ctx, x + 5, y + 0, 6, 1, '#d1d5db');
+    px(ctx, x + 3, y + 2, 1, 4, '#d1d5db');
+    px(ctx, x + 12, y + 2, 1, 4, '#d1d5db');
+    // Skull shading -- darker around edges
+    px(ctx, x + 4, y + 1, 1, 1, '#c4c4c4');
+    px(ctx, x + 11, y + 1, 1, 1, '#c4c4c4');
+
+    // Glowing red eye sockets with flickering intensity
+    px(ctx, x + 5, y + 2, 2, 2, '#1a1a2e');
+    px(ctx, x + 9, y + 2, 2, 2, '#1a1a2e');
+    // Flickering glow intensity based on frame
+    const flickerIntensity = 0.6 + Math.sin(frame * 1.5) * 0.4;
+    const eyeColor = flickerIntensity > 0.8 ? '#ff6b6b' : '#ef4444';
+    const eyeGlow = flickerIntensity > 0.8 ? '#ff0000' : '#dc2626';
+    px(ctx, x + 5, y + 2, 1, 1, eyeColor);
+    px(ctx, x + 6, y + 3, 1, 1, eyeGlow);
+    px(ctx, x + 10, y + 2, 1, 1, eyeColor);
+    px(ctx, x + 9, y + 3, 1, 1, eyeGlow);
+    // Eye glow aura
+    ctx.globalAlpha = flickerIntensity * 0.2;
+    px(ctx, x + 4, y + 1, 3, 3, '#ff0000');
+    px(ctx, x + 9, y + 1, 3, 3, '#ff0000');
+    ctx.globalAlpha = 1;
 
     // Nose
     px(ctx, x + 7, y + 4, 2, 1, '#1a1a2e');
 
-    // Jaw (opens when attacking or on certain frames)
+    // Jaw
     const jawOpen = (frame % 8) < 2 ? 1 : 0;
-    px(ctx, x + 5, y + 5 + jawOpen, 6, 2, '#d1d5db'); // jaw
-    px(ctx, x + 6, y + 5, 4, 1, '#1a1a2e'); // mouth gap
-    // Teeth
+    px(ctx, x + 5, y + 5 + jawOpen, 6, 2, '#d1d5db');
+    px(ctx, x + 6, y + 5, 4, 1, '#1a1a2e');
+    // Teeth -- more detailed
     px(ctx, x + 6, y + 5 + jawOpen, 1, 1, '#ffffff');
+    px(ctx, x + 7, y + 5 + jawOpen, 1, 1, '#e5e7eb');
     px(ctx, x + 8, y + 5 + jawOpen, 1, 1, '#ffffff');
+    px(ctx, x + 9, y + 5 + jawOpen, 1, 1, '#e5e7eb');
 
-    // Ribcage
+    // Ribcage -- more articulated with visible rib lines
     px(ctx, x + 5, y + 7, 6, 4, '#d1d5db');
-    px(ctx, x + 6, y + 8, 1, 1, '#1a1a2e'); // rib gap
+    // Individual rib gaps -- darker ribs
+    px(ctx, x + 6, y + 7, 1, 1, '#b0b0b0');
+    px(ctx, x + 6, y + 8, 1, 1, '#1a1a2e');
+    px(ctx, x + 8, y + 7, 1, 1, '#b0b0b0');
     px(ctx, x + 8, y + 8, 1, 1, '#1a1a2e');
+    px(ctx, x + 6, y + 9, 4, 1, '#c4c4c4'); // lower rib
+    px(ctx, x + 7, y + 9, 2, 1, '#1a1a2e'); // gap
     px(ctx, x + 6, y + 10, 4, 1, '#b0b0b0'); // spine
+    // Bone color variation: lighter joints
+    px(ctx, x + 5, y + 7, 1, 1, '#f0f0f0'); // shoulder joint
+    px(ctx, x + 10, y + 7, 1, 1, '#f0f0f0');
 
-    // Arms (bone segments)
-    px(ctx, x + 3, y + 7 + wobble, 2, 1, '#d1d5db'); // left upper arm
-    px(ctx, x + 2, y + 8 + wobble, 1, 3, '#c4c4c4'); // left forearm
+    // Arms (bone segments with articulated joints)
+    // Left arm
+    px(ctx, x + 3, y + 7 + wobble, 2, 1, '#d1d5db');
+    px(ctx, x + 3, y + 7 + wobble, 1, 1, '#f0f0f0'); // joint highlight
+    px(ctx, x + 2, y + 8 + wobble, 1, 3, '#c4c4c4');
+    px(ctx, x + 2, y + 10 + wobble, 1, 1, '#f0f0f0'); // wrist joint
+    // Right arm
     px(ctx, x + 11, y + 7 - wobble, 2, 1, '#d1d5db');
+    px(ctx, x + 12, y + 7 - wobble, 1, 1, '#f0f0f0');
     px(ctx, x + 13, y + 8 - wobble, 1, 3, '#c4c4c4');
+    px(ctx, x + 13, y + 10 - wobble, 1, 1, '#f0f0f0');
 
-    // Rusty sword in right hand
-    px(ctx, x + 13, y + 5 - wobble, 1, 3, '#9ca3af'); // blade
-    px(ctx, x + 14, y + 5 - wobble, 1, 3, '#78716c'); // rust color
+    // Rusty sword with notched blade edge
+    px(ctx, x + 13, y + 5 - wobble, 1, 3, '#9ca3af');
+    px(ctx, x + 14, y + 5 - wobble, 1, 3, '#78716c'); // rust
+    // Notched edge detail
+    px(ctx, x + 14, y + 6 - wobble, 1, 1, '#6b7280'); // notch
+    px(ctx, x + 13, y + 4 - wobble, 1, 1, '#d1d5db'); // blade tip
     px(ctx, x + 13, y + 8 - wobble, 1, 1, '#78350f'); // handle
+    px(ctx, x + 13, y + 9 - wobble, 1, 1, '#5c3d1e'); // pommel
+    // Rust spots
+    px(ctx, x + 14, y + 7 - wobble, 1, 1, '#92400e');
 
-    // Legs (bone)
+    // Attack animation: sword swing arc with trail
+    if (attacking) {
+      ctx.globalAlpha = 0.3;
+      px(ctx, x + 14, y + 3 - wobble, 2, 1, '#ffffff');
+      px(ctx, x + 15, y + 4 - wobble, 1, 2, '#ffffff');
+      ctx.globalAlpha = 0.15;
+      px(ctx, x + 15, y + 2 - wobble, 2, 2, '#ffffff');
+      ctx.globalAlpha = 1;
+    }
+
+    // Legs (bone) with joint highlights
     px(ctx, x + 6, y + 11, 1, 3 + (frame % 2), '#c4c4c4');
-    px(ctx, x + 5, y + 13 + (frame % 2), 2, 1, '#b0b0b0'); // foot
+    px(ctx, x + 6, y + 11, 1, 1, '#f0f0f0'); // knee joint
+    px(ctx, x + 5, y + 13 + (frame % 2), 2, 1, '#b0b0b0');
     px(ctx, x + 9, y + 11, 1, 3 - (frame % 2), '#c4c4c4');
+    px(ctx, x + 9, y + 11, 1, 1, '#f0f0f0'); // knee joint
     px(ctx, x + 9, y + 13 - (frame % 2), 2, 1, '#b0b0b0');
 
     this.drawSpriteOutline(ctx, x, y);
   }
 
   private drawSlime(ctx: CanvasRenderingContext2D, x: number, y: number, frame: number): void {
-    // Squash/stretch bouncing animation
+    // Squash/stretch bouncing animation -- more dramatic
     const bouncePhase = (frame % 8) / 8;
     const squash = Math.sin(bouncePhase * Math.PI * 2);
     const baseW = 12;
     const baseH = 10;
-    const w = Math.floor(baseW + squash * 2);
-    const h = Math.floor(baseH - squash * 2);
+    const w = Math.floor(baseW + squash * 3); // more dramatic squash
+    const h = Math.floor(baseH - squash * 3);
     const bx = x + 8 - Math.floor(w / 2);
     const by = y + 14 - h;
 
-    // Small trail behind
-    ctx.globalAlpha = 0.2;
-    px(ctx, bx + 2, y + 14, w - 4, 1, '#4ade80');
+    // Dripping effect at bottom (tiny droplet pixels)
+    const dripPhase = (frame % 16);
+    ctx.globalAlpha = 0.5;
+    if (dripPhase < 8) {
+      px(ctx, bx + 3, y + 14 + (dripPhase % 3), 1, 1, '#4ade80');
+    }
+    if (dripPhase > 4 && dripPhase < 12) {
+      px(ctx, bx + w - 4, y + 14 + ((dripPhase + 2) % 3), 1, 1, '#4ade80');
+    }
     ctx.globalAlpha = 1;
 
-    // Main body (translucent effect via layers)
-    // Outer body
+    // Small trail behind
+    ctx.globalAlpha = 0.15;
+    px(ctx, bx + 1, y + 14, w - 2, 1, '#22c55e');
+    px(ctx, bx + 2, y + 15, w - 4, 1, '#16a34a');
+    ctx.globalAlpha = 1;
+
+    // Outer body -- more organic irregular edges
     px(ctx, bx, by + 1, w, h - 1, '#4ade80');
     px(ctx, bx + 1, by, w - 2, 1, '#4ade80'); // rounded top
     px(ctx, bx + 1, by + h, w - 2, 1, '#4ade80'); // rounded bottom
+    // Irregular organic bumps
+    px(ctx, bx - 1, by + 3, 1, 3, '#4ade80'); // left bump
+    px(ctx, bx + w, by + 4, 1, 2, '#4ade80'); // right bump
+    px(ctx, bx + 2, by - 1, 2, 1, '#4ade80'); // top bump
 
-    // Inner lighter area (translucent highlight)
-    px(ctx, bx + 2, by + 2, w - 4, h - 4, '#86efac');
+    // Different color core vs outer layer -- darker center
+    px(ctx, bx + 3, by + 3, w - 6, h - 5, '#22c55e'); // darker core
 
-    // Bubble highlights
+    // Inner lighter area (translucent highlight) -- lighter edges
+    px(ctx, bx + 1, by + 1, 3, 2, '#86efac'); // top-left highlight
+    px(ctx, bx + w - 3, by + 2, 2, 2, '#86efac'); // top-right highlight
+
+    // Internal "bubbles" that move (2-3 dots that shift per frame)
+    const bubble1X = bx + 3 + Math.sin(frame * 0.3) * 2;
+    const bubble1Y = by + Math.floor(h * 0.4) + Math.cos(frame * 0.25) * 1.5;
+    const bubble2X = bx + w - 5 + Math.cos(frame * 0.35) * 1.5;
+    const bubble2Y = by + Math.floor(h * 0.6) + Math.sin(frame * 0.2) * 1;
+    const bubble3X = bx + Math.floor(w * 0.5) + Math.sin(frame * 0.4) * 1;
+    const bubble3Y = by + Math.floor(h * 0.3) + Math.cos(frame * 0.3) * 1;
+
+    px(ctx, bubble1X, bubble1Y, 2, 2, '#d1fae5');
+    px(ctx, bubble2X, bubble2Y, 1, 1, '#bbf7d0');
+    px(ctx, bubble3X, bubble3Y, 1, 1, '#d1fae5');
+
+    // Bubble highlights on surface
     px(ctx, bx + 2, by + 1, 2, 2, '#bbf7d0');
     px(ctx, bx + w - 4, by + 2, 1, 1, '#bbf7d0');
-
-    // Large bubble inside
-    const bubbleX = bx + Math.floor(w * 0.6);
-    const bubbleY = by + Math.floor(h * 0.5);
-    px(ctx, bubbleX, bubbleY, 2, 2, '#d1fae5');
 
     // Eyes (blink every ~3 seconds at 8fps)
     const blinkFrame = frame % 24;
     const isBlinking = blinkFrame === 0;
     const eyeY = by + Math.floor(h * 0.3);
     if (isBlinking) {
-      px(ctx, bx + Math.floor(w * 0.25), eyeY, 2, 1, '#1a1a2e'); // blink = line
+      px(ctx, bx + Math.floor(w * 0.25), eyeY, 2, 1, '#1a1a2e');
       px(ctx, bx + Math.floor(w * 0.6), eyeY, 2, 1, '#1a1a2e');
     } else {
       px(ctx, bx + Math.floor(w * 0.25), eyeY, 2, 2, '#1a1a2e');
@@ -593,101 +811,161 @@ export class SpriteRenderer {
   }
 
   private drawBat(ctx: CanvasRenderingContext2D, x: number, y: number, frame: number): void {
-    // 3-frame flapping animation
-    const flapPhase = frame % 6;
-    let wingUp: number;
-    if (flapPhase < 2) wingUp = -2; // wings up
-    else if (flapPhase < 4) wingUp = 0; // wings level
-    else wingUp = 2; // wings down
+    // Sine-based wing position for smoother animation
+    const wingAngle = Math.sin(frame * 0.8) * 3;
 
     const bx = x + 3;
     const by = y + 3;
 
-    // Body (small furry oval)
-    px(ctx, bx + 4, by + 3, 4, 5, '#7c3aed'); // body
-    px(ctx, bx + 4, by + 2, 4, 1, '#8b5cf6'); // body top
+    // Shadow on the ground beneath
+    ctx.globalAlpha = 0.15;
+    const shadowY = by + 10;
+    px(ctx, bx + 2, shadowY, 8, 1, '#000000');
+    ctx.globalAlpha = 1;
+
+    // Body (small furry oval with fur texture)
+    px(ctx, bx + 4, by + 3, 4, 5, '#7c3aed');
+    px(ctx, bx + 4, by + 2, 4, 1, '#8b5cf6');
+    // Body fur texture (dithered darker pixels)
+    px(ctx, bx + 5, by + 4, 1, 1, '#6d28d9');
+    px(ctx, bx + 7, by + 5, 1, 1, '#6d28d9');
+    px(ctx, bx + 4, by + 6, 1, 1, '#5b21b6');
+    px(ctx, bx + 6, by + 3, 1, 1, '#6d28d9');
 
     // Head
     px(ctx, bx + 4, by + 1, 4, 3, '#6d28d9');
 
-    // Ears
+    // Ears (more detailed)
     px(ctx, bx + 4, by, 1, 2, '#5b21b6');
     px(ctx, bx + 7, by, 1, 2, '#5b21b6');
+    // Ear inner color
+    px(ctx, bx + 4, by + 1, 1, 1, '#8b5cf6');
+    px(ctx, bx + 7, by + 1, 1, 1, '#8b5cf6');
 
-    // Wings with membrane detail
-    // Left wing
-    px(ctx, bx, by + 2 + wingUp, 4, 4, '#7c3aed');
-    px(ctx, bx, by + 3 + wingUp, 1, 2, '#6d28d9'); // wing tip
-    // Membrane lines
-    px(ctx, bx + 1, by + 3 + wingUp, 1, 2, '#5b21b6');
-    px(ctx, bx + 2, by + 2 + wingUp, 1, 3, '#5b21b6');
+    // Wings with membrane detail and vein lines
+    // Left wing -- smooth sine position
+    const lwUp = wingAngle;
+    px(ctx, bx, by + 2 + lwUp, 4, 4, '#7c3aed');
+    px(ctx, bx, by + 3 + lwUp, 1, 2, '#6d28d9'); // wing tip
+    // Membrane veins
+    px(ctx, bx + 1, by + 3 + lwUp, 1, 2, '#5b21b6');
+    px(ctx, bx + 2, by + 2 + lwUp, 1, 3, '#5b21b6');
+    // Extra vein detail
+    px(ctx, bx, by + 4 + lwUp, 1, 1, '#4c1d95');
+    px(ctx, bx + 1, by + 5 + lwUp, 1, 1, '#4c1d95');
 
-    // Right wing
-    px(ctx, bx + 8, by + 2 - wingUp, 4, 4, '#7c3aed');
-    px(ctx, bx + 11, by + 3 - wingUp, 1, 2, '#6d28d9');
-    px(ctx, bx + 10, by + 3 - wingUp, 1, 2, '#5b21b6');
-    px(ctx, bx + 9, by + 2 - wingUp, 1, 3, '#5b21b6');
+    // Right wing -- opposite sine
+    const rwUp = -wingAngle;
+    px(ctx, bx + 8, by + 2 + rwUp, 4, 4, '#7c3aed');
+    px(ctx, bx + 11, by + 3 + rwUp, 1, 2, '#6d28d9');
+    px(ctx, bx + 10, by + 3 + rwUp, 1, 2, '#5b21b6');
+    px(ctx, bx + 9, by + 2 + rwUp, 1, 3, '#5b21b6');
+    // Extra vein detail
+    px(ctx, bx + 11, by + 4 + rwUp, 1, 1, '#4c1d95');
+    px(ctx, bx + 10, by + 5 + rwUp, 1, 1, '#4c1d95');
 
-    // Red eyes
-    px(ctx, bx + 5, by + 2, 1, 1, '#ef4444');
-    px(ctx, bx + 6, by + 2, 1, 1, '#ef4444');
+    // Red eyes -- intensity based on frame
+    const eyeIntensity = 0.7 + Math.sin(frame * 0.6) * 0.3;
+    const batEyeColor = eyeIntensity > 0.85 ? '#ff6b6b' : '#ef4444';
+    px(ctx, bx + 5, by + 2, 1, 1, batEyeColor);
+    px(ctx, bx + 6, by + 2, 1, 1, batEyeColor);
+    // Eye glow
+    ctx.globalAlpha = eyeIntensity * 0.15;
+    px(ctx, bx + 4, by + 1, 4, 3, '#ff0000');
+    ctx.globalAlpha = 1;
 
-    // Sharp fangs
+    // Visible fangs
     px(ctx, bx + 5, by + 4, 1, 1, '#ffffff');
     px(ctx, bx + 6, by + 4, 1, 1, '#ffffff');
+    // Fang tips
+    px(ctx, bx + 5, by + 5, 1, 1, '#e5e7eb');
   }
 
   private drawGoblin(ctx: CanvasRenderingContext2D, x: number, y: number, facing: Direction, frame: number): void {
     const wobble = WALK_OFFSETS[frame % 4];
+    const attacking = false; // TODO: pass attacking state
 
-    // Legs
+    // Legs -- more muscular
     px(ctx, x + 5, y + 11, 2, 3, '#65a30d');
     px(ctx, x + 9, y + 11, 2, 3, '#65a30d');
+    // Muscle detail
+    px(ctx, x + 5, y + 11, 1, 1, '#4d7c0f');
+    px(ctx, x + 10, y + 11, 1, 1, '#4d7c0f');
     // Feet
     px(ctx, x + 4, y + 13, 3, 2, '#4d7c0f');
     px(ctx, x + 9, y + 13, 3, 2, '#4d7c0f');
 
-    // Body — leather vest
+    // Body -- leather vest / belly armor
     px(ctx, x + 4, y + 7, 8, 4, '#78350f'); // vest
     px(ctx, x + 5, y + 7, 6, 1, '#92400e'); // vest collar
+    // Leather vest stitching
+    px(ctx, x + 4, y + 8, 1, 2, '#5c3d1e');
+    px(ctx, x + 11, y + 8, 1, 2, '#5c3d1e');
+    // Belt with buckle
+    px(ctx, x + 4, y + 10, 8, 1, '#451a03');
+    px(ctx, x + 7, y + 10, 2, 1, '#fbbf24'); // buckle
 
     // Green belly visible
-    px(ctx, x + 6, y + 8, 4, 3, '#84cc16');
+    px(ctx, x + 6, y + 8, 4, 2, '#84cc16');
 
-    // Big head
+    // Big head -- more menacing posture
     px(ctx, x + 3, y + 1, 10, 7, '#84cc16');
-    // Big pointed ears
+    // War paint / tribal markings
+    px(ctx, x + 4, y + 4, 1, 2, '#dc2626'); // left cheek mark
+    px(ctx, x + 11, y + 4, 1, 2, '#dc2626'); // right cheek mark
+    px(ctx, x + 7, y + 1, 2, 1, '#991b1b'); // forehead mark
+
+    // Big pointed ears with earring
     px(ctx, x + 1, y + 2, 3, 4, '#84cc16');
     px(ctx, x + 0, y + 3, 1, 2, '#65a30d');
+    // Left earring
+    px(ctx, x + 0, y + 5, 1, 1, '#fbbf24');
     px(ctx, x + 12, y + 2, 3, 4, '#84cc16');
     px(ctx, x + 15, y + 3, 1, 2, '#65a30d');
+    // Ear detail (inner ear)
+    px(ctx, x + 2, y + 3, 1, 2, '#a3e635');
+    px(ctx, x + 13, y + 3, 1, 2, '#a3e635');
 
-    // Mean expression
-    px(ctx, x + 5, y + 3, 2, 2, '#ffffff'); // left eye white
-    px(ctx, x + 9, y + 3, 2, 2, '#ffffff'); // right eye white
-    px(ctx, x + 6, y + 4, 1, 1, '#1a1a2e'); // left pupil
-    px(ctx, x + 9, y + 4, 1, 1, '#1a1a2e'); // right pupil
-    // Angry brow
-    px(ctx, x + 5, y + 2, 2, 1, '#4d7c0f');
-    px(ctx, x + 9, y + 2, 2, 1, '#4d7c0f');
+    // Mean expression -- changes when attacking
+    const angryBrowOffset = attacking ? -1 : 0;
+    px(ctx, x + 5, y + 3, 2, 2, '#ffffff');
+    px(ctx, x + 9, y + 3, 2, 2, '#ffffff');
+    // Pupils
+    px(ctx, x + 6, y + 4, 1, 1, '#1a1a2e');
+    px(ctx, x + 9, y + 4, 1, 1, '#1a1a2e');
+    // Angry brow -- more intense
+    px(ctx, x + 5, y + 2 + angryBrowOffset, 2, 1, '#4d7c0f');
+    px(ctx, x + 9, y + 2 + angryBrowOffset, 2, 1, '#4d7c0f');
+    // Extra brow wrinkle
+    px(ctx, x + 7, y + 2, 2, 1, '#65a30d');
 
     // Big nose
     px(ctx, x + 7, y + 4, 2, 2, '#65a30d');
+    // Nostril
+    px(ctx, x + 7, y + 5, 1, 1, '#4d7c0f');
 
-    // Mouth with snaggle tooth
+    // Mouth with snaggle teeth
     px(ctx, x + 5, y + 6, 6, 1, '#1a1a2e');
-    px(ctx, x + 6, y + 5, 1, 1, '#ffffff'); // snaggle tooth sticking up!
+    px(ctx, x + 6, y + 5, 1, 1, '#ffffff'); // snaggle tooth
     px(ctx, x + 9, y + 6, 1, 1, '#ffffff'); // another tooth
+    px(ctx, x + 7, y + 6, 1, 1, '#e5e7eb'); // smaller tooth
 
-    // Arms
+    // Arms -- more muscular
     px(ctx, x + 2, y + 7 + wobble, 2, 4, '#84cc16');
+    px(ctx, x + 2, y + 7 + wobble, 1, 1, '#65a30d'); // muscle shadow
     px(ctx, x + 12, y + 7 - wobble, 2, 4, '#84cc16');
+    px(ctx, x + 13, y + 7 - wobble, 1, 1, '#65a30d');
 
-    // Wooden club in right hand
+    // Spiked club with blood stains in right hand
     px(ctx, x + 13, y + 4 - wobble, 2, 4, '#78350f');
     px(ctx, x + 13, y + 3 - wobble, 3, 2, '#92400e'); // club head (thicker)
-    // Nails in club
-    px(ctx, x + 14, y + 3 - wobble, 1, 1, '#9ca3af');
+    // Spikes on club
+    px(ctx, x + 14, y + 2 - wobble, 1, 1, '#9ca3af'); // spike 1
+    px(ctx, x + 15, y + 3 - wobble, 1, 1, '#9ca3af'); // spike 2
+    px(ctx, x + 13, y + 2 - wobble, 1, 1, '#9ca3af'); // spike 3
+    // Blood stains
+    px(ctx, x + 14, y + 4 - wobble, 1, 1, '#dc2626');
+    px(ctx, x + 15, y + 3 - wobble, 1, 1, '#991b1b');
 
     this.drawSpriteOutline(ctx, x, y);
   }
@@ -695,95 +973,179 @@ export class SpriteRenderer {
   private drawBossDemon(ctx: CanvasRenderingContext2D, x: number, y: number, facing: Direction, frame: number): void {
     // 2.5x size = ~40x40
     const pulse = Math.sin(frame * 0.3) * 2;
-    const bx = x - 4; // offset to center in 40x40 area
+    const bx = x - 4;
     const by = y - 4;
 
-    // Fire aura around body
+    // Ground heat distortion (wavy dark pixels beneath)
+    ctx.globalAlpha = 0.25;
+    for (let i = 0; i < 8; i++) {
+      const heatX = bx + 8 + i * 3 + Math.sin(frame * 0.4 + i) * 1.5;
+      const heatY = by + 37 + Math.sin(frame * 0.3 + i * 0.5) * 1;
+      px(ctx, heatX, heatY, 2, 1, '#451a03');
+    }
+    ctx.globalAlpha = 1;
+
+    // Fire aura around body -- more dynamic
     ctx.globalAlpha = 0.12 + Math.sin(frame * 0.2) * 0.08;
     px(ctx, bx + 2, by + 2, 36, 36, '#ef4444');
     ctx.globalAlpha = 0.08;
     px(ctx, bx, by, 40, 40, '#f97316');
+    ctx.globalAlpha = 0.05;
+    px(ctx, bx - 1, by - 1, 42, 42, '#fbbf24');
     ctx.globalAlpha = 1;
 
-    // Bat-like wings spread wide
+    // Bat-like wings spread wide -- with veins and tears
     // Left wing
     px(ctx, bx + 1, by + 6 + pulse, 7, 18, '#7f1d1d');
     px(ctx, bx + 0, by + 8 + pulse, 2, 14, '#991b1b');
-    // Wing membrane lines
+    // Wing membrane lines/veins
     px(ctx, bx + 2, by + 8 + pulse, 1, 14, '#450a0a');
     px(ctx, bx + 4, by + 7 + pulse, 1, 16, '#450a0a');
+    px(ctx, bx + 6, by + 9 + pulse, 1, 12, '#450a0a');
+    // Wing tears/holes
+    px(ctx, bx + 3, by + 12 + pulse, 1, 2, '#000000');
+    px(ctx, bx + 5, by + 16 + pulse, 1, 1, '#000000');
 
     // Right wing
     px(ctx, bx + 32, by + 6 - pulse, 7, 18, '#7f1d1d');
     px(ctx, bx + 38, by + 8 - pulse, 2, 14, '#991b1b');
     px(ctx, bx + 37, by + 8 - pulse, 1, 14, '#450a0a');
     px(ctx, bx + 35, by + 7 - pulse, 1, 16, '#450a0a');
+    px(ctx, bx + 33, by + 9 - pulse, 1, 12, '#450a0a');
+    // Wing tears
+    px(ctx, bx + 36, by + 13 - pulse, 1, 2, '#000000');
+    px(ctx, bx + 34, by + 18 - pulse, 1, 1, '#000000');
 
-    // Main body — dark red with black cracks
-    px(ctx, bx + 10, by + 8, 20, 22, '#dc2626');
-    // Lava cracks
+    // Main body -- dark red, broader shoulders
+    px(ctx, bx + 8, by + 8, 24, 22, '#dc2626'); // wider body
+    // Shoulder bulk
+    px(ctx, bx + 7, by + 10, 2, 6, '#dc2626');
+    px(ctx, bx + 31, by + 10, 2, 6, '#dc2626');
+
+    // Lava/fire cracks across body that pulse with light
+    const crackGlow = 0.5 + Math.sin(frame * 0.5) * 0.5;
+    const crackColor = crackGlow > 0.7 ? '#fbbf24' : '#f97316';
     px(ctx, bx + 14, by + 12, 1, 6, '#1a1a2e');
-    px(ctx, bx + 14, by + 13, 1, 1, '#f97316'); // lava glow in crack
+    px(ctx, bx + 14, by + 13, 1, 2, crackColor);
     px(ctx, bx + 25, by + 14, 1, 5, '#1a1a2e');
-    px(ctx, bx + 25, by + 15, 1, 1, '#f97316');
+    px(ctx, bx + 25, by + 15, 1, 2, crackColor);
     px(ctx, bx + 18, by + 20, 4, 1, '#1a1a2e');
-    px(ctx, bx + 19, by + 20, 2, 1, '#f97316');
+    px(ctx, bx + 19, by + 20, 2, 1, crackColor);
+    // Additional cracks
+    px(ctx, bx + 11, by + 18, 1, 4, '#1a1a2e');
+    px(ctx, bx + 11, by + 19, 1, 1, crackColor);
+    px(ctx, bx + 28, by + 16, 1, 3, '#1a1a2e');
+    px(ctx, bx + 28, by + 17, 1, 1, crackColor);
+    // Crack glow aura
+    ctx.globalAlpha = crackGlow * 0.15;
+    px(ctx, bx + 13, by + 12, 3, 6, '#f97316');
+    px(ctx, bx + 24, by + 14, 3, 5, '#f97316');
+    ctx.globalAlpha = 1;
 
     // Chest highlight
     px(ctx, bx + 14, by + 10, 12, 6, '#b91c1c');
     px(ctx, bx + 16, by + 11, 8, 4, '#991b1b');
+    // Chest muscle definition
+    px(ctx, bx + 19, by + 10, 1, 5, '#7f1d1d');
 
     // Head
     px(ctx, bx + 12, by + 2, 16, 10, '#dc2626');
-    px(ctx, bx + 14, by + 1, 12, 2, '#b91c1c'); // forehead
+    px(ctx, bx + 14, by + 1, 12, 2, '#b91c1c');
 
-    // Huge horns curving upward
+    // Huge horns curving upward -- with ridges/rings
+    // Left horn
     px(ctx, bx + 9, by - 2, 4, 6, '#451a03');
     px(ctx, bx + 8, by - 4, 3, 3, '#78350f');
-    px(ctx, bx + 7, by - 5, 2, 2, '#92400e'); // horn tip
+    px(ctx, bx + 7, by - 5, 2, 2, '#92400e');
+    // Horn ridges
+    px(ctx, bx + 9, by - 1, 4, 1, '#5c3d1e');
+    px(ctx, bx + 8, by - 3, 3, 1, '#5c3d1e');
+    // Right horn
     px(ctx, bx + 27, by - 2, 4, 6, '#451a03');
     px(ctx, bx + 29, by - 4, 3, 3, '#78350f');
     px(ctx, bx + 31, by - 5, 2, 2, '#92400e');
+    // Horn ridges
+    px(ctx, bx + 27, by - 1, 4, 1, '#5c3d1e');
+    px(ctx, bx + 29, by - 3, 3, 1, '#5c3d1e');
 
-    // Burning eyes (yellow/orange)
-    px(ctx, bx + 15, by + 4, 3, 3, '#000000'); // eye socket
+    // Burning eyes -- cycling colors (red -> orange -> yellow)
+    const eyeCycle = frame % 24;
+    let demonEyeColor: string;
+    let demonPupilColor: string;
+    if (eyeCycle < 8) {
+      demonEyeColor = '#ef4444'; // red
+      demonPupilColor = '#dc2626';
+    } else if (eyeCycle < 16) {
+      demonEyeColor = '#f97316'; // orange
+      demonPupilColor = '#ea580c';
+    } else {
+      demonEyeColor = '#fbbf24'; // yellow
+      demonPupilColor = '#f59e0b';
+    }
+    px(ctx, bx + 15, by + 4, 3, 3, '#000000');
     px(ctx, bx + 22, by + 4, 3, 3, '#000000');
-    px(ctx, bx + 15, by + 4, 2, 2, '#fbbf24'); // left eye fire
-    px(ctx, bx + 16, by + 5, 1, 1, '#f97316'); // pupil
-    px(ctx, bx + 23, by + 4, 2, 2, '#fbbf24');
-    px(ctx, bx + 23, by + 5, 1, 1, '#f97316');
+    px(ctx, bx + 15, by + 4, 2, 2, demonEyeColor);
+    px(ctx, bx + 16, by + 5, 1, 1, demonPupilColor);
+    px(ctx, bx + 23, by + 4, 2, 2, demonEyeColor);
+    px(ctx, bx + 23, by + 5, 1, 1, demonPupilColor);
+    // Eye fire flicker above
+    ctx.globalAlpha = 0.4;
+    px(ctx, bx + 15, by + 3, 2, 1, demonEyeColor);
+    px(ctx, bx + 23, by + 3, 2, 1, demonEyeColor);
+    ctx.globalAlpha = 1;
 
     // Mouth with fangs
     px(ctx, bx + 15, by + 8, 10, 3, '#1a1a2e');
-    px(ctx, bx + 16, by + 10, 2, 2, '#ffffff'); // left fang
-    px(ctx, bx + 22, by + 10, 2, 2, '#ffffff'); // right fang
+    px(ctx, bx + 16, by + 10, 2, 2, '#ffffff');
+    px(ctx, bx + 22, by + 10, 2, 2, '#ffffff');
+    // Extra smaller fangs
+    px(ctx, bx + 18, by + 10, 1, 1, '#e5e7eb');
+    px(ctx, bx + 21, by + 10, 1, 1, '#e5e7eb');
     px(ctx, bx + 18, by + 9, 4, 1, '#ef4444'); // tongue/fire
+    // Fire dripping from mouth
+    ctx.globalAlpha = 0.5;
+    px(ctx, bx + 19, by + 11, 2, 1, '#f97316');
+    ctx.globalAlpha = 1;
 
-    // Arms (muscular)
-    px(ctx, bx + 6, by + 14, 4, 12, '#dc2626');
-    px(ctx, bx + 7, by + 15, 2, 4, '#b91c1c'); // muscle highlight
-    px(ctx, bx + 30, by + 14, 4, 12, '#dc2626');
-    px(ctx, bx + 31, by + 15, 2, 4, '#b91c1c');
+    // Arms (muscular) -- broader shoulders
+    px(ctx, bx + 5, by + 14, 5, 12, '#dc2626');
+    px(ctx, bx + 6, by + 15, 3, 4, '#b91c1c'); // muscle highlight
+    px(ctx, bx + 7, by + 20, 2, 2, '#b91c1c'); // forearm muscle
+    px(ctx, bx + 30, by + 14, 5, 12, '#dc2626');
+    px(ctx, bx + 31, by + 15, 3, 4, '#b91c1c');
+    px(ctx, bx + 31, by + 20, 2, 2, '#b91c1c');
 
-    // Claws
-    px(ctx, bx + 5, by + 26, 2, 2, '#451a03');
+    // Claws -- more detailed
+    px(ctx, bx + 4, by + 26, 2, 2, '#451a03');
+    px(ctx, bx + 6, by + 26, 1, 3, '#451a03');
     px(ctx, bx + 7, by + 26, 1, 2, '#451a03');
-    px(ctx, bx + 32, by + 26, 2, 2, '#451a03');
+    px(ctx, bx + 33, by + 26, 2, 2, '#451a03');
+    px(ctx, bx + 32, by + 26, 1, 3, '#451a03');
     px(ctx, bx + 31, by + 26, 1, 2, '#451a03');
 
     // Legs
     px(ctx, bx + 12, by + 30, 6, 6, '#991b1b');
     px(ctx, bx + 22, by + 30, 6, 6, '#991b1b');
+    // Leg muscle
+    px(ctx, bx + 13, by + 30, 2, 3, '#b91c1c');
+    px(ctx, bx + 23, by + 30, 2, 3, '#b91c1c');
     // Hooves
     px(ctx, bx + 11, by + 35, 8, 2, '#451a03');
     px(ctx, bx + 21, by + 35, 8, 2, '#451a03');
+    // Hoof highlights
+    px(ctx, bx + 12, by + 35, 2, 1, '#5c3d1e');
+    px(ctx, bx + 22, by + 35, 2, 1, '#5c3d1e');
 
-    // Tail with spike
+    // Tail with barbed end
     px(ctx, bx + 18, by + 30, 3, 2, '#991b1b');
     px(ctx, bx + 20, by + 31, 3, 2, '#7f1d1d');
     px(ctx, bx + 22, by + 32, 3, 2, '#7f1d1d');
     px(ctx, bx + 24, by + 31, 2, 1, '#7f1d1d');
-    px(ctx, bx + 26, by + 30, 3, 3, '#451a03'); // spike
+    // Barbed end (spiky diamond shape)
+    px(ctx, bx + 26, by + 30, 3, 3, '#451a03');
+    px(ctx, bx + 27, by + 29, 1, 1, '#451a03'); // top barb
+    px(ctx, bx + 27, by + 33, 1, 1, '#451a03'); // bottom barb
+    px(ctx, bx + 29, by + 31, 1, 1, '#451a03'); // right barb point
 
     // Outline for boss
     this.drawSpriteOutline(ctx, bx, by);
@@ -800,6 +1162,10 @@ export class SpriteRenderer {
     roomCleared = false,
     tileX = 0,
     tileY = 0,
+    _tiles?: unknown,
+    _mapWidth?: number,
+    _mapHeight?: number,
+    _animFrame?: number,
   ): void {
     // Use tile position for deterministic variation
     const hash = tileHash(Math.floor(x / TILE_SIZE + 1000), Math.floor(y / TILE_SIZE + 1000));
@@ -905,7 +1271,7 @@ export class SpriteRenderer {
     px(ctx, x + 1, y + 2, 2, 4, '#78350f');
     px(ctx, x, y + 5, 4, 1, '#92400e');
 
-    // Flame (2 frames based on hash trick — flickers)
+    // Flame (2 frames based on hash trick -- flickers)
     const flicker = (hash >> 12) % 2;
     if (flicker === 0) {
       px(ctx, x + 1, y, 2, 2, '#fbbf24');
@@ -1218,10 +1584,8 @@ export class SpriteRenderer {
     const bounceY = Math.sin(frame * 0.15) * 2;
     const ly = y + bounceY;
 
-    // Shadow
-    ctx.globalAlpha = 0.25;
-    px(ctx, x + 4, y + 13, 8, 2, '#000000');
-    ctx.globalAlpha = 1;
+    // Elliptical shadow beneath loot
+    this.drawEntityShadow(ctx, x, y, 16, 16);
 
     // Glow underneath
     ctx.globalAlpha = 0.2 + Math.sin(frame * 0.1) * 0.1;
@@ -1238,102 +1602,158 @@ export class SpriteRenderer {
   }
 
   private drawHealthPotion(ctx: CanvasRenderingContext2D, x: number, y: number, frame: number): void {
-    // Cork top
+    // Cork top with texture
     px(ctx, x + 6, y + 2, 4, 2, '#92400e');
+    px(ctx, x + 7, y + 2, 1, 1, '#a16207'); // cork grain
+    px(ctx, x + 8, y + 3, 1, 1, '#78350f'); // cork grain
 
-    // Bottle neck
+    // Bottle neck -- curved
     px(ctx, x + 6, y + 4, 4, 2, '#d1d5db');
+    px(ctx, x + 6, y + 4, 1, 1, '#e5e7eb'); // glass highlight
 
-    // Bottle body (red liquid)
+    // Bottle body (red liquid) -- more curved shape
+    px(ctx, x + 5, y + 5, 6, 1, '#dc2626'); // neck transition
     px(ctx, x + 4, y + 6, 8, 5, '#ef4444');
-    px(ctx, x + 5, y + 5, 6, 1, '#dc2626');
     px(ctx, x + 5, y + 11, 6, 1, '#b91c1c');
+    // Bottom curve
+    px(ctx, x + 5, y + 11, 6, 1, '#dc2626');
 
     // Heart label
     px(ctx, x + 7, y + 7, 2, 1, '#fecaca');
     px(ctx, x + 6, y + 8, 4, 1, '#fecaca');
     px(ctx, x + 7, y + 9, 2, 1, '#fecaca');
 
-    // Liquid slosh animation
+    // Liquid slosh animation -- tilts left/right
     const slosh = Math.sin(frame * 0.2);
-    if (slosh > 0.5) {
+    if (slosh > 0.3) {
       px(ctx, x + 5, y + 7, 2, 1, lighten('#ef4444', 0.3));
+      px(ctx, x + 5, y + 8, 1, 1, lighten('#ef4444', 0.2));
+    } else if (slosh < -0.3) {
+      px(ctx, x + 9, y + 7, 2, 1, lighten('#ef4444', 0.3));
+      px(ctx, x + 10, y + 8, 1, 1, lighten('#ef4444', 0.2));
     }
+
+    // Red liquid highlight bubble
+    px(ctx, x + 9, y + 7, 1, 1, '#fca5a5');
 
     // Glass highlight
     px(ctx, x + 5, y + 6, 1, 3, lighten('#ef4444', 0.4));
+
+    // Sparkle effect (1px white dot that appears/disappears)
+    const sparkle = (frame % 20);
+    if (sparkle < 4) {
+      px(ctx, x + 10, y + 6, 1, 1, '#ffffff');
+    } else if (sparkle > 10 && sparkle < 14) {
+      px(ctx, x + 5, y + 9, 1, 1, '#ffffff');
+    }
   }
 
   private drawManaPotion(ctx: CanvasRenderingContext2D, x: number, y: number, frame: number): void {
     // Cork
     px(ctx, x + 6, y + 2, 4, 2, '#92400e');
+    px(ctx, x + 7, y + 2, 1, 1, '#a16207');
 
-    // Bottle neck
+    // Bottle neck -- more elegant shape
     px(ctx, x + 6, y + 4, 4, 2, '#d1d5db');
+    px(ctx, x + 6, y + 4, 1, 1, '#e5e7eb');
 
-    // Bottle body (blue liquid)
+    // Bottle body (blue liquid) -- elegant wider body
+    px(ctx, x + 5, y + 5, 6, 1, '#2563eb'); // neck transition
     px(ctx, x + 4, y + 6, 8, 5, '#3b82f6');
-    px(ctx, x + 5, y + 5, 6, 1, '#2563eb');
     px(ctx, x + 5, y + 11, 6, 1, '#1d4ed8');
 
-    // Star label
-    px(ctx, x + 7, y + 7, 2, 1, '#bfdbfe');
+    // Star-shaped label
+    px(ctx, x + 7, y + 7, 2, 3, '#bfdbfe');
     px(ctx, x + 6, y + 8, 4, 1, '#bfdbfe');
-    px(ctx, x + 7, y + 9, 2, 1, '#bfdbfe');
+
+    // Swirling particle inside
+    const swirlAngle = frame * 0.3;
+    const swirlX = x + 7 + Math.cos(swirlAngle) * 1.5;
+    const swirlY = y + 8 + Math.sin(swirlAngle) * 1;
+    px(ctx, swirlX, swirlY, 1, 1, '#93c5fd');
 
     // Glass highlight
     px(ctx, x + 5, y + 6, 1, 3, lighten('#3b82f6', 0.4));
 
-    // Magical particles rising
+    // Blue sparkle particles rising
     if (frame % 6 < 3) {
       px(ctx, x + 7, y + 1, 1, 1, '#93c5fd');
     }
     if (frame % 8 < 2) {
       px(ctx, x + 9, y + 3, 1, 1, '#ffffff');
     }
+    if (frame % 10 < 3) {
+      px(ctx, x + 5, y + 2, 1, 1, '#60a5fa');
+    }
   }
 
   private drawDamageBoost(ctx: CanvasRenderingContext2D, x: number, y: number, frame: number): void {
     const pulse = Math.sin(frame * 0.2) * 0.15;
 
-    // Glow
+    // Red/orange glow pulsing
     ctx.globalAlpha = 0.2 + pulse;
     px(ctx, x + 3, y + 2, 10, 10, '#f59e0b');
+    ctx.globalAlpha = 0.1 + pulse * 0.5;
+    px(ctx, x + 2, y + 1, 12, 12, '#ef4444');
     ctx.globalAlpha = 1;
 
-    // Sword icon
-    px(ctx, x + 7, y + 2, 2, 7, '#d1d5db'); // blade
-    px(ctx, x + 6, y + 2, 1, 2, '#e5e7eb'); // blade edge
-    px(ctx, x + 9, y + 2, 1, 2, '#9ca3af'); // blade shadow
+    // Sword icon -- more detailed with crossguard
+    // Blade
+    px(ctx, x + 7, y + 2, 2, 6, '#d1d5db');
+    px(ctx, x + 6, y + 2, 1, 3, '#e5e7eb'); // blade edge left
+    px(ctx, x + 9, y + 2, 1, 3, '#9ca3af'); // blade shadow right
+    // Blade tip
+    px(ctx, x + 7, y + 1, 2, 1, '#e5e7eb');
+    px(ctx, x + 8, y + 1, 1, 1, '#ffffff'); // tip highlight
 
-    // Cross guard
+    // Cross guard -- more detailed
     px(ctx, x + 5, y + 8, 6, 1, '#fbbf24');
+    px(ctx, x + 5, y + 8, 1, 1, '#f59e0b'); // guard shadow
+    px(ctx, x + 10, y + 8, 1, 1, '#f59e0b');
 
     // Handle
     px(ctx, x + 7, y + 9, 2, 2, '#78350f');
+    px(ctx, x + 7, y + 9, 1, 1, '#92400e'); // handle highlight
 
     // Pommel
     px(ctx, x + 7, y + 11, 2, 1, '#fbbf24');
+
+    // Motion lines suggesting power
+    ctx.globalAlpha = 0.3 + pulse;
+    px(ctx, x + 3, y + 4, 1, 1, '#f97316');
+    px(ctx, x + 2, y + 6, 1, 1, '#f97316');
+    px(ctx, x + 12, y + 3, 1, 1, '#f97316');
+    px(ctx, x + 13, y + 5, 1, 1, '#f97316');
+    ctx.globalAlpha = 1;
   }
 
   private drawSpeedBoost(ctx: CanvasRenderingContext2D, x: number, y: number, frame: number): void {
-    // Cyan wing/boot icon
     const streak = frame % 4;
 
-    // Boot shape
+    // Boot shape -- brighter, more vibrant
     px(ctx, x + 4, y + 4, 5, 6, '#06b6d4');
     px(ctx, x + 4, y + 10, 7, 2, '#0891b2');
     px(ctx, x + 3, y + 8, 1, 2, '#06b6d4');
+    // Boot highlight
+    px(ctx, x + 5, y + 5, 2, 1, '#22d3ee');
+    // Boot sole
+    px(ctx, x + 4, y + 11, 7, 1, '#0e7490');
 
-    // Wing detail
+    // Wing detail on boot -- more elaborate
     px(ctx, x + 9, y + 3, 3, 2, lighten('#06b6d4', 0.3));
     px(ctx, x + 10, y + 2, 3, 2, lighten('#06b6d4', 0.4));
     px(ctx, x + 11, y + 1, 2, 2, lighten('#06b6d4', 0.5));
+    // Wing feather lines
+    px(ctx, x + 10, y + 4, 2, 1, lighten('#06b6d4', 0.2));
+    px(ctx, x + 12, y + 2, 1, 1, '#ffffff');
 
-    // Streaking effect
-    ctx.globalAlpha = 0.4;
+    // Speed line trails behind -- more prominent
+    ctx.globalAlpha = 0.5;
     px(ctx, x + 1 - streak, y + 6, 3, 1, '#06b6d4');
     px(ctx, x + 0 - streak, y + 8, 2, 1, '#0891b2');
+    ctx.globalAlpha = 0.3;
+    px(ctx, x - 1 - streak, y + 5, 2, 1, '#22d3ee');
+    px(ctx, x - 1 - streak, y + 9, 2, 1, '#0891b2');
     ctx.globalAlpha = 1;
 
     // Highlight
@@ -1341,30 +1761,48 @@ export class SpriteRenderer {
   }
 
   private drawGoldLoot(ctx: CanvasRenderingContext2D, x: number, y: number, frame: number): void {
-    // Stack of coins
+    // Stack of 4 coins with varying angles
     // Bottom coin
-    px(ctx, x + 3, y + 9, 8, 3, '#ca8a04');
-    px(ctx, x + 4, y + 9, 6, 1, '#eab308');
+    px(ctx, x + 2, y + 10, 8, 3, '#a16207');
+    px(ctx, x + 3, y + 10, 6, 1, '#ca8a04');
 
-    // Middle coin (offset)
-    px(ctx, x + 4, y + 6, 8, 3, '#eab308');
-    px(ctx, x + 5, y + 6, 6, 1, '#fbbf24');
+    // Second coin (offset)
+    px(ctx, x + 3, y + 8, 8, 3, '#ca8a04');
+    px(ctx, x + 4, y + 8, 6, 1, '#eab308');
+
+    // Third coin (offset other way)
+    px(ctx, x + 4, y + 5, 8, 3, '#eab308');
+    px(ctx, x + 5, y + 5, 6, 1, '#fbbf24');
 
     // Top coin
     px(ctx, x + 5, y + 3, 6, 3, '#fbbf24');
     px(ctx, x + 6, y + 3, 4, 1, lighten('#fbbf24', 0.3));
 
-    // $ symbol on top coin
+    // $ symbol / coin face on front coin
     px(ctx, x + 7, y + 4, 2, 1, '#ca8a04');
+    px(ctx, x + 7, y + 5, 1, 1, '#a16207'); // $ bottom
 
-    // Sparkle animation
+    // Metallic sheen -- bright yellow highlight that moves
+    const sheenPos = (frame % 10);
+    if (sheenPos < 3) {
+      px(ctx, x + 6 + sheenPos, y + 3, 1, 1, '#fef3c7');
+    } else if (sheenPos < 6) {
+      px(ctx, x + 5 + (sheenPos - 3), y + 6, 1, 1, '#fef3c7');
+    }
+
+    // Golden sparkle particles -- more prominent
     const sparklePhase = frame % 16;
     if (sparklePhase < 3) {
       px(ctx, x + 10, y + 3, 1, 1, '#ffffff');
-    } else if (sparklePhase > 7 && sparklePhase < 10) {
+      px(ctx, x + 11, y + 2, 1, 1, '#fef3c7');
+    } else if (sparklePhase > 5 && sparklePhase < 8) {
       px(ctx, x + 4, y + 5, 1, 1, '#ffffff');
-    } else if (sparklePhase > 12 && sparklePhase < 14) {
+      px(ctx, x + 3, y + 4, 1, 1, '#fef3c7');
+    } else if (sparklePhase > 9 && sparklePhase < 12) {
       px(ctx, x + 8, y + 8, 1, 1, '#ffffff');
+    } else if (sparklePhase > 12 && sparklePhase < 15) {
+      px(ctx, x + 12, y + 6, 1, 1, '#ffffff');
+      px(ctx, x + 2, y + 9, 1, 1, '#fef3c7');
     }
   }
 
@@ -1378,7 +1816,7 @@ export class SpriteRenderer {
     // pixel data which is too expensive per frame.
   }
 
-  /** Simple outline helper — draws black border rect */
+  /** Simple outline helper -- draws black border rect */
   private drawOutline(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, _color: string): void {
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 1;
