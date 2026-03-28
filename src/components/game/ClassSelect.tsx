@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PixelButton } from '@/components/ui/PixelButton';
 import { PixelHero } from '@/components/game/PixelHero';
@@ -28,6 +28,12 @@ const CLASS_ABILITIES: Record<PlayerClass, string> = {
 } as const;
 
 const POPULAR_CLASS: PlayerClass = 'warrior';
+
+const CLASS_ROLES: Record<PlayerClass, string> = {
+  warrior: 'tank',
+  mage: 'hasar',
+  archer: 'hasar',
+} as const;
 
 type StatBarProps = {
   label: string;
@@ -234,6 +240,30 @@ export function ClassSelect({
   );
 
   const showComparison = hoveredClass !== null && selected !== null && hoveredClass !== selected;
+
+  // Team composition hint
+  const teamHint = useMemo(() => {
+    if (isSolo) return null;
+    const allClasses = [
+      ...otherPlayers.map((p) => p.class).filter(Boolean),
+      selected,
+    ].filter(Boolean) as PlayerClass[];
+
+    const hasTank = allClasses.includes('warrior');
+    const hasMage = allClasses.includes('mage');
+    const hasArcher = allClasses.includes('archer');
+
+    if (!hasTank && allClasses.length >= 1) {
+      return { text: 'Takimda savasci yok — bir tank onerilir!', icon: '🛡', color: '#ef4444' };
+    }
+    if (hasTank && hasMage && hasArcher) {
+      return { text: 'Mukemmel takim kompozisyonu!', icon: '✨', color: '#10b981' };
+    }
+    if (!hasMage && allClasses.length >= 2) {
+      return { text: 'Bir buyucu alan hasari yapabilir', icon: '🔮', color: '#a78bfa' };
+    }
+    return null;
+  }, [isSolo, otherPlayers, selected]);
 
   return (
     <main className="relative flex min-h-dvh flex-col items-center justify-center bg-dm-bg px-4 py-8">
@@ -513,6 +543,28 @@ export function ClassSelect({
           ))}
         </motion.div>
       )}
+
+      {/* Team composition hint */}
+      <AnimatePresence>
+        {teamHint && (
+          <motion.div
+            className="z-10 mt-4 flex items-center gap-2 rounded border px-4 py-2"
+            style={{
+              borderColor: `${teamHint.color}40`,
+              backgroundColor: `${teamHint.color}10`,
+            }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3, ease: EASE }}
+          >
+            <span className="text-sm">{teamHint.icon}</span>
+            <span className="font-pixel text-[8px] lg:text-[10px] xl:text-[11px] 2xl:text-[13px]" style={{ color: teamHint.color }}>
+              {teamHint.text}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Ready button */}
       <motion.div

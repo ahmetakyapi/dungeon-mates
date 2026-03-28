@@ -20,8 +20,48 @@ import { ChatBox } from '@/components/game/ChatBox';
 import { PixelButton } from '@/components/ui/PixelButton';
 import { PixelHero } from '@/components/game/PixelHero';
 import type { PlayerInput, GamePhase } from '../../../shared/types';
+import { CLASS_STATS } from '../../../shared/types';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
+
+const DIFFICULTY_INFO: Record<number, { label: string; color: string }> = {
+  1: { label: 'Kolay', color: '#4ade80' },
+  2: { label: 'Normal Zorluk', color: '#facc15' },
+  3: { label: 'Zor', color: '#f97316' },
+  4: { label: 'Cok Zor', color: '#ef4444' },
+} as const;
+
+// Floating particles for lobby background
+function LobbyParticles() {
+  const PARTICLE_COUNT = 20;
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      {Array.from({ length: PARTICLE_COUNT }).map((_, i) => (
+        <motion.div
+          key={i}
+          className="absolute h-1 w-1 rounded-full"
+          style={{
+            backgroundColor: i % 3 === 0 ? '#8b5cf6' : i % 3 === 1 ? '#f59e0b' : '#3b82f6',
+            left: `${(i * 17 + 5) % 100}%`,
+            top: `${(i * 23 + 10) % 100}%`,
+            opacity: 0.15 + (i % 4) * 0.05,
+          }}
+          animate={{
+            y: [0, -30 - (i % 3) * 20, 0],
+            x: [0, (i % 2 === 0 ? 15 : -15), 0],
+            opacity: [0.1, 0.3, 0.1],
+          }}
+          transition={{
+            duration: 4 + (i % 3) * 2,
+            repeat: Infinity,
+            delay: (i * 0.3) % 4,
+            ease: 'easeInOut',
+          }}
+        />
+      ))}
+    </div>
+  );
+}
 
 export default function GamePageWrapper() {
   return (
@@ -77,6 +117,8 @@ function GamePage() {
     level: number;
     deaths: number;
     isMVP: boolean;
+    partyStats: Array<{ name: string; playerClass: string; kills: number; damage: number; gold: number }>;
+    defeatCause: string | undefined;
   } | null>(null);
 
   const sound = useSound();
@@ -88,12 +130,15 @@ function GamePage() {
   const [showFloorTransition, setShowFloorTransition] = useState(false);
   const [floorTransitionData, setFloorTransitionData] = useState({ completed: 1, next: 2, kills: 0, time: 0 });
   const [copied, setCopied] = useState(false);
+  const [roomEntryFlash, setRoomEntryFlash] = useState<{ roomId: number; roomNum: number } | null>(null);
+  const [showRoomCleared, setShowRoomCleared] = useState(false);
   const previousPhaseRef = useRef<GamePhase | null>(null);
   const previousFloorRef = useRef(1);
   const gameStartTime = useRef(Date.now());
   const floorStartTime = useRef(Date.now());
   const floorKillsRef = useRef(0);
   const prevMonsterCountRef = useRef(0);
+  const prevRoomIdRef = useRef<number | null>(null);
   const prevHpRef = useRef<number | null>(null);
   const prevLevelRef = useRef<number | null>(null);
   const prevAttackingRef = useRef(false);
@@ -283,10 +328,29 @@ function GamePage() {
     if (showFloorTransition) sound.playFloorComplete();
   }, [showFloorTransition, sound]);
 
-  // Room cleared sound
+  // Room cleared sound + banner
   useEffect(() => {
-    if (roomClearedEvents.length > 0) sound.playRoomCleared();
+    if (roomClearedEvents.length > 0) {
+      sound.playRoomCleared();
+      setShowRoomCleared(true);
+      const timer = setTimeout(() => setShowRoomCleared(false), 2000);
+      return () => clearTimeout(timer);
+    }
   }, [roomClearedEvents.length, sound]);
+
+  // Room entry flash
+  useEffect(() => {
+    if (!gameState) return;
+    const currentRoomId = gameState.currentRoomId;
+    if (prevRoomIdRef.current !== null && currentRoomId !== prevRoomIdRef.current) {
+      const roomIndex = gameState.dungeon.rooms.findIndex((r) => r.id === currentRoomId);
+      setRoomEntryFlash({ roomId: currentRoomId, roomNum: roomIndex + 1 });
+      const timer = setTimeout(() => setRoomEntryFlash(null), 1500);
+      prevRoomIdRef.current = currentRoomId;
+      return () => clearTimeout(timer);
+    }
+    prevRoomIdRef.current = currentRoomId;
+  }, [gameState?.currentRoomId, gameState]);
 
   // Level up sound
   useEffect(() => {
@@ -348,6 +412,26 @@ function GamePage() {
         : 0;
       const playerIsMVP = allPlayers.length > 1 && (localPlayer?.score ?? 0) >= maxScore;
 
+      // Build party stats
+      const partyStats = allPlayers.map((p) => ({
+        name: p.name,
+        playerClass: p.class,
+        kills: p.score,
+        damage: p.totalDamageDealt,
+        gold: p.goldCollected,
+      }));
+
+      // Defeat cause
+      let defeatCause: string | undefined;
+      if (phase === 'defeat') {
+        const bossAlive = gameState
+          ? Object.values(gameState.monsters).find((m) => m.type === 'boss_demon' && m.alive)
+          : null;
+        defeatCause = bossAlive
+          ? 'Iblis Lordu tarafindan yenildiniz'
+          : `Kat ${gameState?.dungeon.currentFloor ?? 1} zindan canavarları tarafindan yenildiniz`;
+      }
+
       setGameOverStats({
         phase,
         kills: localPlayer?.score ?? 0,
@@ -358,6 +442,8 @@ function GamePage() {
         level: localPlayer?.level ?? 1,
         deaths: localPlayer?.alive === false ? 1 : 0,
         isMVP: playerIsMVP,
+        partyStats,
+        defeatCause,
       });
     }
   }, [phase, gameState, playerId]);
@@ -419,10 +505,13 @@ function GamePage() {
 
   // ====== LOBBY PHASE ======
   if (phase === 'lobby') {
+    const difficultyInfo = DIFFICULTY_INFO[Math.min(playerList.length, 4)] ?? DIFFICULTY_INFO[1];
+
     return (
       <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-dm-bg px-4">
         {/* Background effects */}
         <div className="pointer-events-none absolute left-1/2 top-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-dm-accent/5 blur-3xl" />
+        <LobbyParticles />
 
         <motion.div
           className="z-10 flex w-full max-w-lg flex-col items-center gap-6 lg:max-w-xl lg:gap-8 2xl:max-w-2xl 2xl:gap-10"
@@ -468,9 +557,19 @@ function GamePage() {
               >
                 {roomCode}
               </motion.button>
-              <p className="font-pixel text-[10px] text-dm-accent lg:text-sm xl:text-sm 2xl:text-base">
-                {copied ? 'Kopyalandı!' : 'Kodu paylaş! (Tıkla kopyala)'}
-              </p>
+              <AnimatePresence mode="wait">
+                <motion.p
+                  key={copied ? 'copied' : 'default'}
+                  className="font-pixel text-[10px] lg:text-sm xl:text-sm 2xl:text-base"
+                  style={{ color: copied ? '#10b981' : '#8b5cf6' }}
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -5 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {copied ? 'Kopyalandi!' : 'Kodu paylas! (Tikla kopyala)'}
+                </motion.p>
+              </AnimatePresence>
 
               {/* Share link */}
               <motion.button
@@ -487,9 +586,26 @@ function GamePage() {
           {/* Player slots */}
           {!isSolo && (
             <div className="mt-2 w-full">
-              <p className="mb-3 font-pixel text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">
-                Oyuncular ({playerList.length}/4)
-              </p>
+              <div className="mb-3 flex items-center justify-between">
+                <p className="font-pixel text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">
+                  Oyuncular ({playerList.length}/4)
+                </p>
+                {playerList.length >= 2 && (
+                  <motion.span
+                    className="rounded border px-2 py-0.5 font-pixel text-[8px] lg:text-[10px] xl:text-[11px] 2xl:text-[13px]"
+                    style={{
+                      color: difficultyInfo.color,
+                      borderColor: `${difficultyInfo.color}40`,
+                      backgroundColor: `${difficultyInfo.color}10`,
+                    }}
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ ease: EASE }}
+                  >
+                    {playerList.length} Oyuncu — {difficultyInfo.label}
+                  </motion.span>
+                )}
+              </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {/* Filled slots */}
                 {playerList.map((player, i) => (
@@ -506,9 +622,14 @@ function GamePage() {
                       animate
                       glow={player.id === playerId}
                     />
-                    <span className="max-w-full truncate font-pixel text-[9px] text-white lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">
-                      {player.name}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      {player.class && (
+                        <span className="text-[10px] lg:text-xs 2xl:text-sm">{CLASS_STATS[player.class].emoji}</span>
+                      )}
+                      <span className="max-w-full truncate font-pixel text-[9px] text-white lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">
+                        {player.name}
+                      </span>
+                    </div>
                     {player.id === playerId && (
                       <span className="font-pixel text-[7px] text-dm-accent lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
                         (Sen)
@@ -670,6 +791,44 @@ function GamePage() {
         </motion.button>
       )}
 
+      {/* Room entry flash */}
+      <AnimatePresence>
+        {roomEntryFlash && (
+          <motion.div
+            key={roomEntryFlash.roomId}
+            className="pointer-events-none absolute left-1/2 top-1/3 z-30 -translate-x-1/2"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3, ease: EASE }}
+          >
+            <span className="font-pixel text-base text-dm-gold sm:text-lg lg:text-xl 2xl:text-2xl" style={{ textShadow: '0 0 12px rgba(245, 158, 11, 0.4)' }}>
+              Oda {roomEntryFlash.roomNum}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Room cleared banner */}
+      <AnimatePresence>
+        {showRoomCleared && (
+          <motion.div
+            className="pointer-events-none absolute left-1/2 top-1/3 z-30 -translate-x-1/2"
+            initial={{ opacity: 0, scale: 0.5, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 1.2, y: -20 }}
+            transition={{ duration: 0.4, ease: EASE }}
+          >
+            <div className="flex items-center gap-2 rounded border border-emerald-500/30 bg-emerald-950/60 px-4 py-2 backdrop-blur-sm">
+              <span className="text-sm sm:text-base">✅</span>
+              <span className="font-pixel text-sm text-emerald-400 sm:text-base lg:text-lg 2xl:text-xl" style={{ textShadow: '0 0 10px rgba(16, 185, 129, 0.4)' }}>
+                Oda Temizlendi!
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Game Over overlay */}
       <AnimatePresence>
         {gameOverStats && (
@@ -684,6 +843,8 @@ function GamePage() {
               level: gameOverStats.level,
               deaths: gameOverStats.deaths,
               isMVP: gameOverStats.isMVP,
+              partyStats: gameOverStats.partyStats,
+              defeatCause: gameOverStats.defeatCause,
             }}
             isSolo={isSolo}
             soloDeathsRemaining={soloDeathsRemaining}

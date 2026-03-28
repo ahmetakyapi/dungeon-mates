@@ -6,6 +6,14 @@ import { PixelButton } from '@/components/ui/PixelButton';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
+type PartyMemberStat = {
+  name: string;
+  playerClass: string;
+  kills: number;
+  damage: number;
+  gold: number;
+};
+
 type GameOverStats = {
   monstersKilled: number;
   damageDealt: number;
@@ -15,6 +23,9 @@ type GameOverStats = {
   level: number;
   deaths: number;
   isMVP: boolean;
+  partyStats?: PartyMemberStat[];
+  defeatCause?: string;
+  bestTime?: number;
 };
 
 type GameOverScreenProps = {
@@ -318,6 +329,80 @@ export function GameOverScreen({
           </div>
         </motion.div>
 
+        {/* Defeat cause */}
+        {!isVictory && stats.defeatCause && (
+          <motion.div
+            className="w-full rounded border border-red-500/20 bg-red-950/30 px-4 py-2 text-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.8 }}
+          >
+            <span className="font-pixel text-[9px] text-dm-health lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">
+              {stats.defeatCause}
+            </span>
+          </motion.div>
+        )}
+
+        {/* Party stats breakdown */}
+        {stats.partyStats && stats.partyStats.length > 1 && (
+          <motion.div
+            className="pixel-border w-full rounded bg-dm-surface/70 p-3"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: isVictory ? 2 : 1.8, ease: EASE }}
+          >
+            <p className="mb-2 font-pixel text-[9px] text-dm-accent lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">
+              Takim Istatistikleri
+            </p>
+            <div className="flex flex-col gap-2">
+              {/* Most damage */}
+              {(() => {
+                const sorted = [...stats.partyStats].sort((a, b) => b.damage - a.damage);
+                const topDamage = sorted[0];
+                const topKills = [...stats.partyStats].sort((a, b) => b.kills - a.kills)[0];
+                return (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="font-pixel text-[7px] text-zinc-400 lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
+                        En cok hasar
+                      </span>
+                      <span className="font-pixel text-[8px] text-dm-gold lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">
+                        {topDamage.name} ({topDamage.damage})
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-pixel text-[7px] text-zinc-400 lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
+                        En cok oldurme
+                      </span>
+                      <span className="font-pixel text-[8px] text-dm-gold lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">
+                        {topKills.name} ({topKills.kills})
+                      </span>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Time comparison */}
+        {stats.bestTime !== undefined && stats.bestTime > 0 && (
+          <motion.div
+            className="flex items-center gap-3"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: isVictory ? 2.4 : 2.2 }}
+          >
+            <span className="font-pixel text-[8px] text-zinc-400 lg:text-[10px] 2xl:text-[12px]">
+              Bu sefer: {formatTime(stats.timePlayed)}
+            </span>
+            <span className="font-pixel text-[8px] text-zinc-600 lg:text-[10px] 2xl:text-[12px]">|</span>
+            <span className="font-pixel text-[8px] text-dm-gold lg:text-[10px] 2xl:text-[12px]">
+              En iyi: {formatTime(stats.bestTime)}
+            </span>
+          </motion.div>
+        )}
+
         {/* Buttons */}
         <motion.div
           className="flex w-full gap-3"
@@ -333,7 +418,7 @@ export function GameOverScreen({
             {isVictory ? 'Tekrar Oyna' : 'Tekrar Dene'}
           </PixelButton>
           <PixelButton variant="secondary" fullWidth onClick={onMainMenu}>
-            Ana Menü
+            Ana Menu
           </PixelButton>
         </motion.div>
       </motion.div>

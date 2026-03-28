@@ -90,6 +90,16 @@ export class Monster {
     this.state.hp = soloHp;
   }
 
+  scaleForPlayerCount(playerCount: number): void {
+    if (playerCount <= 1) return;
+    const hpScale = 1 + (playerCount - 1) * 0.35; // 2p=1.35x, 3p=1.7x, 4p=2.05x
+    const atkScale = 1 + (playerCount - 1) * 0.15; // 2p=1.15x, 3p=1.3x, 4p=1.45x
+    this.state.maxHp = Math.floor(this.state.maxHp * hpScale);
+    this.state.hp = this.state.maxHp;
+    const stats = MONSTER_STATS[this.state.type];
+    this.scaledAttack = Math.floor(stats.attack * atkScale);
+  }
+
   getRadius(): number {
     return this.radius;
   }

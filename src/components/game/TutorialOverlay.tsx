@@ -169,11 +169,12 @@ function SlideClasses() {
 // --- Slide 3: Zindanı Keşfet ---
 
 const DUNGEON_ITEMS = [
-  'Odadaki tüm canavarları öldür → kapılar açılır',
-  'Sandıkları aç (R) → can iksiri, mana iksiri veya güçlendirme düşürür',
-  'Merdivenleri kullan (R) → bir sonraki kata ilerle (tüm canavarlar temizlenmeli)',
-  'Yeteneğini kullan (E) → sınıfa özel güçlü saldırı (mana/bekleme süresi var)',
+  'Odadaki tum canavarlari oldur → kapilar acilir',
+  'Sandiklari ac (R) → can iksiri, mana iksiri veya guclendirme dusurur',
+  'Merdivenleri kullan (R) → bir sonraki kata ilerle (tum canavarlar temizlenmeli)',
+  'Yetenegini kullan (E) → sinifa ozel guclu saldiri (mana/bekleme suresi var)',
   '5. katta boss\'u yen → zafer!',
+  'Oyuncu sayisi arttikca zorluk artar! (2: Normal, 3: Zor, 4: Cok Zor)',
 ] as const;
 
 function SlideDungeon() {
@@ -197,13 +198,15 @@ function SlideDungeon() {
 // --- Slide 4: İpuçları ---
 
 const TIPS = [
-  'Takım halinde hareket et — yalnız kalma!',
-  'Can iksirleri canavar öldürdüğünde düşer',
-  'Büyücünün manası sınırlı — dikkatli kullan',
-  'Yeteneğin (E) hazır olduğunda HUD\'da parlak görünür',
-  'Sandıklar her zaman loot verir — kaçırma!',
-  'Odadaki tüm canavarları öldürünce kapılar açılır',
-  'Boss odasına hazırlıksız girme!',
+  'Takim halinde hareket et — yalniz kalma!',
+  'Can iksirleri canavar oldurdugunde duser',
+  'Buyucunun manasi sinirli — dikkatli kullan',
+  'Yetenegin (E) hazir oldugunda HUD\'da parlak gorunur',
+  'Sandiklar her zaman loot verir — kacirma!',
+  'Odadaki tum canavarlari oldurce kapilar acilir — HUD\'da canavar sayisini takip et',
+  'Boss odasina hazirliksiz girme!',
+  'Hizli oldurme yaparak kombo zinciri olustur — daha fazla puan!',
+  'Shift ile sprint yaparak hizli hareket et',
 ] as const;
 
 function SlideTips() {

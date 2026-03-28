@@ -30,7 +30,20 @@ type DungeonResult = {
   floorDifficulty: FloorDifficulty;
 };
 
-const MIN_BSP_SIZE = ROOM_MAX_SIZE + 4;
+// Player count scaling tables
+const DUNGEON_SIZE_BY_PLAYERS: Record<number, { size: number; roomMin: number; roomMax: number }> = {
+  1: { size: 48, roomMin: 6, roomMax: 11 },
+  2: { size: 56, roomMin: 7, roomMax: 12 },
+  3: { size: 64, roomMin: 7, roomMax: 13 },
+  4: { size: 72, roomMin: 8, roomMax: 14 },
+} as const;
+
+export const MONSTER_MULTIPLIER_BY_PLAYERS: Record<number, number> = {
+  1: 0.7,
+  2: 1.3,
+  3: 1.6,
+  4: 2.0,
+} as const;
 
 const FLOOR_CONFIG: Record<number, { roomCountMin: number; roomCountMax: number; hpMultiplier: number; attackMultiplier: number; hasBoss: boolean }> = {
   1: { roomCountMin: 6, roomCountMax: 8, hpMultiplier: 1.0, attackMultiplier: 1.0, hasBoss: false },
@@ -47,20 +60,36 @@ export class DungeonGenerator {
   private tiles: TileType[][] = [];
   private rooms: DungeonRoom[] = [];
   private nextRoomId = 0;
+  private dungeonWidth = DUNGEON_WIDTH;
+  private dungeonHeight = DUNGEON_HEIGHT;
+  private roomMinSize = ROOM_MIN_SIZE;
+  private roomMaxSize = ROOM_MAX_SIZE;
+  private minBspSize = ROOM_MAX_SIZE + 4;
 
-  generate(floor: number = 1): DungeonResult {
+  generate(floor: number = 1, playerCount: number = 1): DungeonResult {
     this.tiles = [];
     this.rooms = [];
     this.nextRoomId = 0;
 
+    // Scale dungeon dimensions by player count
+    const clampedPlayers = Math.max(1, Math.min(4, playerCount));
+    const sizeConfig = DUNGEON_SIZE_BY_PLAYERS[clampedPlayers] ?? DUNGEON_SIZE_BY_PLAYERS[1];
+    this.dungeonWidth = sizeConfig.size;
+    this.dungeonHeight = sizeConfig.size;
+    this.roomMinSize = sizeConfig.roomMin;
+    this.roomMaxSize = sizeConfig.roomMax;
+    this.minBspSize = this.roomMaxSize + 4;
+
     const config = FLOOR_CONFIG[floor] ?? FLOOR_CONFIG[1];
-    const targetMin = config.roomCountMin;
-    const targetMax = config.roomCountMax;
+    // Scale room counts for multiplayer
+    const extraRooms = clampedPlayers > 1 ? Math.floor(clampedPlayers * 0.5) : 0;
+    const targetMin = config.roomCountMin + extraRooms;
+    const targetMax = config.roomCountMax + extraRooms;
 
     // Init all tiles as void
-    for (let y = 0; y < DUNGEON_HEIGHT; y++) {
+    for (let y = 0; y < this.dungeonHeight; y++) {
       const row: TileType[] = [];
-      for (let x = 0; x < DUNGEON_WIDTH; x++) {
+      for (let x = 0; x < this.dungeonWidth; x++) {
         row.push('void');
       }
       this.tiles.push(row);
@@ -70,8 +99,8 @@ export class DungeonGenerator {
     const root: BSPNode = {
       x: 1,
       y: 1,
-      width: DUNGEON_WIDTH - 2,
-      height: DUNGEON_HEIGHT - 2,
+      width: this.dungeonWidth - 2,
+      height: this.dungeonHeight - 2,
       left: null,
       right: null,
       room: null,
@@ -127,8 +156,8 @@ export class DungeonGenerator {
   private splitNode(node: BSPNode, depth: number): void {
     if (depth > 5) return;
 
-    const canSplitH = node.height >= MIN_BSP_SIZE * 2;
-    const canSplitV = node.width >= MIN_BSP_SIZE * 2;
+    const canSplitH = node.height >= this.minBspSize * 2;
+    const canSplitV = node.width >= this.minBspSize * 2;
 
     if (!canSplitH && !canSplitV) return;
 
@@ -141,8 +170,8 @@ export class DungeonGenerator {
     }
 
     if (splitHorizontally) {
-      const minSplit = MIN_BSP_SIZE;
-      const maxSplit = node.height - MIN_BSP_SIZE;
+      const minSplit = this.minBspSize;
+      const maxSplit = node.height - this.minBspSize;
       if (minSplit > maxSplit) return;
 
       const split = minSplit + Math.floor(Math.random() * (maxSplit - minSplit + 1));
@@ -166,8 +195,8 @@ export class DungeonGenerator {
         room: null,
       };
     } else {
-      const minSplit = MIN_BSP_SIZE;
-      const maxSplit = node.width - MIN_BSP_SIZE;
+      const minSplit = this.minBspSize;
+      const maxSplit = node.width - this.minBspSize;
       if (minSplit > maxSplit) return;
 
       const split = minSplit + Math.floor(Math.random() * (maxSplit - minSplit + 1));
@@ -204,10 +233,10 @@ export class DungeonGenerator {
     }
 
     // Leaf node — create a room
-    const roomWidth = ROOM_MIN_SIZE + Math.floor(Math.random() * (Math.min(ROOM_MAX_SIZE, node.width - 2) - ROOM_MIN_SIZE + 1));
-    const roomHeight = ROOM_MIN_SIZE + Math.floor(Math.random() * (Math.min(ROOM_MAX_SIZE, node.height - 2) - ROOM_MIN_SIZE + 1));
+    const roomWidth = this.roomMinSize + Math.floor(Math.random() * (Math.min(this.roomMaxSize, node.width - 2) - this.roomMinSize + 1));
+    const roomHeight = this.roomMinSize + Math.floor(Math.random() * (Math.min(this.roomMaxSize, node.height - 2) - this.roomMinSize + 1));
 
-    if (roomWidth < ROOM_MIN_SIZE || roomHeight < ROOM_MIN_SIZE) return;
+    if (roomWidth < this.roomMinSize || roomHeight < this.roomMinSize) return;
 
     const roomX = node.x + 1 + Math.floor(Math.random() * Math.max(1, node.width - roomWidth - 2));
     const roomY = node.y + 1 + Math.floor(Math.random() * Math.max(1, node.height - roomHeight - 2));
@@ -226,8 +255,8 @@ export class DungeonGenerator {
 
     if (node.room !== null) return;
 
-    const roomWidth = Math.min(ROOM_MIN_SIZE, node.width - 2);
-    const roomHeight = Math.min(ROOM_MIN_SIZE, node.height - 2);
+    const roomWidth = Math.min(this.roomMinSize, node.width - 2);
+    const roomHeight = Math.min(this.roomMinSize, node.height - 2);
 
     if (roomWidth < 5 || roomHeight < 5) return;
 
@@ -240,10 +269,10 @@ export class DungeonGenerator {
 
   private addExtraRooms(count: number): void {
     for (let i = 0; i < count; i++) {
-      const roomWidth = ROOM_MIN_SIZE + Math.floor(Math.random() * 3);
-      const roomHeight = ROOM_MIN_SIZE + Math.floor(Math.random() * 3);
-      const roomX = 3 + Math.floor(Math.random() * (DUNGEON_WIDTH - roomWidth - 6));
-      const roomY = 3 + Math.floor(Math.random() * (DUNGEON_HEIGHT - roomHeight - 6));
+      const roomWidth = this.roomMinSize + Math.floor(Math.random() * 3);
+      const roomHeight = this.roomMinSize + Math.floor(Math.random() * 3);
+      const roomX = 3 + Math.floor(Math.random() * (this.dungeonWidth - roomWidth - 6));
+      const roomY = 3 + Math.floor(Math.random() * (this.dungeonHeight - roomHeight - 6));
 
       // Check no overlap with existing rooms
       let overlaps = false;
@@ -270,7 +299,7 @@ export class DungeonGenerator {
 
     for (let ry = y; ry < y + height; ry++) {
       for (let rx = x; rx < x + width; rx++) {
-        if (ry >= 0 && ry < DUNGEON_HEIGHT && rx >= 0 && rx < DUNGEON_WIDTH) {
+        if (ry >= 0 && ry < this.dungeonHeight && rx >= 0 && rx < this.dungeonWidth) {
           this.tiles[ry][rx] = 'floor';
         }
       }
@@ -318,11 +347,11 @@ export class DungeonGenerator {
     const endX = Math.max(x1, x2);
 
     for (let x = startX; x <= endX; x++) {
-      if (y >= 0 && y < DUNGEON_HEIGHT && x >= 0 && x < DUNGEON_WIDTH) {
+      if (y >= 0 && y < this.dungeonHeight && x >= 0 && x < this.dungeonWidth) {
         this.tiles[y][x] = 'floor';
       }
       // Make corridor 2 tiles wide for playability
-      if (y + 1 >= 0 && y + 1 < DUNGEON_HEIGHT && x >= 0 && x < DUNGEON_WIDTH) {
+      if (y + 1 >= 0 && y + 1 < this.dungeonHeight && x >= 0 && x < this.dungeonWidth) {
         this.tiles[y + 1][x] = 'floor';
       }
     }
@@ -333,10 +362,10 @@ export class DungeonGenerator {
     const endY = Math.max(y1, y2);
 
     for (let y = startY; y <= endY; y++) {
-      if (y >= 0 && y < DUNGEON_HEIGHT && x >= 0 && x < DUNGEON_WIDTH) {
+      if (y >= 0 && y < this.dungeonHeight && x >= 0 && x < this.dungeonWidth) {
         this.tiles[y][x] = 'floor';
       }
-      if (y >= 0 && y < DUNGEON_HEIGHT && x + 1 >= 0 && x + 1 < DUNGEON_WIDTH) {
+      if (y >= 0 && y < this.dungeonHeight && x + 1 >= 0 && x + 1 < this.dungeonWidth) {
         this.tiles[y][x + 1] = 'floor';
       }
     }
@@ -388,7 +417,7 @@ export class DungeonGenerator {
       for (let x = room.x; x < room.x + room.width; x++) {
         const insideY = room.y + room.height - 1;
         const outsideY = room.y + room.height;
-        if (outsideY < DUNGEON_HEIGHT && this.tiles[outsideY][x] === 'floor' && this.tiles[insideY][x] === 'floor') {
+        if (outsideY < this.dungeonHeight && this.tiles[outsideY][x] === 'floor' && this.tiles[insideY][x] === 'floor') {
           this.tiles[insideY][x] = 'door';
         }
       }
@@ -404,7 +433,7 @@ export class DungeonGenerator {
       for (let y = room.y; y < room.y + room.height; y++) {
         const insideX = room.x + room.width - 1;
         const outsideX = room.x + room.width;
-        if (outsideX < DUNGEON_WIDTH && this.tiles[y][outsideX] === 'floor' && this.tiles[y][insideX] === 'floor') {
+        if (outsideX < this.dungeonWidth && this.tiles[y][outsideX] === 'floor' && this.tiles[y][insideX] === 'floor') {
           this.tiles[y][insideX] = 'door';
         }
       }
@@ -464,16 +493,16 @@ export class DungeonGenerator {
     // For every floor tile, ensure surrounding void tiles become walls
     const wallPositions: Array<{ x: number; y: number }> = [];
 
-    for (let y = 0; y < DUNGEON_HEIGHT; y++) {
-      for (let x = 0; x < DUNGEON_WIDTH; x++) {
+    for (let y = 0; y < this.dungeonHeight; y++) {
+      for (let x = 0; x < this.dungeonWidth; x++) {
         if (this.tiles[y][x] === 'floor') {
           for (let dy = -1; dy <= 1; dy++) {
             for (let dx = -1; dx <= 1; dx++) {
               const ny = y + dy;
               const nx = x + dx;
               if (
-                ny >= 0 && ny < DUNGEON_HEIGHT &&
-                nx >= 0 && nx < DUNGEON_WIDTH &&
+                ny >= 0 && ny < this.dungeonHeight &&
+                nx >= 0 && nx < this.dungeonWidth &&
                 this.tiles[ny][nx] === 'void'
               ) {
                 wallPositions.push({ x: nx, y: ny });

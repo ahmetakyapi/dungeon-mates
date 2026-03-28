@@ -12,6 +12,14 @@ import { PlayerHoverCard } from './PlayerHoverCard';
 const EASE = [0.22, 1, 0.36, 1] as const;
 const TOAST_DURATION = 3000;
 const MAX_TOASTS = 4;
+const COMBO_WINDOW_MS = 3000;
+
+const DIFFICULTY_LABELS: Record<number, { label: string; color: string }> = {
+  1: { label: 'Kolay', color: '#4ade80' },
+  2: { label: 'Normal', color: '#facc15' },
+  3: { label: 'Zor', color: '#f97316' },
+  4: { label: 'Cok Zor', color: '#ef4444' },
+} as const;
 
 // --- Toast system ---
 
@@ -151,10 +159,12 @@ function ManaBar({
   value,
   max,
   showNumbers,
+  abilityReady,
 }: {
   value: number;
   max: number;
   showNumbers?: boolean;
+  abilityReady?: boolean;
 }) {
   const percentage = Math.max(0, Math.min((value / max) * 100, 100));
 
@@ -167,6 +177,14 @@ function ManaBar({
         transition={{ duration: 0.3, ease: EASE }}
       />
       <div className="absolute inset-0 rounded-sm bg-gradient-to-b from-white/10 to-transparent" style={{ height: '50%' }} />
+      {/* Pulse overlay when ability is ready */}
+      {abilityReady && (
+        <motion.div
+          className="absolute inset-0 rounded-sm bg-blue-400/20"
+          animate={{ opacity: [0, 0.4, 0] }}
+          transition={{ duration: 1.2, repeat: Infinity }}
+        />
+      )}
       {showNumbers && (
         <span className="absolute inset-0 flex items-center justify-center font-pixel text-[5px] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">
           {Math.ceil(value)}/{max} MP
@@ -187,9 +205,22 @@ function XPBar({
 }) {
   const currentXP = xp % xpToNext;
   const percentage = Math.max(0, Math.min((currentXP / xpToNext) * 100, 100));
+  const prevXpRef = useRef(xp);
+  const [xpGain, setXpGain] = useState<{ amount: number; id: number } | null>(null);
+
+  useEffect(() => {
+    if (xp > prevXpRef.current) {
+      const gained = xp - prevXpRef.current;
+      setXpGain({ amount: gained, id: Date.now() });
+      const timer = setTimeout(() => setXpGain(null), 1200);
+      prevXpRef.current = xp;
+      return () => clearTimeout(timer);
+    }
+    prevXpRef.current = xp;
+  }, [xp]);
 
   return (
-    <div>
+    <div className="relative">
       <div className="relative h-2 overflow-hidden rounded-sm border border-zinc-700/60 bg-zinc-900 sm:h-2.5 lg:h-3 2xl:h-3.5">
         <motion.div
           className="absolute inset-y-0 left-0 rounded-sm"
@@ -201,6 +232,21 @@ function XPBar({
       <p className="mt-0.5 font-pixel text-[5px] text-dm-gold/70 sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">
         Seviye {level} — {currentXP}/{xpToNext} XP
       </p>
+      {/* Floating +XP text */}
+      <AnimatePresence>
+        {xpGain && (
+          <motion.span
+            key={xpGain.id}
+            className="absolute -right-1 -top-1 font-pixel text-[8px] text-dm-gold sm:text-[9px] lg:text-[10px] 2xl:text-[12px]"
+            initial={{ opacity: 1, y: 0 }}
+            animate={{ opacity: 0, y: -16 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1, ease: EASE }}
+          >
+            +{xpGain.amount} XP
+          </motion.span>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -671,31 +717,50 @@ function AbilityInfo({
   const isReady = abilityCooldownPct === 0 && !abilityActive;
 
   return (
-    <PixelFrame className="flex flex-col items-center gap-1.5 p-2 sm:p-3">
-      {/* Circular cooldown */}
-      <div className="relative flex items-center justify-center">
-        <svg viewBox="0 0 40 40" className="h-10 w-10 rotate-[-90deg] lg:h-12 lg:w-12 2xl:h-14 2xl:w-14">
-          <circle cx={20} cy={20} r={radius} fill="none" stroke="#1f2937" strokeWidth={3} />
-          <circle
-            cx={20}
-            cy={20}
-            r={radius}
-            fill="none"
-            stroke={isReady ? '#10b981' : '#f59e0b'}
-            strokeWidth={3}
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
-            strokeLinecap="round"
-            style={{ transition: 'stroke-dashoffset 0.1s linear' }}
-          />
-        </svg>
-        <span className="absolute font-pixel text-[6px] text-zinc-300 lg:text-[7px] 2xl:text-[9px]">{meta.icon}</span>
-      </div>
-      <div className="flex flex-col items-center gap-0.5">
-        <span className="font-pixel text-[5px] text-zinc-500 sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">{meta.label}</span>
-        <span className="hidden font-pixel text-[5px] text-zinc-600 sm:block sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">E</span>
-      </div>
-    </PixelFrame>
+    <motion.div
+      animate={isReady ? { scale: [1, 1.08, 1] } : { scale: 1 }}
+      transition={isReady ? { duration: 1.2, repeat: Infinity, ease: 'easeInOut' } : {}}
+    >
+      <PixelFrame className="flex flex-col items-center gap-1.5 p-2 sm:p-3">
+        {/* Circular cooldown */}
+        <div className="relative flex items-center justify-center">
+          <svg viewBox="0 0 40 40" className="h-10 w-10 rotate-[-90deg] lg:h-12 lg:w-12 2xl:h-14 2xl:w-14">
+            <circle cx={20} cy={20} r={radius} fill="none" stroke="#1f2937" strokeWidth={3} />
+            <circle
+              cx={20}
+              cy={20}
+              r={radius}
+              fill="none"
+              stroke={isReady ? '#10b981' : '#f59e0b'}
+              strokeWidth={3}
+              strokeDasharray={circumference}
+              strokeDashoffset={offset}
+              strokeLinecap="round"
+              style={{ transition: 'stroke-dashoffset 0.1s linear' }}
+            />
+          </svg>
+          <span className="absolute font-pixel text-[6px] text-zinc-300 lg:text-[7px] 2xl:text-[9px]">{meta.icon}</span>
+          {/* Ready glow */}
+          {isReady && (
+            <motion.div
+              className="absolute inset-0 rounded-full"
+              style={{ boxShadow: '0 0 12px rgba(16, 185, 129, 0.5)' }}
+              animate={{ opacity: [0.4, 0.8, 0.4] }}
+              transition={{ duration: 1.2, repeat: Infinity }}
+            />
+          )}
+        </div>
+        <div className="flex flex-col items-center gap-0.5">
+          <span
+            className="font-pixel text-[5px] sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]"
+            style={{ color: isReady ? '#10b981' : '#71717a' }}
+          >
+            {isReady ? 'Hazir!' : meta.label}
+          </span>
+          <span className="hidden font-pixel text-[5px] text-zinc-600 sm:block sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">E</span>
+        </div>
+      </PixelFrame>
+    </motion.div>
   );
 }
 
@@ -706,31 +771,75 @@ function FloorInfo({
   currentRoom,
   totalRooms,
   isBossPhase,
+  monstersInRoom,
+  playerCount,
 }: {
   floor: number;
   currentRoom: number;
   totalRooms: number;
   isBossPhase: boolean;
+  monstersInRoom: number;
+  playerCount: number;
 }) {
+  const difficulty = DIFFICULTY_LABELS[Math.min(playerCount, 4)] ?? DIFFICULTY_LABELS[1];
+
   return (
-    <PixelFrame className="flex items-center gap-2 px-3 py-1.5 sm:gap-3 sm:px-4 sm:py-2">
-      <span className="text-xs sm:text-sm">🏰</span>
-      <div className="flex flex-col items-center">
-        <span className="font-pixel text-[8px] text-dm-gold sm:text-[9px] lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">
-          Kat {floor}
-        </span>
+    <PixelFrame className="flex flex-col items-center gap-1 px-3 py-1.5 sm:gap-1.5 sm:px-4 sm:py-2">
+      {/* Floor progress bar */}
+      <div className="flex w-full items-center gap-2">
+        <span className="text-xs sm:text-sm">🏰</span>
+        <div className="flex flex-1 flex-col items-center">
+          <span className="font-pixel text-[9px] text-dm-gold sm:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">
+            Kat {floor}/5
+          </span>
+          {/* Floor dots */}
+          <div className="mt-0.5 flex items-center gap-1">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <motion.div
+                key={i}
+                className="h-1.5 w-1.5 rounded-full sm:h-2 sm:w-2"
+                style={{
+                  backgroundColor: i < floor ? '#f59e0b' : i === floor - 1 ? '#f59e0b' : '#3f3f46',
+                }}
+                animate={i === floor - 1 ? { scale: [1, 1.3, 1] } : {}}
+                transition={i === floor - 1 ? { duration: 1.5, repeat: Infinity } : {}}
+              />
+            ))}
+          </div>
+        </div>
+        {isBossPhase && (
+          <motion.span
+            className="boss-pulse rounded border border-red-500/30 bg-red-950/40 px-1.5 py-0.5 font-pixel text-[7px] text-dm-health sm:text-[8px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px]"
+            animate={{ scale: [1, 1.05, 1] }}
+            transition={{ duration: 1.2, repeat: Infinity }}
+          >
+            BOSS
+          </motion.span>
+        )}
+      </div>
+      {/* Room + monsters info */}
+      <div className="flex items-center gap-2">
         <span className="font-pixel text-[6px] text-zinc-400 sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">
           Oda {currentRoom + 1}/{totalRooms}
         </span>
+        {monstersInRoom > 0 && (
+          <span className="font-pixel text-[6px] text-dm-health sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">
+            — {monstersInRoom} canavar kaldi
+          </span>
+        )}
+        {monstersInRoom === 0 && !isBossPhase && (
+          <span className="font-pixel text-[6px] text-emerald-400 sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">
+            — Temiz
+          </span>
+        )}
       </div>
-      {isBossPhase && (
-        <motion.span
-          className="boss-pulse rounded border border-red-500/30 bg-red-950/40 px-1.5 py-0.5 font-pixel text-[7px] text-dm-health sm:text-[8px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px]"
-          animate={{ scale: [1, 1.05, 1] }}
-          transition={{ duration: 1.2, repeat: Infinity }}
-        >
-          BOSS
-        </motion.span>
+      {/* Player count + difficulty */}
+      {playerCount > 1 && (
+        <div className="flex items-center gap-1.5">
+          <span className="font-pixel text-[5px] sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]" style={{ color: difficulty.color }}>
+            {playerCount} Oyuncu — {difficulty.label}
+          </span>
+        </div>
       )}
     </PixelFrame>
   );
@@ -756,6 +865,12 @@ export function HUD({ player, gameState, fps, onPing, attackCooldownPct = 1, abi
   const [killFeedEntries, setKillFeedEntries] = useState<KillFeedEntry[]>([]);
   const [hpFlash, setHpFlash] = useState(false);
   const [hoveredTeammate, setHoveredTeammate] = useState<string | null>(null);
+  const [comboCount, setComboCount] = useState(0);
+  const comboTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showLevelUpOverlay, setShowLevelUpOverlay] = useState(false);
+  const [lastKillerMonster, setLastKillerMonster] = useState<string | null>(null);
+  const [respawnCountdown, setRespawnCountdown] = useState(0);
+  const wasAliveRef = useRef(player.alive);
 
   // Track previous values for toast triggers
   const prevLevelRef = useRef(player.level);
@@ -780,10 +895,81 @@ export function HUD({ player, gameState, fps, onPing, attackCooldownPct = 1, abi
   const xpToNextLevel = 50;
   const isBossPhase = gameState.phase === 'boss';
 
+  const isAbilityReady = abilityCooldownPct === 0 && !abilityActive;
+
+  // Combo counter from kill events
+  useEffect(() => {
+    if (!monsterKillEvents || monsterKillEvents.length === 0) return;
+    // On new kill event, increment combo and reset timer
+    setComboCount((prev) => prev + 1);
+    if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
+    comboTimerRef.current = setTimeout(() => setComboCount(0), COMBO_WINDOW_MS);
+  }, [monsterKillEvents?.length]);
+
+  // Clear combo timer on unmount
+  useEffect(() => {
+    return () => {
+      if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
+    };
+  }, []);
+
+  // Level up celebration overlay
+  useEffect(() => {
+    if (player.level > prevLevelRef.current && prevLevelRef.current > 0) {
+      setShowLevelUpOverlay(true);
+      const timer = setTimeout(() => setShowLevelUpOverlay(false), 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [player.level]);
+
+  // Death tracking — figure out what killed the player
+  useEffect(() => {
+    if (!player.alive && wasAliveRef.current) {
+      // Player just died, try to find nearest monster
+      const aliveMonsters = Object.values(gameState.monsters).filter((m) => m.alive);
+      if (aliveMonsters.length > 0) {
+        const nearest = aliveMonsters.reduce((closest, m) => {
+          const dist = Math.sqrt(
+            Math.pow(m.position.x - player.position.x, 2) +
+            Math.pow(m.position.y - player.position.y, 2),
+          );
+          const closestDist = Math.sqrt(
+            Math.pow(closest.position.x - player.position.x, 2) +
+            Math.pow(closest.position.y - player.position.y, 2),
+          );
+          return dist < closestDist ? m : closest;
+        });
+        const XP_TO_NAME: Record<number, string> = {
+          5: 'Balcik', 7: 'Yarasa', 10: 'Iskelet', 15: 'Goblin', 100: 'Iblis Lordu',
+        };
+        const monsterXp = nearest.maxHp <= 20 ? 5 : nearest.maxHp <= 30 ? 7 : nearest.maxHp <= 50 ? 10 : nearest.maxHp <= 60 ? 15 : 100;
+        setLastKillerMonster(XP_TO_NAME[monsterXp] ?? 'Canavar');
+      }
+      setRespawnCountdown(5);
+    }
+    wasAliveRef.current = player.alive;
+  }, [player.alive, gameState.monsters, player.position.x, player.position.y]);
+
+  // Respawn countdown timer
+  useEffect(() => {
+    if (respawnCountdown <= 0) return;
+    const timer = setTimeout(() => setRespawnCountdown((prev) => Math.max(0, prev - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [respawnCountdown]);
+
+  // Monsters in current room
+  const monstersInCurrentRoom = useMemo(() => {
+    const currentRoom = gameState.dungeon.rooms.find((r) => r.id === gameState.currentRoomId);
+    if (!currentRoom) return 0;
+    return currentRoom.monsterIds.filter((id) => gameState.monsters[id]?.alive).length;
+  }, [gameState.dungeon.rooms, gameState.currentRoomId, gameState.monsters]);
+
+  const playerCount = useMemo(() => Object.keys(gameState.players).length, [gameState.players]);
+
   // Toast: level up
   useEffect(() => {
     if (player.level > prevLevelRef.current) {
-      addToast(`Seviye atladın! (Seviye ${player.level})`, '⬆️', 'success');
+      addToast(`Seviye atladin! (Seviye ${player.level})`, '⬆️', 'success');
     }
     prevLevelRef.current = player.level;
   }, [player.level, addToast]);
@@ -908,6 +1094,8 @@ export function HUD({ player, gameState, fps, onPing, attackCooldownPct = 1, abi
             currentRoom={gameState.currentRoomId}
             totalRooms={gameState.dungeon.rooms.length}
             isBossPhase={isBossPhase}
+            monstersInRoom={monstersInCurrentRoom}
+            playerCount={playerCount}
           />
         </div>
       )}
@@ -945,6 +1133,7 @@ export function HUD({ player, gameState, fps, onPing, attackCooldownPct = 1, abi
               value={player.mana}
               max={player.maxMana}
               showNumbers={true}
+              abilityReady={isAbilityReady}
             />
             <XPBar
               xp={player.xp}
@@ -1069,24 +1258,111 @@ export function HUD({ player, gameState, fps, onPing, attackCooldownPct = 1, abi
         </span>
       </div>
 
-      {/* Respawn overlay */}
+      {/* Combo counter */}
+      <AnimatePresence>
+        {comboCount >= 2 && (
+          <motion.div
+            className="pointer-events-none absolute right-16 top-1/3 z-30 sm:right-24"
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 1.5, opacity: 0 }}
+            transition={{ duration: 0.3, ease: EASE }}
+          >
+            <motion.div
+              className="flex flex-col items-center"
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ duration: 0.4, repeat: Infinity }}
+            >
+              <span className="font-pixel text-xl text-dm-gold sm:text-2xl lg:text-3xl 2xl:text-4xl" style={{ textShadow: '0 0 12px rgba(245, 158, 11, 0.6)' }}>
+                {comboCount}x
+              </span>
+              <span className="font-pixel text-[8px] text-dm-gold/80 sm:text-[9px] lg:text-[10px] 2xl:text-[12px]">
+                KOMBO!
+              </span>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Level up celebration overlay */}
+      <AnimatePresence>
+        {showLevelUpOverlay && (
+          <motion.div
+            className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <motion.div
+              className="flex flex-col items-center gap-2 rounded-lg border border-dm-gold/40 bg-black/50 px-8 py-4 backdrop-blur-sm"
+              initial={{ scale: 0.5, y: 20 }}
+              animate={{ scale: [0.5, 1.1, 1], y: [20, -10, 0] }}
+              exit={{ scale: 0.8, y: -30, opacity: 0 }}
+              transition={{ duration: 0.5, ease: EASE }}
+            >
+              <motion.span
+                className="text-3xl sm:text-4xl"
+                animate={{ rotate: [0, -15, 15, 0], scale: [1, 1.2, 1] }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+              >
+                ⬆️
+              </motion.span>
+              <span className="font-pixel text-lg text-dm-gold sm:text-xl lg:text-2xl 2xl:text-3xl" style={{ textShadow: '0 0 16px rgba(245, 158, 11, 0.5)' }}>
+                Seviye {player.level}!
+              </span>
+              <span className="font-pixel text-[9px] text-zinc-400 sm:text-[10px] lg:text-[11px] 2xl:text-[13px]">
+                Guclerin artti!
+              </span>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Respawn overlay with death recap */}
       {!player.alive && (
         <motion.div
           className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
         >
-          <div className="rounded-lg border border-dm-health/30 bg-black/60 px-8 py-4 backdrop-blur-sm">
-            <p className="text-center font-pixel text-sm text-dm-health 2xl:text-lg">
+          <div className="flex flex-col items-center gap-3 rounded-lg border border-dm-health/30 bg-black/70 px-8 py-5 backdrop-blur-sm">
+            <motion.span
+              className="text-3xl"
+              initial={{ scale: 0, rotate: -30 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ duration: 0.4, ease: EASE }}
+            >
+              💀
+            </motion.span>
+            <p className="text-center font-pixel text-sm text-dm-health sm:text-base 2xl:text-lg">
               Yenildin!
             </p>
-            <motion.p
-              className="mt-2 text-center font-pixel text-[10px] text-zinc-400 sm:text-xs lg:text-sm 2xl:text-base"
-              animate={{ opacity: [0.5, 1, 0.5] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-            >
-              Yeniden doğuluyor...
-            </motion.p>
+            {lastKillerMonster && (
+              <p className="text-center font-pixel text-[9px] text-zinc-400 sm:text-[10px] lg:text-[11px] 2xl:text-[13px]">
+                {lastKillerMonster} tarafindan olduruldun
+              </p>
+            )}
+            <div className="flex flex-col items-center gap-1">
+              {respawnCountdown > 0 && (
+                <motion.span
+                  className="font-pixel text-2xl text-dm-gold sm:text-3xl"
+                  key={respawnCountdown}
+                  initial={{ scale: 1.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  {respawnCountdown}
+                </motion.span>
+              )}
+              <motion.p
+                className="text-center font-pixel text-[10px] text-zinc-400 sm:text-xs lg:text-sm 2xl:text-base"
+                animate={{ opacity: [0.5, 1, 0.5] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+              >
+                Yeniden doguluyor...
+              </motion.p>
+            </div>
           </div>
         </motion.div>
       )}

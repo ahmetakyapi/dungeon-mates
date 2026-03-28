@@ -20,7 +20,7 @@ import {
 import { Player } from './entities/Player';
 import { Monster } from './entities/Monster';
 import { Projectile } from './entities/Projectile';
-import { DungeonGenerator } from './dungeon/DungeonGenerator';
+import { DungeonGenerator, MONSTER_MULTIPLIER_BY_PLAYERS } from './dungeon/DungeonGenerator';
 
 type ReadyState = {
   classSelected: boolean;
@@ -61,6 +61,7 @@ export class GameRoom {
   private readonly maxFloors: number;
   private floorHpMultiplier: number;
   private floorAttackMultiplier: number;
+  private playerCount: number;
 
   private onEmpty: (code: string) => void;
 
@@ -87,6 +88,7 @@ export class GameRoom {
     this.maxFloors = 5;
     this.floorHpMultiplier = 1.0;
     this.floorAttackMultiplier = 1.0;
+    this.playerCount = 1;
     this.onEmpty = onEmpty;
   }
 
@@ -281,6 +283,9 @@ export class GameRoom {
   }
 
   private startGame(): void {
+    // Store player count at game start for scaling
+    this.playerCount = this.players.size;
+
     // Mark solo players
     if (this.isSolo) {
       for (const player of this.players.values()) {
@@ -301,9 +306,9 @@ export class GameRoom {
     this.loot.clear();
     this.openedChests.clear();
 
-    // Generate dungeon for current floor
+    // Generate dungeon for current floor (scaled by player count)
     const generator = new DungeonGenerator();
-    const dungeon = generator.generate(floor);
+    const dungeon = generator.generate(floor, this.playerCount);
     this.tiles = dungeon.tiles;
     this.rooms = dungeon.rooms;
     this.floorHpMultiplier = dungeon.floorDifficulty.hpMultiplier;
@@ -328,34 +333,60 @@ export class GameRoom {
   }
 
   private spawnMonstersInRooms(): void {
+    const clampedPlayers = Math.max(1, Math.min(4, this.playerCount));
+    const monsterMultiplier = MONSTER_MULTIPLIER_BY_PLAYERS[clampedPlayers] ?? 1.0;
+
     for (const room of this.rooms) {
       if (room.isStartRoom) continue;
 
       if (room.isBossRoom) {
-        // Boss room: 1 boss_demon + 2 skeletons
+        // Boss room: 1 boss_demon with HP scaled by player count
         const boss = new Monster('boss_demon', { x: room.centerX, y: room.centerY }, room.id);
+        // Override boss HP based on player count: 300 * (1 + (playerCount - 1) * 0.5)
+        const bossHpScale = 1 + (clampedPlayers - 1) * 0.5;
+        const bossBaseHp = Math.floor(300 * bossHpScale);
+        boss.state.maxHp = bossBaseHp;
+        boss.state.hp = bossBaseHp;
         boss.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
         if (this.isSolo) boss.scaleForSolo();
+        boss.scaleForPlayerCount(clampedPlayers);
         this.monsters.set(boss.state.id, boss);
         room.monsterIds.push(boss.state.id);
 
-        const skel1 = new Monster('skeleton', { x: room.centerX - 2, y: room.centerY - 1 }, room.id);
-        const skel2 = new Monster('skeleton', { x: room.centerX + 2, y: room.centerY + 1 }, room.id);
-        skel1.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
-        skel2.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
-        if (this.isSolo) {
-          skel1.scaleForSolo();
-          skel2.scaleForSolo();
+        // Skeleton minions: 1 + playerCount instead of always 2
+        const skeletonCount = 1 + clampedPlayers;
+        for (let i = 0; i < skeletonCount; i++) {
+          const angle = (i / skeletonCount) * Math.PI * 2;
+          const sx = room.centerX + Math.cos(angle) * 2;
+          const sy = room.centerY + Math.sin(angle) * 2;
+          const skel = new Monster('skeleton', { x: sx, y: sy }, room.id);
+          skel.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
+          if (this.isSolo) skel.scaleForSolo();
+          skel.scaleForPlayerCount(clampedPlayers);
+          this.monsters.set(skel.state.id, skel);
+          room.monsterIds.push(skel.state.id);
         }
-        this.monsters.set(skel1.state.id, skel1);
-        this.monsters.set(skel2.state.id, skel2);
-        room.monsterIds.push(skel1.state.id, skel2.state.id);
-      } else {
-        // Normal room: 3-6 monsters based on room size
-        const area = room.width * room.height;
-        const monsterCount = Math.min(6, Math.max(3, Math.floor(area / 20)));
 
-        for (let i = 0; i < monsterCount; i++) {
+        // For 3-4 players, add goblin elite adds
+        if (clampedPlayers >= 3) {
+          const goblinCount = clampedPlayers >= 4 ? 2 : 1;
+          for (let i = 0; i < goblinCount; i++) {
+            const gx = room.centerX + (i === 0 ? -3 : 3);
+            const gy = room.centerY + (i === 0 ? 2 : -2);
+            const goblin = new Monster('goblin', { x: gx, y: gy }, room.id);
+            goblin.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
+            goblin.scaleForPlayerCount(clampedPlayers);
+            this.monsters.set(goblin.state.id, goblin);
+            room.monsterIds.push(goblin.state.id);
+          }
+        }
+      } else {
+        // Normal room: base 3-6 monsters scaled by player count multiplier
+        const area = room.width * room.height;
+        const baseCount = Math.max(3, Math.floor(area / 20));
+        const scaledCount = Math.min(10, Math.max(1, Math.round(baseCount * monsterMultiplier)));
+
+        for (let i = 0; i < scaledCount; i++) {
           const type = MONSTER_TYPES_NORMAL[Math.floor(Math.random() * MONSTER_TYPES_NORMAL.length)];
           const mx = room.x + 1 + Math.floor(Math.random() * (room.width - 2));
           const my = room.y + 1 + Math.floor(Math.random() * (room.height - 2));
@@ -363,6 +394,7 @@ export class GameRoom {
           const monster = new Monster(type, { x: mx + 0.5, y: my + 0.5 }, room.id);
           monster.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
           if (this.isSolo) monster.scaleForSolo();
+          monster.scaleForPlayerCount(clampedPlayers);
           this.monsters.set(monster.state.id, monster);
           room.monsterIds.push(monster.state.id);
         }
@@ -700,11 +732,15 @@ export class GameRoom {
       xp: stats.xp,
     });
 
-    // Grant XP to killer
+    // Grant XP to killer (scaled for multiplayer to prevent over-leveling)
     const killer = this.players.get(killerId);
     if (killer) {
-      killer.addXp(stats.xp);
-      killer.state.score += stats.xp;
+      const xpMultipliers: Record<number, number> = { 1: 1.0, 2: 0.75, 3: 0.6, 4: 0.5 };
+      const clampedPlayers = Math.max(1, Math.min(4, this.playerCount));
+      const xpScale = xpMultipliers[clampedPlayers] ?? 1.0;
+      const scaledXp = Math.max(1, Math.floor(stats.xp * xpScale));
+      killer.addXp(scaledXp);
+      killer.state.score += scaledXp;
     }
 
     // Drop loot
@@ -713,8 +749,10 @@ export class GameRoom {
 
   private dropLoot(position: Vec2): void {
     const lootTypes: LootType[] = ['health_potion', 'mana_potion', 'damage_boost', 'speed_boost', 'gold'];
-    // Solo mode: 50% increased loot drop rates
-    const dropMultiplier = this.isSolo ? 1.5 : 1.0;
+    // Solo mode: 50% increased loot drop rates; multiplayer: scale up to compensate split
+    const dropMultiplier = this.isSolo
+      ? 1.5
+      : 1 + (this.playerCount - 1) * 0.2; // 2p=1.2, 3p=1.4, 4p=1.6
 
     for (const lootType of lootTypes) {
       const lootInfo = LOOT_TABLE[lootType];
@@ -765,11 +803,14 @@ export class GameRoom {
     // Notify clients about floor completion
     this.io.to(this.roomCode).emit('game:floor_complete', { floor: this.currentFloor - 1 });
 
-    // Heal players slightly between floors
+    // Heal players between floors — recovery scales with difficulty (fewer players = more recovery)
+    const recoveryByPlayers: Record<number, number> = { 1: 0.4, 2: 0.3, 3: 0.25, 4: 0.2 };
+    const clampedPlayers = Math.max(1, Math.min(4, this.playerCount));
+    const recoveryRate = recoveryByPlayers[clampedPlayers] ?? 0.3;
     for (const player of this.players.values()) {
       if (player.state.alive) {
-        player.state.hp = Math.min(player.state.maxHp, player.state.hp + Math.floor(player.state.maxHp * 0.3));
-        player.state.mana = Math.min(player.state.maxMana, player.state.mana + Math.floor(player.state.maxMana * 0.3));
+        player.state.hp = Math.min(player.state.maxHp, player.state.hp + Math.floor(player.state.maxHp * recoveryRate));
+        player.state.mana = Math.min(player.state.maxMana, player.state.mana + Math.floor(player.state.maxMana * recoveryRate));
       }
     }
 
