@@ -1,0 +1,270 @@
+// ==========================================
+// Dungeon Mates — Camera System
+// Smooth lerp follow, deadzone, screen shake presets,
+// boss zoom, look-ahead, edge clamping
+// ==========================================
+
+import type { Vec2, Direction } from '../../../shared/types';
+import { TILE_SIZE, DUNGEON_WIDTH, DUNGEON_HEIGHT } from '../../../shared/types';
+
+const LERP_SMOOTH = 0.08;
+const LERP_RESPONSIVE = 0.15;
+const DEADZONE = 1.0; // pixels in logical space
+const LOOK_AHEAD_TILES = 2; // tiles to look ahead in facing direction
+const LOOK_AHEAD_LERP = 0.04; // smoothing for look-ahead offset
+
+// Direction vectors for look-ahead
+const DIR_VEC: Record<Direction, Vec2> = {
+  up: { x: 0, y: -1 },
+  down: { x: 0, y: 1 },
+  left: { x: -1, y: 0 },
+  right: { x: 1, y: 0 },
+} as const;
+
+type ShakeState = {
+  intensity: number;
+  duration: number;
+  elapsed: number;
+  offsetX: number;
+  offsetY: number;
+};
+
+export class Camera {
+  private x = 0;
+  private y = 0;
+  private targetX = 0;
+  private targetY = 0;
+  private viewWidth: number;
+  private viewHeight: number;
+  private lerpSpeed = LERP_SMOOTH;
+
+  // Shake
+  private shakeState: ShakeState = {
+    intensity: 0,
+    duration: 0,
+    elapsed: 0,
+    offsetX: 0,
+    offsetY: 0,
+  };
+
+  // Zoom
+  private _zoom = 1;
+  private _targetZoom = 1;
+  private readonly ZOOM_LERP = 0.04;
+
+  // Boss room
+  private _inBossRoom = false;
+
+  // Dungeon bounds
+  private boundsWidth = DUNGEON_WIDTH;
+  private boundsHeight = DUNGEON_HEIGHT;
+
+  // Look-ahead (facing direction based)
+  private lookAheadX = 0;
+  private lookAheadY = 0;
+  private targetLookAheadX = 0;
+  private targetLookAheadY = 0;
+  private playerFacing: Direction = 'down';
+
+  constructor(viewWidth: number, viewHeight: number) {
+    this.viewWidth = viewWidth;
+    this.viewHeight = viewHeight;
+  }
+
+  setViewSize(width: number, height: number): void {
+    this.viewWidth = width;
+    this.viewHeight = height;
+  }
+
+  /** Update dungeon bounds for edge clamping */
+  setBounds(width: number, height: number): void {
+    this.boundsWidth = width;
+    this.boundsHeight = height;
+  }
+
+  /** Follow a target position (in tile coords) */
+  follow(target: Vec2, facing?: Direction): void {
+    this.targetX = target.x * TILE_SIZE - this.viewWidth / (2 * this._zoom);
+    this.targetY = target.y * TILE_SIZE - this.viewHeight / (2 * this._zoom);
+    if (facing) {
+      this.playerFacing = facing;
+    }
+  }
+
+  /** Set player facing for look-ahead */
+  setFacing(facing: Direction): void {
+    this.playerFacing = facing;
+  }
+
+  /** Set lerp mode: 'smooth' (0.08) or 'responsive' (0.15) */
+  setLerpMode(mode: 'smooth' | 'responsive'): void {
+    this.lerpSpeed = mode === 'smooth' ? LERP_SMOOTH : LERP_RESPONSIVE;
+  }
+
+  /** Snap immediately to target (no lerp) */
+  snapToTarget(): void {
+    this.x = this.targetX;
+    this.y = this.targetY;
+    this.lookAheadX = this.targetLookAheadX;
+    this.lookAheadY = this.targetLookAheadY;
+    this._zoom = this._targetZoom;
+    this.clamp();
+  }
+
+  /** Update camera position with smooth lerp + deadzone + shake + look-ahead + zoom */
+  update(dt: number): void {
+    const dtFactor = Math.min(dt * 60, 3); // Normalize to 60fps, cap at 3
+
+    // Smooth zoom transition
+    this._zoom += (this._targetZoom - this._zoom) * this.ZOOM_LERP * dtFactor;
+
+    // Smooth look-ahead based on facing direction
+    const dir = DIR_VEC[this.playerFacing];
+    this.targetLookAheadX = dir.x * LOOK_AHEAD_TILES * TILE_SIZE;
+    this.targetLookAheadY = dir.y * LOOK_AHEAD_TILES * TILE_SIZE;
+    this.lookAheadX += (this.targetLookAheadX - this.lookAheadX) * LOOK_AHEAD_LERP * dtFactor;
+    this.lookAheadY += (this.targetLookAheadY - this.lookAheadY) * LOOK_AHEAD_LERP * dtFactor;
+
+    const finalTargetX = this.targetX + this.lookAheadX;
+    const finalTargetY = this.targetY + this.lookAheadY;
+
+    const dx = finalTargetX - this.x;
+    const dy = finalTargetY - this.y;
+
+    // Smooth lerp with deadzone
+    if (Math.abs(dx) > DEADZONE) {
+      this.x += dx * this.lerpSpeed * dtFactor;
+    }
+    if (Math.abs(dy) > DEADZONE) {
+      this.y += dy * this.lerpSpeed * dtFactor;
+    }
+
+    this.clamp();
+    this.updateShake(dt);
+  }
+
+  // ===== SCREEN SHAKE =====
+
+  /** Start a screen shake effect */
+  shake(intensity: number, duration: number): void {
+    // Only override if new shake is stronger or current is nearly done
+    if (intensity >= this.shakeState.intensity || this.shakeState.elapsed >= this.shakeState.duration * 0.7) {
+      this.shakeState.intensity = intensity;
+      this.shakeState.duration = duration;
+      this.shakeState.elapsed = 0;
+    }
+  }
+
+  /** Preset: small shake when player takes damage (amplitude 2, 150ms) */
+  shakeTakeDamage(): void {
+    this.shake(2, 150);
+  }
+
+  /** Preset: large shake for boss slam (amplitude 5, 400ms) */
+  shakeBossSlam(): void {
+    this.shake(5, 400);
+  }
+
+  /** Preset: medium shake on death (amplitude 3, 300ms) */
+  shakeDeath(): void {
+    this.shake(3, 300);
+  }
+
+  // ===== BOSS ROOM ZOOM =====
+
+  /** Enter boss room -- zoom out to 0.85x */
+  enterBossRoom(): void {
+    this._inBossRoom = true;
+    this._targetZoom = 0.85;
+  }
+
+  /** Leave boss room -- reset zoom */
+  leaveBossRoom(): void {
+    this._inBossRoom = false;
+    this._targetZoom = 1;
+  }
+
+  /** Set target zoom (for external control) */
+  setZoom(zoom: number): void {
+    this._targetZoom = Math.max(0.7, Math.min(1.5, zoom));
+  }
+
+  /** Get current zoom level */
+  get zoom(): number {
+    return this._zoom;
+  }
+
+  /** Whether we're in boss room */
+  get isBossRoom(): boolean {
+    return this._inBossRoom;
+  }
+
+  private updateShake(dt: number): void {
+    const s = this.shakeState;
+    if (s.elapsed >= s.duration) {
+      s.offsetX = 0;
+      s.offsetY = 0;
+      return;
+    }
+    s.elapsed += dt * 1000;
+    const progress = s.elapsed / s.duration;
+    // Exponential decay for more natural shake
+    const fadeOut = (1 - progress) * (1 - progress);
+    const currentIntensity = s.intensity * fadeOut;
+    s.offsetX = (Math.random() * 2 - 1) * currentIntensity;
+    s.offsetY = (Math.random() * 2 - 1) * currentIntensity;
+  }
+
+  private clamp(): void {
+    const effectiveViewW = this.viewWidth / this._zoom;
+    const effectiveViewH = this.viewHeight / this._zoom;
+    const maxX = this.boundsWidth * TILE_SIZE - effectiveViewW;
+    const maxY = this.boundsHeight * TILE_SIZE - effectiveViewH;
+    this.x = Math.max(0, Math.min(maxX, this.x));
+    this.y = Math.max(0, Math.min(maxY, this.y));
+  }
+
+  /** Get the final camera X including shake offset */
+  get scrollX(): number {
+    return Math.round(this.x + this.shakeState.offsetX);
+  }
+
+  /** Get the final camera Y including shake offset */
+  get scrollY(): number {
+    return Math.round(this.y + this.shakeState.offsetY);
+  }
+
+  /** Convert world coordinates (pixels) to screen coordinates */
+  worldToScreen(wx: number, wy: number): Vec2 {
+    return {
+      x: (wx - this.scrollX) * this._zoom,
+      y: (wy - this.scrollY) * this._zoom,
+    };
+  }
+
+  /** Convert screen coordinates to world coordinates (pixels) */
+  screenToWorld(sx: number, sy: number): Vec2 {
+    return {
+      x: sx / this._zoom + this.scrollX,
+      y: sy / this._zoom + this.scrollY,
+    };
+  }
+
+  /** Convert screen coordinates to tile coordinates */
+  screenToTile(sx: number, sy: number): Vec2 {
+    const world = this.screenToWorld(sx, sy);
+    return {
+      x: Math.floor(world.x / TILE_SIZE),
+      y: Math.floor(world.y / TILE_SIZE),
+    };
+  }
+
+  /** Check if a world-space rect is visible on screen */
+  isVisible(wx: number, wy: number, w: number, h: number): boolean {
+    const effectiveViewW = this.viewWidth / this._zoom;
+    const effectiveViewH = this.viewHeight / this._zoom;
+    const sx = wx - this.scrollX;
+    const sy = wy - this.scrollY;
+    return sx + w > 0 && sx < effectiveViewW && sy + h > 0 && sy < effectiveViewH;
+  }
+}

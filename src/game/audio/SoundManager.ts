@@ -1,0 +1,532 @@
+/**
+ * SoundManager - Web Audio API based retro/8-bit sound synthesizer
+ * Singleton pattern, lazy AudioContext initialization (requires user gesture)
+ */
+
+type NoteFrequency = number;
+
+const NOTES: Record<string, NoteFrequency> = {
+  C3: 130.81, D3: 146.83, E3: 164.81, F3: 174.61, G3: 196.00, A3: 220.00, B3: 246.94,
+  C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23, G4: 392.00, A4: 440.00, B4: 493.88,
+  C5: 523.25, D5: 587.33, E5: 659.25, F5: 698.46, G5: 783.99, A5: 880.00, B5: 987.77,
+  C6: 1046.50,
+  // Minor notes
+  Eb3: 155.56, Ab3: 207.65, Bb3: 233.08,
+  Eb4: 311.13, Ab4: 415.30, Bb4: 466.16,
+  Eb5: 622.25,
+} as const;
+
+export class SoundManager {
+  private static instance: SoundManager;
+  private ctx: AudioContext | null = null;
+  private masterGain: GainNode | null = null;
+  private sfxGain: GainNode | null = null;
+  private musicGain: GainNode | null = null;
+  private masterVolume = 0.5;
+  private sfxVolume = 0.7;
+  private musicVolume = 0.3;
+  private muted = false;
+  private musicIntervals: ReturnType<typeof setInterval>[] = [];
+  private musicOscillators: OscillatorNode[] = [];
+  private noiseBuffer: AudioBuffer | null = null;
+
+  static getInstance(): SoundManager {
+    if (!SoundManager.instance) {
+      SoundManager.instance = new SoundManager();
+    }
+    return SoundManager.instance;
+  }
+
+  private constructor() {}
+
+  private getContext(): AudioContext {
+    if (!this.ctx) {
+      this.ctx = new AudioContext();
+
+      // Master gain
+      this.masterGain = this.ctx.createGain();
+      this.masterGain.gain.value = this.masterVolume;
+      this.masterGain.connect(this.ctx.destination);
+
+      // SFX gain
+      this.sfxGain = this.ctx.createGain();
+      this.sfxGain.gain.value = this.sfxVolume;
+      this.sfxGain.connect(this.masterGain);
+
+      // Music gain
+      this.musicGain = this.ctx.createGain();
+      this.musicGain.gain.value = this.musicVolume;
+      this.musicGain.connect(this.masterGain);
+
+      // Pre-generate noise buffer
+      this.noiseBuffer = this.createNoiseBuffer();
+    }
+
+    // Resume if suspended (browser autoplay policy)
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+
+    return this.ctx;
+  }
+
+  private createNoiseBuffer(): AudioBuffer {
+    const ctx = this.ctx!;
+    const bufferSize = ctx.sampleRate * 0.5; // 500ms of noise
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    return buffer;
+  }
+
+  private playNoise(duration: number, volume: number, filterFreq?: number, filterType?: BiquadFilterType): void {
+    const ctx = this.getContext();
+    if (!this.noiseBuffer || !this.sfxGain) return;
+
+    const source = ctx.createBufferSource();
+    source.buffer = this.noiseBuffer;
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(volume, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+
+    if (filterFreq !== undefined) {
+      const filter = ctx.createBiquadFilter();
+      filter.type = filterType ?? 'lowpass';
+      filter.frequency.value = filterFreq;
+      source.connect(filter);
+      filter.connect(gain);
+    } else {
+      source.connect(gain);
+    }
+
+    gain.connect(this.sfxGain);
+    source.start(ctx.currentTime);
+    source.stop(ctx.currentTime + duration);
+  }
+
+  private playTone(
+    freq: number,
+    duration: number,
+    waveform: OscillatorType = 'square',
+    volume: number = 0.3,
+    freqEnd?: number,
+    startTime?: number,
+    destination?: AudioNode,
+  ): OscillatorNode {
+    const ctx = this.getContext();
+    const dest = destination ?? this.sfxGain!;
+    const start = startTime ?? ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    osc.type = waveform;
+    osc.frequency.setValueAtTime(freq, start);
+    if (freqEnd !== undefined) {
+      osc.frequency.exponentialRampToValueAtTime(Math.max(freqEnd, 20), start + duration);
+    }
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(volume, start);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+
+    osc.connect(gain);
+    gain.connect(dest);
+    osc.start(start);
+    osc.stop(start + duration);
+
+    return osc;
+  }
+
+  private playNotes(
+    notes: NoteFrequency[],
+    noteDuration: number,
+    gap: number,
+    waveform: OscillatorType = 'square',
+    volume: number = 0.25,
+  ): void {
+    const ctx = this.getContext();
+    notes.forEach((freq, i) => {
+      const startTime = ctx.currentTime + i * gap;
+      this.playTone(freq, noteDuration, waveform, volume, undefined, startTime);
+    });
+  }
+
+  // =====================
+  // SFX - Attack Sounds
+  // =====================
+
+  playSwordSlash(): void {
+    const ctx = this.getContext();
+    // White noise burst
+    this.playNoise(0.12, 0.25, 3000, 'highpass');
+    // Descending frequency sweep
+    this.playTone(800, 0.15, 'sawtooth', 0.15, 200);
+    // Quick click at start
+    this.playTone(1200, 0.03, 'square', 0.1);
+  }
+
+  playArrowShoot(): void {
+    // Quick ascending "twang"
+    this.playTone(400, 0.08, 'sine', 0.2, 1200);
+    // Follow-up high ping
+    const ctx = this.getContext();
+    this.playTone(1800, 0.06, 'sine', 0.1, 2400, ctx.currentTime + 0.05);
+  }
+
+  playFireball(): void {
+    const ctx = this.getContext();
+    // Low rumble ascending
+    this.playTone(80, 0.25, 'sawtooth', 0.2, 400);
+    // Noise burst mid-way
+    setTimeout(() => {
+      this.playNoise(0.15, 0.15, 800, 'lowpass');
+    }, 100);
+    // High crackle
+    this.playTone(200, 0.3, 'sawtooth', 0.1, 600, ctx.currentTime + 0.05);
+  }
+
+  // =====================
+  // SFX - Hit/Damage
+  // =====================
+
+  playHit(): void {
+    // Short noise burst + square wave
+    this.playNoise(0.08, 0.3, 2000, 'lowpass');
+    this.playTone(300, 0.08, 'square', 0.2, 100);
+  }
+
+  playCriticalHit(): void {
+    const ctx = this.getContext();
+    // Louder hit
+    this.playNoise(0.1, 0.4, 2500, 'lowpass');
+    this.playTone(400, 0.1, 'square', 0.3, 150);
+    // Ascending "ding"
+    this.playTone(800, 0.15, 'sine', 0.2, 1600, ctx.currentTime + 0.08);
+  }
+
+  playPlayerHurt(): void {
+    // Descending square wave
+    this.playTone(600, 0.25, 'square', 0.2, 150);
+    this.playNoise(0.08, 0.15, 1000, 'lowpass');
+  }
+
+  playMonsterHurt(): void {
+    // Short low noise burst
+    this.playNoise(0.06, 0.25, 600, 'lowpass');
+    this.playTone(200, 0.06, 'square', 0.15, 80);
+  }
+
+  playDeath(): void {
+    const ctx = this.getContext();
+    // Long descending sweep
+    this.playTone(800, 0.6, 'square', 0.2, 60);
+    // Noise fade
+    this.playNoise(0.5, 0.2, 1500, 'lowpass');
+    // Secondary descending tone
+    this.playTone(600, 0.8, 'sawtooth', 0.1, 30, ctx.currentTime + 0.15);
+  }
+
+  // =====================
+  // SFX - Loot/Pickup
+  // =====================
+
+  playLootPickup(): void {
+    // Quick ascending 3-note arpeggio (C-E-G)
+    this.playNotes([NOTES.C5, NOTES.E5, NOTES.G5], 0.08, 0.065, 'square', 0.2);
+  }
+
+  playGoldPickup(): void {
+    const ctx = this.getContext();
+    // Coin "ching" - high sine ping
+    this.playTone(1400, 0.08, 'sine', 0.2);
+    this.playTone(2100, 0.1, 'sine', 0.15, undefined, ctx.currentTime + 0.04);
+  }
+
+  playHealthPotion(): void {
+    // Gentle ascending sweep
+    this.playTone(300, 0.25, 'sine', 0.15, 800);
+    const ctx = this.getContext();
+    this.playTone(500, 0.2, 'triangle', 0.1, 1000, ctx.currentTime + 0.1);
+  }
+
+  // =====================
+  // SFX - UI
+  // =====================
+
+  playButtonClick(): void {
+    this.playTone(800, 0.03, 'square', 0.15);
+  }
+
+  playMenuOpen(): void {
+    this.playTone(400, 0.1, 'square', 0.12, 800);
+  }
+
+  playMenuClose(): void {
+    this.playTone(800, 0.1, 'square', 0.12, 400);
+  }
+
+  // =====================
+  // SFX - Game Events
+  // =====================
+
+  playRoomCleared(): void {
+    // Victory fanfare: C-E-G-C(high)
+    this.playNotes([NOTES.C4, NOTES.E4, NOTES.G4, NOTES.C5], 0.12, 0.12, 'square', 0.2);
+  }
+
+  playLevelUp(): void {
+    const ctx = this.getContext();
+    // Ascending arpeggio with shimmer
+    const notes = [NOTES.C4, NOTES.E4, NOTES.G4, NOTES.C5, NOTES.E5];
+    notes.forEach((freq, i) => {
+      const t = ctx.currentTime + i * 0.1;
+      this.playTone(freq, 0.2, 'square', 0.18, undefined, t);
+      // Shimmer overtone
+      this.playTone(freq * 2, 0.15, 'sine', 0.06, undefined, t);
+    });
+  }
+
+  playBossAppear(): void {
+    const ctx = this.getContext();
+    // Deep rumble
+    this.playTone(50, 0.8, 'sawtooth', 0.25, 30);
+    // Dramatic low note
+    this.playTone(80, 0.6, 'square', 0.15, 40, ctx.currentTime + 0.3);
+    // Noise rumble
+    this.playNoise(0.8, 0.15, 200, 'lowpass');
+    // Ominous high note
+    this.playTone(NOTES.Eb4, 0.4, 'sawtooth', 0.08, undefined, ctx.currentTime + 0.6);
+  }
+
+  playFloorComplete(): void {
+    // Full ascending scale: C-D-E-F-G-A-B-C
+    const notes = [NOTES.C4, NOTES.D4, NOTES.E4, NOTES.F4, NOTES.G4, NOTES.A4, NOTES.B4, NOTES.C5];
+    this.playNotes(notes, 0.1, 0.09, 'square', 0.18);
+  }
+
+  playVictory(): void {
+    const ctx = this.getContext();
+    // First arpeggio: C-E-G
+    const arp1 = [NOTES.C4, NOTES.E4, NOTES.G4];
+    arp1.forEach((freq, i) => {
+      this.playTone(freq, 0.2, 'square', 0.2, undefined, ctx.currentTime + i * 0.12);
+    });
+    // Second arpeggio higher: C-E-G-C
+    const arp2 = [NOTES.C5, NOTES.E5, NOTES.G5, NOTES.C6];
+    arp2.forEach((freq, i) => {
+      const t = ctx.currentTime + 0.5 + i * 0.12;
+      this.playTone(freq, 0.25, 'square', 0.18, undefined, t);
+      this.playTone(freq * 0.5, 0.2, 'triangle', 0.06, undefined, t);
+    });
+    // Final sustain chord
+    const chordTime = ctx.currentTime + 1.1;
+    [NOTES.C5, NOTES.E5, NOTES.G5].forEach((freq) => {
+      this.playTone(freq, 0.5, 'sine', 0.1, undefined, chordTime);
+    });
+  }
+
+  playDefeat(): void {
+    const ctx = this.getContext();
+    // Sad descending minor notes
+    const notes = [NOTES.Eb4, NOTES.C4, NOTES.Ab3, NOTES.Eb3];
+    notes.forEach((freq, i) => {
+      this.playTone(freq, 0.25, 'square', 0.18, undefined, ctx.currentTime + i * 0.2);
+    });
+    // Low rumble at end
+    this.playTone(60, 0.6, 'sawtooth', 0.08, 30, ctx.currentTime + 0.7);
+  }
+
+  playDoorOpen(): void {
+    const ctx = this.getContext();
+    // Creaking: noise with filter sweep
+    if (!this.noiseBuffer || !this.sfxGain) return;
+    const source = ctx.createBufferSource();
+    source.buffer = this.noiseBuffer;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(200, ctx.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.3);
+    filter.Q.value = 5;
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.sfxGain);
+    source.start(ctx.currentTime);
+    source.stop(ctx.currentTime + 0.35);
+  }
+
+  playChestOpen(): void {
+    const ctx = this.getContext();
+    // Creak
+    this.playDoorOpen();
+    // Magical shimmer
+    const shimmerNotes = [NOTES.E5, NOTES.G5, NOTES.B5, NOTES.E5];
+    shimmerNotes.forEach((freq, i) => {
+      this.playTone(freq, 0.12, 'sine', 0.1, undefined, ctx.currentTime + 0.15 + i * 0.07);
+    });
+    // Coin sounds
+    this.playTone(2000, 0.06, 'sine', 0.12, undefined, ctx.currentTime + 0.35);
+    this.playTone(2400, 0.06, 'sine', 0.1, undefined, ctx.currentTime + 0.4);
+  }
+
+  playStairsDescend(): void {
+    const ctx = this.getContext();
+    // Echoing descending notes
+    const notes = [NOTES.G4, NOTES.E4, NOTES.C4, NOTES.G3, NOTES.E3, NOTES.C3];
+    notes.forEach((freq, i) => {
+      const t = ctx.currentTime + i * 0.09;
+      this.playTone(freq, 0.2, 'triangle', 0.15 - i * 0.02, undefined, t);
+    });
+  }
+
+  // =====================
+  // Music
+  // =====================
+
+  playDungeonMusic(): void {
+    this.stopMusic();
+    const ctx = this.getContext();
+    if (!this.musicGain) return;
+
+    // Dark ambient bass pattern
+    const bassPattern = [NOTES.C3, NOTES.Eb3, NOTES.C3, NOTES.Bb3, NOTES.C3, NOTES.Ab3, NOTES.C3, NOTES.G3];
+    const melodyPattern = [NOTES.C4, 0, NOTES.Eb4, 0, NOTES.G3, 0, NOTES.Bb3, 0];
+    let step = 0;
+    const bpm = 70;
+    const stepDuration = 60 / bpm;
+
+    const interval = setInterval(() => {
+      if (this.muted || !this.musicGain) return;
+      const ctx2 = this.getContext();
+      const bassFreq = bassPattern[step % bassPattern.length];
+      const melFreq = melodyPattern[step % melodyPattern.length];
+
+      // Bass
+      this.playTone(bassFreq, stepDuration * 0.8, 'triangle', 0.08, undefined, undefined, this.musicGain!);
+
+      // Melody (only on non-zero)
+      if (melFreq > 0) {
+        this.playTone(melFreq, stepDuration * 0.4, 'square', 0.04, undefined, undefined, this.musicGain!);
+      }
+
+      step++;
+    }, stepDuration * 1000);
+
+    this.musicIntervals.push(interval);
+  }
+
+  playBossMusic(): void {
+    this.stopMusic();
+    const ctx = this.getContext();
+    if (!this.musicGain) return;
+
+    // Intense, faster pattern
+    const bassPattern = [NOTES.C3, NOTES.C3, NOTES.Eb3, NOTES.C3, NOTES.G3, NOTES.C3, NOTES.Eb3, NOTES.Bb3];
+    const melodyPattern = [NOTES.C4, NOTES.Eb4, NOTES.G4, NOTES.Eb4, NOTES.C4, NOTES.Bb3, NOTES.Ab3, NOTES.G3];
+    let step = 0;
+    const bpm = 140;
+    const stepDuration = 60 / bpm;
+
+    const interval = setInterval(() => {
+      if (this.muted || !this.musicGain) return;
+
+      const bassFreq = bassPattern[step % bassPattern.length];
+      const melFreq = melodyPattern[step % melodyPattern.length];
+
+      // Aggressive bass
+      this.playTone(bassFreq, stepDuration * 0.6, 'sawtooth', 0.07, undefined, undefined, this.musicGain!);
+
+      // Melody
+      this.playTone(melFreq, stepDuration * 0.4, 'square', 0.05, undefined, undefined, this.musicGain!);
+
+      // Kick on even beats
+      if (step % 2 === 0) {
+        this.playTone(60, 0.08, 'sine', 0.06, 30, undefined, this.musicGain!);
+      }
+
+      step++;
+    }, stepDuration * 1000);
+
+    this.musicIntervals.push(interval);
+  }
+
+  stopMusic(): void {
+    this.musicIntervals.forEach((id) => clearInterval(id));
+    this.musicIntervals = [];
+    this.musicOscillators.forEach((osc) => {
+      try { osc.stop(); } catch { /* already stopped */ }
+    });
+    this.musicOscillators = [];
+  }
+
+  // =====================
+  // Volume Control
+  // =====================
+
+  setMasterVolume(vol: number): void {
+    this.masterVolume = Math.max(0, Math.min(1, vol));
+    if (this.masterGain) {
+      this.masterGain.gain.setValueAtTime(this.muted ? 0 : this.masterVolume, this.getContext().currentTime);
+    }
+  }
+
+  getMasterVolume(): number {
+    return this.masterVolume;
+  }
+
+  setSfxVolume(vol: number): void {
+    this.sfxVolume = Math.max(0, Math.min(1, vol));
+    if (this.sfxGain) {
+      this.sfxGain.gain.setValueAtTime(this.sfxVolume, this.getContext().currentTime);
+    }
+  }
+
+  getSfxVolume(): number {
+    return this.sfxVolume;
+  }
+
+  setMusicVolume(vol: number): void {
+    this.musicVolume = Math.max(0, Math.min(1, vol));
+    if (this.musicGain) {
+      this.musicGain.gain.setValueAtTime(this.musicVolume, this.getContext().currentTime);
+    }
+  }
+
+  getMusicVolume(): number {
+    return this.musicVolume;
+  }
+
+  toggleMute(): boolean {
+    this.muted = !this.muted;
+    if (this.masterGain) {
+      this.masterGain.gain.setValueAtTime(
+        this.muted ? 0 : this.masterVolume,
+        this.getContext().currentTime,
+      );
+    }
+    return this.muted;
+  }
+
+  isMutedState(): boolean {
+    return this.muted;
+  }
+
+  destroy(): void {
+    this.stopMusic();
+    if (this.ctx) {
+      this.ctx.close();
+      this.ctx = null;
+    }
+    this.masterGain = null;
+    this.sfxGain = null;
+    this.musicGain = null;
+    this.noiseBuffer = null;
+  }
+}
