@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { SoundManager } from '@/game/audio/SoundManager';
 
 export function useSound() {
@@ -31,47 +31,60 @@ export function useSound() {
     };
   }, [getManager]);
 
-  return {
-    // Attack
-    playSwordSlash: useCallback(() => getManager()?.playSwordSlash(), [getManager]),
-    playArrowShoot: useCallback(() => getManager()?.playArrowShoot(), [getManager]),
-    playFireball: useCallback(() => getManager()?.playFireball(), [getManager]),
-    // Hit/damage
-    playHit: useCallback(() => getManager()?.playHit(), [getManager]),
-    playCriticalHit: useCallback(() => getManager()?.playCriticalHit(), [getManager]),
-    playPlayerHurt: useCallback(() => getManager()?.playPlayerHurt(), [getManager]),
-    playMonsterHurt: useCallback(() => getManager()?.playMonsterHurt(), [getManager]),
-    playDeath: useCallback(() => getManager()?.playDeath(), [getManager]),
-    // Loot
-    playLootPickup: useCallback(() => getManager()?.playLootPickup(), [getManager]),
-    playGoldPickup: useCallback(() => getManager()?.playGoldPickup(), [getManager]),
-    playHealthPotion: useCallback(() => getManager()?.playHealthPotion(), [getManager]),
-    // UI
-    playButtonClick: useCallback(() => getManager()?.playButtonClick(), [getManager]),
-    playMenuOpen: useCallback(() => getManager()?.playMenuOpen(), [getManager]),
-    playMenuClose: useCallback(() => getManager()?.playMenuClose(), [getManager]),
-    // Game events
-    playRoomCleared: useCallback(() => getManager()?.playRoomCleared(), [getManager]),
-    playLevelUp: useCallback(() => getManager()?.playLevelUp(), [getManager]),
-    playBossAppear: useCallback(() => getManager()?.playBossAppear(), [getManager]),
-    playFloorComplete: useCallback(() => getManager()?.playFloorComplete(), [getManager]),
-    playVictory: useCallback(() => getManager()?.playVictory(), [getManager]),
-    playDefeat: useCallback(() => getManager()?.playDefeat(), [getManager]),
-    playDoorOpen: useCallback(() => getManager()?.playDoorOpen(), [getManager]),
-    playChestOpen: useCallback(() => getManager()?.playChestOpen(), [getManager]),
-    playStairsDescend: useCallback(() => getManager()?.playStairsDescend(), [getManager]),
-    // Music
-    playDungeonMusic: useCallback(() => getManager()?.playDungeonMusic(), [getManager]),
-    playBossMusic: useCallback(() => getManager()?.playBossMusic(), [getManager]),
-    stopMusic: useCallback(() => getManager()?.stopMusic(), [getManager]),
-    // Volume
-    setMasterVolume: useCallback((v: number) => getManager()?.setMasterVolume(v), [getManager]),
-    setSfxVolume: useCallback((v: number) => getManager()?.setSfxVolume(v), [getManager]),
-    setMusicVolume: useCallback((v: number) => getManager()?.setMusicVolume(v), [getManager]),
-    toggleMute: useCallback(() => getManager()?.toggleMute(), [getManager]),
-    isMuted: useCallback(() => getManager()?.isMutedState() ?? false, [getManager]),
-    getMasterVolume: useCallback(() => getManager()?.getMasterVolume() ?? 0.5, [getManager]),
-    getSfxVolume: useCallback(() => getManager()?.getSfxVolume() ?? 0.7, [getManager]),
-    getMusicVolume: useCallback(() => getManager()?.getMusicVolume() ?? 0.3, [getManager]),
-  };
+  const playSwordSlash = useCallback(() => getManager()?.playSwordSlash(), [getManager]);
+  const playArrowShoot = useCallback(() => getManager()?.playArrowShoot(), [getManager]);
+  const playFireball = useCallback(() => getManager()?.playFireball(), [getManager]);
+  const playHit = useCallback(() => getManager()?.playHit(), [getManager]);
+  const playCriticalHit = useCallback(() => getManager()?.playCriticalHit(), [getManager]);
+  const playPlayerHurt = useCallback(() => getManager()?.playPlayerHurt(), [getManager]);
+  const playMonsterHurt = useCallback(() => getManager()?.playMonsterHurt(), [getManager]);
+  const playDeath = useCallback(() => getManager()?.playDeath(), [getManager]);
+  const playLootPickup = useCallback(() => getManager()?.playLootPickup(), [getManager]);
+  const playGoldPickup = useCallback(() => getManager()?.playGoldPickup(), [getManager]);
+  const playHealthPotion = useCallback(() => getManager()?.playHealthPotion(), [getManager]);
+  const playButtonClick = useCallback(() => getManager()?.playButtonClick(), [getManager]);
+  const playMenuOpen = useCallback(() => getManager()?.playMenuOpen(), [getManager]);
+  const playMenuClose = useCallback(() => getManager()?.playMenuClose(), [getManager]);
+  const playRoomCleared = useCallback(() => getManager()?.playRoomCleared(), [getManager]);
+  const playLevelUp = useCallback(() => getManager()?.playLevelUp(), [getManager]);
+  const playBossAppear = useCallback(() => getManager()?.playBossAppear(), [getManager]);
+  const playFloorComplete = useCallback(() => getManager()?.playFloorComplete(), [getManager]);
+  const playVictory = useCallback(() => getManager()?.playVictory(), [getManager]);
+  const playDefeat = useCallback(() => getManager()?.playDefeat(), [getManager]);
+  const playDoorOpen = useCallback(() => getManager()?.playDoorOpen(), [getManager]);
+  const playChestOpen = useCallback(() => getManager()?.playChestOpen(), [getManager]);
+  const playStairsDescend = useCallback(() => getManager()?.playStairsDescend(), [getManager]);
+  const playDungeonMusic = useCallback(() => getManager()?.playDungeonMusic(), [getManager]);
+  const playBossMusic = useCallback(() => getManager()?.playBossMusic(), [getManager]);
+  const stopMusic = useCallback(() => getManager()?.stopMusic(), [getManager]);
+  const setMasterVolume = useCallback((v: number) => getManager()?.setMasterVolume(v), [getManager]);
+  const setSfxVolume = useCallback((v: number) => getManager()?.setSfxVolume(v), [getManager]);
+  const setMusicVolume = useCallback((v: number) => getManager()?.setMusicVolume(v), [getManager]);
+  const toggleMute = useCallback(() => getManager()?.toggleMute(), [getManager]);
+  const isMuted = useCallback(() => getManager()?.isMutedState() ?? false, [getManager]);
+  const getMasterVolume = useCallback(() => getManager()?.getMasterVolume() ?? 0.5, [getManager]);
+  const getSfxVolume = useCallback(() => getManager()?.getSfxVolume() ?? 0.7, [getManager]);
+  const getMusicVolume = useCallback(() => getManager()?.getMusicVolume() ?? 0.3, [getManager]);
+
+  return useMemo(() => ({
+    playSwordSlash, playArrowShoot, playFireball,
+    playHit, playCriticalHit, playPlayerHurt, playMonsterHurt, playDeath,
+    playLootPickup, playGoldPickup, playHealthPotion,
+    playButtonClick, playMenuOpen, playMenuClose,
+    playRoomCleared, playLevelUp, playBossAppear, playFloorComplete,
+    playVictory, playDefeat, playDoorOpen, playChestOpen, playStairsDescend,
+    playDungeonMusic, playBossMusic, stopMusic,
+    setMasterVolume, setSfxVolume, setMusicVolume,
+    toggleMute, isMuted, getMasterVolume, getSfxVolume, getMusicVolume,
+  }), [
+    playSwordSlash, playArrowShoot, playFireball,
+    playHit, playCriticalHit, playPlayerHurt, playMonsterHurt, playDeath,
+    playLootPickup, playGoldPickup, playHealthPotion,
+    playButtonClick, playMenuOpen, playMenuClose,
+    playRoomCleared, playLevelUp, playBossAppear, playFloorComplete,
+    playVictory, playDefeat, playDoorOpen, playChestOpen, playStairsDescend,
+    playDungeonMusic, playBossMusic, stopMusic,
+    setMasterVolume, setSfxVolume, setMusicVolume,
+    toggleMute, isMuted, getMasterVolume, getSfxVolume, getMusicVolume,
+  ]);
 }

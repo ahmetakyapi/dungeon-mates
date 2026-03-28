@@ -29,6 +29,15 @@ export class SoundManager {
   private musicIntervals: ReturnType<typeof setInterval>[] = [];
   private musicOscillators: OscillatorNode[] = [];
   private noiseBuffer: AudioBuffer | null = null;
+  private lastPlayTime: Map<string, number> = new Map();
+
+  private canPlay(id: string, cooldownMs: number): boolean {
+    const now = performance.now();
+    const last = this.lastPlayTime.get(id) ?? 0;
+    if (now - last < cooldownMs) return false;
+    this.lastPlayTime.set(id, now);
+    return true;
+  }
 
   static getInstance(): SoundManager {
     if (!SoundManager.instance) {
@@ -158,6 +167,7 @@ export class SoundManager {
   // =====================
 
   playSwordSlash(): void {
+    if (!this.canPlay('swordSlash', 150)) return;
     const ctx = this.getContext();
     // White noise burst
     this.playNoise(0.12, 0.25, 3000, 'highpass');
@@ -168,6 +178,7 @@ export class SoundManager {
   }
 
   playArrowShoot(): void {
+    if (!this.canPlay('arrowShoot', 100)) return;
     // Quick ascending "twang"
     this.playTone(400, 0.08, 'sine', 0.2, 1200);
     // Follow-up high ping
@@ -176,6 +187,7 @@ export class SoundManager {
   }
 
   playFireball(): void {
+    if (!this.canPlay('fireball', 200)) return;
     const ctx = this.getContext();
     // Low rumble ascending
     this.playTone(80, 0.25, 'sawtooth', 0.2, 400);
@@ -192,12 +204,14 @@ export class SoundManager {
   // =====================
 
   playHit(): void {
+    if (!this.canPlay('hit', 80)) return;
     // Short noise burst + square wave
     this.playNoise(0.08, 0.3, 2000, 'lowpass');
     this.playTone(300, 0.08, 'square', 0.2, 100);
   }
 
   playCriticalHit(): void {
+    if (!this.canPlay('criticalHit', 150)) return;
     const ctx = this.getContext();
     // Louder hit
     this.playNoise(0.1, 0.4, 2500, 'lowpass');
@@ -207,18 +221,21 @@ export class SoundManager {
   }
 
   playPlayerHurt(): void {
+    if (!this.canPlay('playerHurt', 300)) return;
     // Descending square wave
     this.playTone(600, 0.25, 'square', 0.2, 150);
     this.playNoise(0.08, 0.15, 1000, 'lowpass');
   }
 
   playMonsterHurt(): void {
+    if (!this.canPlay('monsterHurt', 100)) return;
     // Short low noise burst
     this.playNoise(0.06, 0.25, 600, 'lowpass');
     this.playTone(200, 0.06, 'square', 0.15, 80);
   }
 
   playDeath(): void {
+    if (!this.canPlay('death', 1000)) return;
     const ctx = this.getContext();
     // Long descending sweep
     this.playTone(800, 0.6, 'square', 0.2, 60);
@@ -233,11 +250,13 @@ export class SoundManager {
   // =====================
 
   playLootPickup(): void {
+    if (!this.canPlay('lootPickup', 150)) return;
     // Quick ascending 3-note arpeggio (C-E-G)
     this.playNotes([NOTES.C5, NOTES.E5, NOTES.G5], 0.08, 0.065, 'square', 0.2);
   }
 
   playGoldPickup(): void {
+    if (!this.canPlay('goldPickup', 100)) return;
     const ctx = this.getContext();
     // Coin "ching" - high sine ping
     this.playTone(1400, 0.08, 'sine', 0.2);
@@ -245,6 +264,7 @@ export class SoundManager {
   }
 
   playHealthPotion(): void {
+    if (!this.canPlay('healthPotion', 300)) return;
     // Gentle ascending sweep
     this.playTone(300, 0.25, 'sine', 0.15, 800);
     const ctx = this.getContext();
@@ -256,14 +276,17 @@ export class SoundManager {
   // =====================
 
   playButtonClick(): void {
+    if (!this.canPlay('buttonClick', 100)) return;
     this.playTone(800, 0.03, 'square', 0.15);
   }
 
   playMenuOpen(): void {
+    if (!this.canPlay('menuOpen', 300)) return;
     this.playTone(400, 0.1, 'square', 0.12, 800);
   }
 
   playMenuClose(): void {
+    if (!this.canPlay('menuClose', 300)) return;
     this.playTone(800, 0.1, 'square', 0.12, 400);
   }
 
@@ -272,11 +295,13 @@ export class SoundManager {
   // =====================
 
   playRoomCleared(): void {
+    if (!this.canPlay('roomCleared', 1000)) return;
     // Victory fanfare: C-E-G-C(high)
     this.playNotes([NOTES.C4, NOTES.E4, NOTES.G4, NOTES.C5], 0.12, 0.12, 'square', 0.2);
   }
 
   playLevelUp(): void {
+    if (!this.canPlay('levelUp', 1000)) return;
     const ctx = this.getContext();
     // Ascending arpeggio with shimmer
     const notes = [NOTES.C4, NOTES.E4, NOTES.G4, NOTES.C5, NOTES.E5];
@@ -289,6 +314,7 @@ export class SoundManager {
   }
 
   playBossAppear(): void {
+    if (!this.canPlay('bossAppear', 1000)) return;
     const ctx = this.getContext();
     // Deep rumble
     this.playTone(50, 0.8, 'sawtooth', 0.25, 30);
@@ -301,12 +327,14 @@ export class SoundManager {
   }
 
   playFloorComplete(): void {
+    if (!this.canPlay('floorComplete', 2000)) return;
     // Full ascending scale: C-D-E-F-G-A-B-C
     const notes = [NOTES.C4, NOTES.D4, NOTES.E4, NOTES.F4, NOTES.G4, NOTES.A4, NOTES.B4, NOTES.C5];
     this.playNotes(notes, 0.1, 0.09, 'square', 0.18);
   }
 
   playVictory(): void {
+    if (!this.canPlay('victory', 2000)) return;
     const ctx = this.getContext();
     // First arpeggio: C-E-G
     const arp1 = [NOTES.C4, NOTES.E4, NOTES.G4];
@@ -328,6 +356,7 @@ export class SoundManager {
   }
 
   playDefeat(): void {
+    if (!this.canPlay('defeat', 2000)) return;
     const ctx = this.getContext();
     // Sad descending minor notes
     const notes = [NOTES.Eb4, NOTES.C4, NOTES.Ab3, NOTES.Eb3];
@@ -339,6 +368,7 @@ export class SoundManager {
   }
 
   playDoorOpen(): void {
+    if (!this.canPlay('doorOpen', 500)) return;
     const ctx = this.getContext();
     // Creaking: noise with filter sweep
     if (!this.noiseBuffer || !this.sfxGain) return;
@@ -363,6 +393,7 @@ export class SoundManager {
   }
 
   playChestOpen(): void {
+    if (!this.canPlay('chestOpen', 500)) return;
     const ctx = this.getContext();
     // Creak
     this.playDoorOpen();
@@ -377,6 +408,7 @@ export class SoundManager {
   }
 
   playStairsDescend(): void {
+    if (!this.canPlay('stairsDescend', 1000)) return;
     const ctx = this.getContext();
     // Echoing descending notes
     const notes = [NOTES.G4, NOTES.E4, NOTES.C4, NOTES.G3, NOTES.E3, NOTES.C3];

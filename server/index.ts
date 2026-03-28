@@ -175,6 +175,13 @@ io.on('connection', (socket) => {
     room.handleAbility(socket.id);
   });
 
+  socket.on('player:interact', () => {
+    if (!currentRoomCode) return;
+    const room = rooms.get(currentRoomCode);
+    if (!room) return;
+    room.handleInteract(socket.id);
+  });
+
   // Chat
   socket.on('chat:send', (data) => {
     if (!currentRoomCode) return;

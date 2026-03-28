@@ -197,6 +197,7 @@ export type ClientEvents = {
   'player:input': (data: PlayerInput) => void;
   'player:attack': () => void;
   'player:use_ability': () => void;
+  'player:interact': () => void;
   'chat:send': (data: { text: string }) => void;
 };
 

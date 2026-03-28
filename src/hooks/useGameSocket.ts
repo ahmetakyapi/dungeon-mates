@@ -277,7 +277,22 @@ export function useGameSocket(): UseGameSocketReturn {
   }, []);
 
   const sendInput = useCallback((input: PlayerInput) => {
-    socketRef.current?.emit('player:input', input);
+    const socket = socketRef.current;
+    if (!socket) return;
+
+    // Send movement/sprint as continuous input
+    socket.emit('player:input', input);
+
+    // Send one-shot actions as separate events (won't get overwritten)
+    if (input.attack) {
+      socket.emit('player:attack');
+    }
+    if (input.ability) {
+      socket.emit('player:use_ability');
+    }
+    if (input.interact) {
+      socket.emit('player:interact');
+    }
   }, []);
 
   const sendChat = useCallback((text: string) => {

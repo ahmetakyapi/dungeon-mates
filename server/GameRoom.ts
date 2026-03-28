@@ -244,7 +244,19 @@ export class GameRoom {
   }
 
   handleInput(socketId: string, input: PlayerInput): void {
-    this.playerInputs.set(socketId, input);
+    const existing = this.playerInputs.get(socketId);
+    if (existing) {
+      // Update continuous values
+      existing.dx = input.dx;
+      existing.dy = input.dy;
+      existing.sprint = input.sprint;
+      existing.toggleMap = input.toggleMap;
+      // Preserve one-shot flags that haven't been processed yet
+      existing.interact = input.interact || existing.interact;
+      // Don't overwrite attack/ability — they're set via separate events
+    } else {
+      this.playerInputs.set(socketId, { ...input });
+    }
   }
 
   handleAttack(socketId: string): void {
@@ -258,6 +270,13 @@ export class GameRoom {
     const input = this.playerInputs.get(socketId);
     if (input) {
       input.ability = true;
+    }
+  }
+
+  handleInteract(socketId: string): void {
+    const input = this.playerInputs.get(socketId);
+    if (input) {
+      input.interact = true;
     }
   }
 
