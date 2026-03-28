@@ -129,7 +129,7 @@ export function FloorTransition({
               transition={{ duration: 0.6, ease: EASE }}
             >
               <motion.p
-                className="font-pixel text-[10px] uppercase tracking-widest text-dm-xp"
+                className="font-pixel text-[10px] uppercase tracking-widest text-dm-xp lg:text-sm xl:text-sm 2xl:text-base"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.2 }}
@@ -137,7 +137,7 @@ export function FloorTransition({
                 Kat Tamamlandı!
               </motion.p>
               <motion.h1
-                className="glow-gold font-pixel text-4xl text-dm-gold sm:text-5xl"
+                className="glow-gold font-pixel text-4xl text-dm-gold sm:text-5xl lg:text-6xl xl:text-7xl 2xl:text-8xl"
                 initial={{ scale: 0.5, opacity: 0 }}
                 animate={{ scale: [0.5, 1.15, 1], opacity: 1 }}
                 transition={{ duration: 0.7, delay: 0.2, ease: EASE }}
@@ -155,22 +155,22 @@ export function FloorTransition({
             >
               {monstersKilled > 0 && (
                 <div className="flex flex-col items-center gap-1">
-                  <span className="text-lg">💀</span>
-                  <span className="font-pixel text-[10px] text-zinc-300">
+                  <span className="text-lg lg:text-xl 2xl:text-2xl">💀</span>
+                  <span className="font-pixel text-[10px] text-zinc-300 lg:text-sm xl:text-sm 2xl:text-base">
                     {monstersKilled}
                   </span>
-                  <span className="font-pixel text-[7px] text-zinc-600">
+                  <span className="font-pixel text-[7px] text-zinc-600 lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
                     Canavar
                   </span>
                 </div>
               )}
               {timeSpent > 0 && (
                 <div className="flex flex-col items-center gap-1">
-                  <span className="text-lg">⏱️</span>
-                  <span className="font-pixel text-[10px] text-zinc-300">
+                  <span className="text-lg lg:text-xl 2xl:text-2xl">⏱️</span>
+                  <span className="font-pixel text-[10px] text-zinc-300 lg:text-sm xl:text-sm 2xl:text-base">
                     {formatTime(timeSpent)}
                   </span>
-                  <span className="font-pixel text-[7px] text-zinc-600">
+                  <span className="font-pixel text-[7px] text-zinc-600 lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
                     Süre
                   </span>
                 </div>
@@ -194,11 +194,11 @@ export function FloorTransition({
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ duration: 0.5, ease: EASE }}
                 >
-                  <p className="font-pixel text-[9px] text-zinc-500">
+                  <p className="font-pixel text-[9px] text-zinc-500 lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">
                     Sonraki Kat
                   </p>
                   <motion.h2
-                    className="glow-purple font-pixel text-2xl text-dm-accent sm:text-3xl"
+                    className="glow-purple font-pixel text-2xl text-dm-accent sm:text-3xl lg:text-4xl xl:text-5xl 2xl:text-6xl"
                     initial={{ scale: 0.8 }}
                     animate={{ scale: [0.8, 1.1, 1] }}
                     transition={{ duration: 0.5, ease: EASE }}

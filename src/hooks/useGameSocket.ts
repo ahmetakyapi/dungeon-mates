@@ -42,6 +42,7 @@ type UseGameSocketReturn = {
   lootPickupEvents: Array<{ playerId: string; lootType: string; value: number }>;
   chestOpenedEvents: Array<{ x: number; y: number }>;
   stairsUsedEvents: number[];
+  reconnectAttempt: number;
   createRoom: (playerName: string) => void;
   createSoloRoom: (playerName: string) => void;
   joinRoom: (roomCode: string, playerName: string) => void;
@@ -77,6 +78,7 @@ export function useGameSocket(): UseGameSocketReturn {
   const [lootPickupEvents, setLootPickupEvents] = useState<Array<{ playerId: string; lootType: string; value: number }>>([]);
   const [chestOpenedEvents, setChestOpenedEvents] = useState<Array<{ x: number; y: number }>>([]);
   const [stairsUsedEvents, setStairsUsedEvents] = useState<number[]>([]);
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
 
   // Connect socket on mount
   useEffect(() => {
@@ -86,8 +88,13 @@ export function useGameSocket(): UseGameSocketReturn {
     setConnectionState('connecting');
 
     const socket: Socket<ServerEvents, ClientEvents> = io(serverUrl, {
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'],
       autoConnect: true,
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: Infinity,
+      timeout: 60000,
     });
 
     socketRef.current = socket;
@@ -98,6 +105,14 @@ export function useGameSocket(): UseGameSocketReturn {
 
     socket.on('disconnect', () => {
       setConnectionState('disconnected');
+    });
+
+    socket.io.on('reconnect_attempt', (attempt) => {
+      setReconnectAttempt(attempt);
+    });
+
+    socket.io.on('reconnect', () => {
+      setReconnectAttempt(0);
     });
 
     // Room events
@@ -290,6 +305,7 @@ export function useGameSocket(): UseGameSocketReturn {
     lootPickupEvents,
     chestOpenedEvents,
     stairsUsedEvents,
+    reconnectAttempt,
     createRoom,
     createSoloRoom,
     joinRoom,

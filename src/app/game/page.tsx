@@ -12,6 +12,7 @@ import { GameOverScreen } from '@/components/game/GameOverScreen';
 import { ClassSelect } from '@/components/game/ClassSelect';
 import { TutorialOverlay } from '@/components/game/TutorialOverlay';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
+import { WaitingScreen } from '@/components/game/WaitingScreen';
 import { PauseMenu } from '@/components/game/PauseMenu';
 import { DisconnectOverlay } from '@/components/game/DisconnectOverlay';
 import { FloorTransition } from '@/components/game/FloorTransition';
@@ -63,6 +64,7 @@ function GamePage() {
     sendChat,
     chestOpenedEvents,
     stairsUsedEvents,
+    reconnectAttempt,
   } = useGameSocket();
 
   const [gameOverStats, setGameOverStats] = useState<{
@@ -395,12 +397,7 @@ function GamePage() {
 
   // ====== CONNECTING / COLD START ======
   if (connectionState === 'connecting' || connectionState === 'disconnected') {
-    return (
-      <LoadingScreen
-        message={connectionState === 'connecting' ? 'Sunucuya bağlanılıyor' : 'Bağlantı koptu, yeniden deneniyor'}
-        subMessage="Sunucu uyanıyor olabilir — birkaç saniye sürebilir"
-      />
-    );
+    return <WaitingScreen connectionState={connectionState} reconnectAttempt={reconnectAttempt} />;
   }
 
   // ====== LOBBY PHASE ======
@@ -411,14 +408,14 @@ function GamePage() {
         <div className="pointer-events-none absolute left-1/2 top-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-dm-accent/5 blur-3xl" />
 
         <motion.div
-          className="z-10 flex w-full max-w-lg flex-col items-center gap-6"
+          className="z-10 flex w-full max-w-lg flex-col items-center gap-6 lg:max-w-xl lg:gap-8 2xl:max-w-2xl 2xl:gap-10"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: EASE }}
         >
           {/* Title */}
           <motion.h1
-            className="glow-purple font-pixel text-lg text-dm-accent sm:text-2xl"
+            className="glow-purple font-pixel text-lg text-dm-accent sm:text-2xl lg:text-3xl 2xl:text-4xl"
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.5, ease: EASE }}
@@ -429,7 +426,7 @@ function GamePage() {
           {/* Error */}
           {error && (
             <motion.p
-              className="pixel-border rounded bg-red-900/40 px-4 py-2 font-pixel text-[10px] text-dm-health"
+              className="pixel-border rounded bg-red-900/40 px-4 py-2 font-pixel text-[10px] text-dm-health lg:text-sm xl:text-sm 2xl:text-base"
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
             >
@@ -445,22 +442,22 @@ function GamePage() {
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.2, ease: EASE }}
             >
-              <p className="font-pixel text-[10px] text-zinc-400">Oda Kodu</p>
+              <p className="font-pixel text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">Oda Kodu</p>
               <motion.button
-                className="pixel-border cursor-pointer rounded bg-dm-surface px-10 py-5 font-pixel text-4xl tracking-[0.3em] text-dm-gold sm:text-5xl"
+                className="pixel-border cursor-pointer rounded bg-dm-surface px-10 py-5 font-pixel text-4xl tracking-[0.3em] text-dm-gold sm:text-5xl lg:text-6xl 2xl:text-7xl"
                 onClick={handleCopyCode}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
                 {roomCode}
               </motion.button>
-              <p className="font-pixel text-[10px] text-dm-accent">
+              <p className="font-pixel text-[10px] text-dm-accent lg:text-sm xl:text-sm 2xl:text-base">
                 {copied ? 'Kopyalandı!' : 'Kodu paylaş! (Tıkla kopyala)'}
               </p>
 
               {/* Share link */}
               <motion.button
-                className="flex items-center gap-2 rounded border border-dm-border bg-dm-surface/60 px-4 py-2 font-pixel text-[9px] text-zinc-400 transition-colors hover:border-dm-accent/40 hover:text-dm-accent"
+                className="flex items-center gap-2 rounded border border-dm-border bg-dm-surface/60 px-4 py-2 font-pixel text-[9px] text-zinc-400 transition-colors hover:border-dm-accent/40 hover:text-dm-accent lg:text-[11px] xl:text-[12px] 2xl:text-[14px]"
                 onClick={handleShareLink}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
@@ -473,7 +470,7 @@ function GamePage() {
           {/* Player slots */}
           {!isSolo && (
             <div className="mt-2 w-full">
-              <p className="mb-3 font-pixel text-[10px] text-zinc-400">
+              <p className="mb-3 font-pixel text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">
                 Oyuncular ({playerList.length}/4)
               </p>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -492,11 +489,11 @@ function GamePage() {
                       animate
                       glow={player.id === playerId}
                     />
-                    <span className="max-w-full truncate font-pixel text-[9px] text-white">
+                    <span className="max-w-full truncate font-pixel text-[9px] text-white lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">
                       {player.name}
                     </span>
                     {player.id === playerId && (
-                      <span className="font-pixel text-[7px] text-dm-accent">
+                      <span className="font-pixel text-[7px] text-dm-accent lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
                         (Sen)
                       </span>
                     )}
@@ -519,7 +516,7 @@ function GamePage() {
                     transition={{ duration: 2, repeat: Infinity, delay: i * 0.4 }}
                   >
                     <div className="h-8 w-8 rounded-full bg-zinc-800" />
-                    <span className="font-pixel text-[8px] text-zinc-600">
+                    <span className="font-pixel text-[8px] text-zinc-600 lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">
                       Boş
                     </span>
                   </motion.div>
@@ -531,7 +528,7 @@ function GamePage() {
           {/* Waiting message */}
           {!isSolo && playerList.length < 2 && (
             <motion.p
-              className="mt-2 text-center font-pixel text-[10px] text-zinc-500"
+              className="mt-2 text-center font-pixel text-[10px] text-zinc-500 lg:text-sm xl:text-sm 2xl:text-base"
               animate={{ opacity: [0.5, 1, 0.5] }}
               transition={{ duration: 2, repeat: Infinity }}
             >

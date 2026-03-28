@@ -39,7 +39,7 @@ export function SoloLives({ livesRemaining }: SoloLivesProps) {
         return (
           <motion.span
             key={i}
-            className={`text-base sm:text-lg ${
+            className={`text-base sm:text-lg lg:text-xl 2xl:text-2xl ${
               isBreaking
                 ? 'heart-break'
                 : isLast

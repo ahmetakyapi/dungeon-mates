@@ -31,8 +31,8 @@ function StatBar({
   return (
     <div className="flex flex-col gap-0.5">
       <div className="flex items-center justify-between">
-        <span className="font-pixel text-[6px] text-zinc-400">{label}</span>
-        <span className="font-pixel text-[6px] text-zinc-300">
+        <span className="font-pixel text-[6px] text-zinc-400 lg:text-[8px] xl:text-[9px] 2xl:text-[10px]">{label}</span>
+        <span className="font-pixel text-[6px] text-zinc-300 lg:text-[8px] xl:text-[9px] 2xl:text-[10px]">
           {Math.ceil(current)}/{max}
         </span>
       </div>
@@ -80,7 +80,7 @@ export function PlayerHoverCard({ player, isVisible, anchorRect }: PlayerHoverCa
       {isVisible && (
         <motion.div
           ref={cardRef}
-          className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-48 -translate-x-1/2 rounded-lg border border-white/[0.08] bg-dm-bg/95 p-3 shadow-xl backdrop-blur-lg"
+          className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-48 -translate-x-1/2 rounded-lg border border-white/[0.08] bg-dm-bg/95 p-3 shadow-xl backdrop-blur-lg lg:w-56 lg:p-4 2xl:w-64 2xl:p-5"
           style={{
             boxShadow:
               '0 8px 32px rgba(2,6,23,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
@@ -95,8 +95,8 @@ export function PlayerHoverCard({ player, isVisible, anchorRect }: PlayerHoverCa
           <div className="mb-2 flex items-center gap-2">
             <span className="text-sm">{classInfo.emoji}</span>
             <div className="flex flex-col">
-              <span className="font-pixel text-[8px] text-white">{player.name}</span>
-              <span className="font-pixel text-[6px]" style={{ color: classInfo.color }}>
+              <span className="font-pixel text-[8px] text-white lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">{player.name}</span>
+              <span className="font-pixel text-[6px] lg:text-[8px] xl:text-[9px] 2xl:text-[10px]" style={{ color: classInfo.color }}>
                 {classInfo.label} Lv.{player.level}
               </span>
             </div>
@@ -122,22 +122,22 @@ export function PlayerHoverCard({ player, isVisible, anchorRect }: PlayerHoverCa
 
           {/* Stats row */}
           <div className="mt-2 flex justify-between border-t border-dm-border/40 pt-2">
-            <span className="font-pixel text-[6px] text-zinc-400">⚔ {player.attack}</span>
-            <span className="font-pixel text-[6px] text-zinc-400">🛡 {player.defense}</span>
-            <span className="font-pixel text-[6px] text-dm-gold">⭐ {player.xp} XP</span>
+            <span className="font-pixel text-[6px] text-zinc-400 lg:text-[8px] xl:text-[9px] 2xl:text-[10px]">⚔ {player.attack}</span>
+            <span className="font-pixel text-[6px] text-zinc-400 lg:text-[8px] xl:text-[9px] 2xl:text-[10px]">🛡 {player.defense}</span>
+            <span className="font-pixel text-[6px] text-dm-gold lg:text-[8px] xl:text-[9px] 2xl:text-[10px]">⭐ {player.xp} XP</span>
           </div>
 
           {/* Active boosts (if score indicates activity) */}
           {player.score > 0 && (
             <div className="mt-1.5 flex items-center gap-1 border-t border-dm-border/40 pt-1.5">
-              <span className="font-pixel text-[5px] text-zinc-500">Skor:</span>
-              <span className="font-pixel text-[6px] text-dm-gold">{player.score * 10} 🪙</span>
+              <span className="font-pixel text-[5px] text-zinc-500 lg:text-[7px] xl:text-[8px] 2xl:text-[9px]">Skor:</span>
+              <span className="font-pixel text-[6px] text-dm-gold lg:text-[8px] xl:text-[9px] 2xl:text-[10px]">{player.score * 10} 🪙</span>
             </div>
           )}
 
           {/* Dead indicator */}
           {!player.alive && (
-            <div className="mt-2 rounded bg-dm-health/20 px-2 py-1 text-center font-pixel text-[7px] text-dm-health">
+            <div className="mt-2 rounded bg-dm-health/20 px-2 py-1 text-center font-pixel text-[7px] text-dm-health lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
               💀 Düşmüş
             </div>
           )}

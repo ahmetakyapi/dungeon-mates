@@ -115,11 +115,11 @@ export function LoadingScreen({ message, subMessage, floor }: LoadingScreenProps
       ))}
 
       {/* Dungeon door animation */}
-      <div className="relative mb-8 flex h-28 w-20 items-end justify-center overflow-hidden sm:h-36 sm:w-24">
+      <div className="relative mb-8 flex h-28 w-20 items-end justify-center overflow-hidden sm:h-36 sm:w-24 lg:h-44 lg:w-28 2xl:h-52 2xl:w-36">
         {/* Door frame */}
         <div className="absolute inset-0 rounded-t-lg border-4 border-dm-border bg-dm-surface">
           {/* Arch top */}
-          <div className="absolute -top-1 left-1/2 h-6 w-14 -translate-x-1/2 rounded-t-full border-4 border-dm-border bg-dm-bg sm:w-16" />
+          <div className="absolute -top-1 left-1/2 h-6 w-14 -translate-x-1/2 rounded-t-full border-4 border-dm-border bg-dm-bg sm:w-16 lg:w-20 2xl:w-24" />
         </div>
 
         {/* Left door */}
@@ -155,7 +155,7 @@ export function LoadingScreen({ message, subMessage, floor }: LoadingScreenProps
       {/* Floor indicator */}
       {floor && (
         <motion.p
-          className="glow-gold mb-4 font-pixel text-lg text-dm-gold sm:text-xl"
+          className="glow-gold mb-4 font-pixel text-lg text-dm-gold sm:text-xl lg:text-2xl xl:text-3xl 2xl:text-4xl"
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: [0.8, 1.1, 1], opacity: 1 }}
           transition={{ delay: 0.3, duration: 0.5, ease: EASE }}
@@ -165,13 +165,13 @@ export function LoadingScreen({ message, subMessage, floor }: LoadingScreenProps
       )}
 
       {/* Loading text */}
-      <p className="font-pixel text-xs text-white sm:text-sm">
+      <p className="font-pixel text-xs text-white sm:text-sm lg:text-base xl:text-lg 2xl:text-xl">
         {message}
         <span className="inline-block w-6 text-left">{dots}</span>
       </p>
 
       {subMessage && (
-        <p className="mt-2 font-body text-xs text-zinc-500">{subMessage}</p>
+        <p className="mt-2 font-body text-xs text-zinc-500 lg:text-sm xl:text-sm 2xl:text-base">{subMessage}</p>
       )}
 
       {/* Ambient glow behind the door */}
@@ -182,9 +182,9 @@ export function LoadingScreen({ message, subMessage, floor }: LoadingScreenProps
       />
 
       {/* Tip */}
-      <div className="mt-8 max-w-xs px-4 text-center sm:max-w-sm">
-        <p className="font-pixel text-[8px] text-dm-gold sm:text-[9px]">İpucu</p>
-        <p className="mt-2 font-body text-[11px] leading-relaxed text-zinc-400 sm:text-xs">
+      <div className="mt-8 max-w-xs px-4 text-center sm:max-w-sm lg:max-w-md 2xl:max-w-lg">
+        <p className="font-pixel text-[8px] text-dm-gold sm:text-[9px] lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">İpucu</p>
+        <p className="mt-2 font-body text-[11px] leading-relaxed text-zinc-400 sm:text-xs lg:text-sm xl:text-base 2xl:text-base">
           {tip}
         </p>
       </div>

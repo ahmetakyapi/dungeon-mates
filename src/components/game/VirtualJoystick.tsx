@@ -119,7 +119,7 @@ export function VirtualJoystick({
           {/* Floor number — top center on mobile */}
           <div className="absolute left-1/2 top-2 -translate-x-1/2 sm:hidden">
             <div className="rounded border border-dm-border bg-dm-bg/80 px-3 py-1 backdrop-blur-sm">
-              <span className="font-pixel text-[8px] text-dm-gold">
+              <span className="font-pixel text-[8px] text-dm-gold lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">
                 Kat {currentFloor}
               </span>
             </div>

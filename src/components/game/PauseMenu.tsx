@@ -39,16 +39,16 @@ function ControlsInfo() {
       exit={{ height: 0, opacity: 0 }}
       transition={{ duration: 0.3, ease: EASE }}
     >
-      <p className="font-pixel text-[9px] text-dm-accent">Masaüstü</p>
-      <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-400">
+      <p className="font-pixel text-[9px] text-dm-accent lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">Masaüstü</p>
+      <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">
         <span>W/A/S/D</span><span>Hareket</span>
         <span>Space</span><span>Saldırı</span>
         <span>E</span><span>Yetenek</span>
         <span>ESC</span><span>Menü</span>
       </div>
       <div className="h-px bg-dm-border" />
-      <p className="font-pixel text-[9px] text-dm-accent">Mobil</p>
-      <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-400">
+      <p className="font-pixel text-[9px] text-dm-accent lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">Mobil</p>
+      <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">
         <span>Sol Joystick</span><span>Hareket</span>
         <span>Sağ Butonlar</span><span>Saldırı & Yetenek</span>
       </div>
@@ -94,8 +94,8 @@ function SoundSettings() {
       {/* Master Volume */}
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
-          <span className="font-pixel text-[9px] text-dm-accent">Ana Ses</span>
-          <span className="font-pixel text-[8px] text-zinc-500">{Math.round(masterVol)}%</span>
+          <span className="font-pixel text-[9px] text-dm-accent lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">Ana Ses</span>
+          <span className="font-pixel text-[8px] text-zinc-500 lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">{Math.round(masterVol)}%</span>
         </div>
         <input
           type="range"
@@ -110,8 +110,8 @@ function SoundSettings() {
       {/* SFX Volume */}
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
-          <span className="font-pixel text-[9px] text-zinc-400">Efektler</span>
-          <span className="font-pixel text-[8px] text-zinc-500">{Math.round(sfxVol)}%</span>
+          <span className="font-pixel text-[9px] text-zinc-400 lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">Efektler</span>
+          <span className="font-pixel text-[8px] text-zinc-500 lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">{Math.round(sfxVol)}%</span>
         </div>
         <input
           type="range"
@@ -126,8 +126,8 @@ function SoundSettings() {
       {/* Music Volume */}
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
-          <span className="font-pixel text-[9px] text-zinc-400">Müzik</span>
-          <span className="font-pixel text-[8px] text-zinc-500">{Math.round(musicVol)}%</span>
+          <span className="font-pixel text-[9px] text-zinc-400 lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">Müzik</span>
+          <span className="font-pixel text-[8px] text-zinc-500 lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">{Math.round(musicVol)}%</span>
         </div>
         <input
           type="range"
@@ -142,7 +142,7 @@ function SoundSettings() {
       {/* Mute Toggle */}
       <button
         onClick={handleToggleMute}
-        className={`flex items-center justify-center gap-2 rounded border px-3 py-2 font-pixel text-[9px] transition-colors ${
+        className={`flex items-center justify-center gap-2 rounded border px-3 py-2 font-pixel text-[9px] transition-colors lg:text-[11px] xl:text-[12px] 2xl:text-[14px] ${
           muted
             ? 'border-dm-health/40 bg-dm-health/10 text-dm-health'
             : 'border-dm-border bg-dm-surface text-zinc-400 hover:border-dm-accent/30 hover:text-zinc-300'
@@ -234,14 +234,14 @@ export function PauseMenu({
 
           {/* Menu card */}
           <motion.div
-            className="glass-strong relative z-10 mx-4 w-full max-w-sm overflow-hidden rounded-2xl p-6 sm:p-8"
+            className="glass-strong relative z-10 mx-4 w-full max-w-sm overflow-hidden rounded-2xl p-6 sm:p-8 lg:max-w-md lg:p-10 2xl:max-w-lg 2xl:p-12"
             initial={{ scale: 0.85, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.85, opacity: 0, y: 20 }}
             transition={{ duration: 0.35, ease: EASE }}
           >
             {/* Title */}
-            <h2 className="glow-purple mb-6 text-center font-pixel text-base text-dm-accent sm:text-lg">
+            <h2 className="glow-purple mb-6 text-center font-pixel text-base text-dm-accent sm:text-lg lg:text-xl xl:text-2xl 2xl:text-3xl">
               Duraklatıldı
             </h2>
 

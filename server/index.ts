@@ -6,13 +6,24 @@ import { GameRoom } from './GameRoom';
 
 const PORT = Number(process.env.PORT) || 3001;
 
-const httpServer = createServer();
+const httpServer = createServer((req, res) => {
+  if (req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', uptime: process.uptime() }));
+    return;
+  }
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Dungeon Mates Server');
+});
 
 const io = new Server<ClientEvents, ServerEvents>(httpServer, {
   cors: {
-    origin: '*',
+    origin: process.env.ALLOWED_ORIGINS?.split(',') ?? '*',
     methods: ['GET', 'POST'],
   },
+  transports: ['websocket', 'polling'],
+  pingInterval: 25000,
+  pingTimeout: 60000,
 });
 
 const rooms = new Map<string, GameRoom>();

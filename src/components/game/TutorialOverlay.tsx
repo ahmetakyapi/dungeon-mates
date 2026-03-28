@@ -18,8 +18,8 @@ type TutorialOverlayProps = {
 function KeyCap({ label, wide }: { label: string; wide?: boolean }) {
   return (
     <div
-      className={`flex items-center justify-center rounded border-2 border-dm-border bg-dm-surface font-pixel text-[8px] text-white shadow-[0_2px_0_0_#1f2937] sm:text-[10px] ${
-        wide ? 'px-4 py-2 sm:px-6' : 'h-8 w-8 sm:h-10 sm:w-10'
+      className={`flex items-center justify-center rounded border-2 border-dm-border bg-dm-surface font-pixel text-[8px] text-white shadow-[0_2px_0_0_#1f2937] sm:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[14px] ${
+        wide ? 'px-4 py-2 sm:px-6 lg:px-8' : 'h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 2xl:h-14 2xl:w-14'
       }`}
     >
       {label}
@@ -30,7 +30,7 @@ function KeyCap({ label, wide }: { label: string; wide?: boolean }) {
 function DesktopControls() {
   return (
     <div className="flex flex-col gap-3">
-      <p className="font-pixel text-[9px] text-dm-accent sm:text-[10px]">Masaüstü</p>
+      <p className="font-pixel text-[9px] text-dm-accent sm:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">Masaüstü</p>
       <div className="flex items-start gap-6">
         {/* WASD */}
         <div className="flex flex-col items-center gap-1">
@@ -40,32 +40,32 @@ function DesktopControls() {
             <KeyCap label="S" />
             <KeyCap label="D" />
           </div>
-          <p className="mt-1 font-body text-[10px] text-zinc-400">Hareket</p>
+          <p className="mt-1 font-body text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">Hareket</p>
         </div>
 
         {/* Space */}
         <div className="flex flex-col items-center gap-1">
           <KeyCap label="SPACE" wide />
-          <p className="mt-1 font-body text-[10px] text-zinc-400">Saldırı</p>
+          <p className="mt-1 font-body text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">Saldırı</p>
         </div>
 
         {/* E */}
         <div className="flex flex-col items-center gap-1">
           <KeyCap label="E" />
-          <p className="mt-1 font-body text-[10px] text-zinc-400">Yetenek Kullan</p>
+          <p className="mt-1 font-body text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">Yetenek Kullan</p>
         </div>
 
         {/* R */}
         <div className="flex flex-col items-center gap-1">
           <KeyCap label="R" />
-          <p className="mt-1 font-body text-[10px] text-zinc-400">Etkileşim</p>
-          <p className="font-body text-[9px] text-zinc-500">(Sandık, Merdiven)</p>
+          <p className="mt-1 font-body text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">Etkileşim</p>
+          <p className="font-body text-[9px] text-zinc-500 lg:text-xs xl:text-sm 2xl:text-sm">(Sandık, Merdiven)</p>
         </div>
 
         {/* Escape */}
         <div className="flex flex-col items-center gap-1">
           <KeyCap label="ESC" />
-          <p className="mt-1 font-body text-[10px] text-zinc-400">Menü</p>
+          <p className="mt-1 font-body text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">Menü</p>
         </div>
       </div>
     </div>
@@ -75,14 +75,14 @@ function DesktopControls() {
 function MobileControls() {
   return (
     <div className="flex flex-col gap-3">
-      <p className="font-pixel text-[9px] text-dm-accent sm:text-[10px]">Mobil</p>
+      <p className="font-pixel text-[9px] text-dm-accent sm:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">Mobil</p>
       <div className="flex items-center gap-6">
         {/* Left joystick */}
         <div className="flex flex-col items-center gap-1">
           <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-dm-accent/40 bg-dm-surface">
             <div className="h-6 w-6 rounded-full bg-dm-accent/60" />
           </div>
-          <p className="mt-1 font-body text-[10px] text-zinc-400">Sol taraf: Hareket</p>
+          <p className="mt-1 font-body text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">Sol taraf: Hareket</p>
         </div>
 
         {/* Right buttons */}
@@ -95,7 +95,7 @@ function MobileControls() {
               ✦
             </div>
           </div>
-          <p className="mt-1 font-body text-[10px] text-zinc-400">Sağ taraf: Saldırı, Yetenek & Etkileşim</p>
+          <p className="mt-1 font-body text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">Sağ taraf: Saldırı, Yetenek & Etkileşim</p>
         </div>
       </div>
     </div>
@@ -105,7 +105,7 @@ function MobileControls() {
 function SlideControls() {
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="font-pixel text-sm text-dm-gold sm:text-base">Kontroller</h2>
+      <h2 className="font-pixel text-sm text-dm-gold sm:text-base lg:text-lg xl:text-xl 2xl:text-2xl">Kontroller</h2>
       <DesktopControls />
       <div className="h-px w-full bg-dm-border" />
       <MobileControls />
@@ -136,7 +136,7 @@ const CLASS_ENTRIES = [
 function SlideClasses() {
   return (
     <div className="flex flex-col gap-5">
-      <h2 className="font-pixel text-sm text-dm-gold sm:text-base">Sınıflar</h2>
+      <h2 className="font-pixel text-sm text-dm-gold sm:text-base lg:text-lg xl:text-xl 2xl:text-2xl">Sınıflar</h2>
       <div className="flex flex-col gap-4">
         {CLASS_ENTRIES.map((entry) => {
           const stats = CLASS_STATS[entry.key];
@@ -147,11 +147,11 @@ function SlideClasses() {
             >
               <span className="text-xl">{stats.emoji}</span>
               <div className="flex flex-col gap-1">
-                <span className="font-pixel text-[10px] sm:text-xs" style={{ color: stats.color }}>
+                <span className="font-pixel text-[10px] sm:text-xs lg:text-sm xl:text-sm 2xl:text-base" style={{ color: stats.color }}>
                   {entry.title}
                 </span>
-                <span className="font-body text-[11px] text-zinc-400">{entry.desc}</span>
-                <div className="mt-1 flex gap-3 font-body text-[10px] text-zinc-500">
+                <span className="font-body text-[11px] text-zinc-400 lg:text-sm xl:text-base 2xl:text-base">{entry.desc}</span>
+                <div className="mt-1 flex gap-3 font-body text-[10px] text-zinc-500 lg:text-sm xl:text-sm 2xl:text-base">
                   <span>❤️ {stats.maxHp}</span>
                   <span>⚔ {stats.attack}</span>
                   <span>🛡 {stats.defense}</span>
@@ -179,12 +179,12 @@ const DUNGEON_ITEMS = [
 function SlideDungeon() {
   return (
     <div className="flex flex-col gap-5">
-      <h2 className="font-pixel text-sm text-dm-gold sm:text-base">Zindanı Keşfet</h2>
+      <h2 className="font-pixel text-sm text-dm-gold sm:text-base lg:text-lg xl:text-xl 2xl:text-2xl">Zindanı Keşfet</h2>
       <ul className="flex flex-col gap-3">
         {DUNGEON_ITEMS.map((item, i) => (
           <li key={i} className="flex items-start gap-3">
             <span className="mt-0.5 inline-block h-2 w-2 shrink-0 bg-dm-accent" />
-            <span className="font-body text-[12px] leading-relaxed text-zinc-300 sm:text-sm">
+            <span className="font-body text-[12px] leading-relaxed text-zinc-300 sm:text-sm lg:text-sm xl:text-base 2xl:text-lg">
               {item}
             </span>
           </li>
@@ -209,12 +209,12 @@ const TIPS = [
 function SlideTips() {
   return (
     <div className="flex flex-col gap-5">
-      <h2 className="font-pixel text-sm text-dm-gold sm:text-base">İpuçları</h2>
+      <h2 className="font-pixel text-sm text-dm-gold sm:text-base lg:text-lg xl:text-xl 2xl:text-2xl">İpuçları</h2>
       <ul className="flex flex-col gap-3">
         {TIPS.map((tip, i) => (
           <li key={i} className="flex items-start gap-3">
             <span className="mt-0.5 inline-block h-2 w-2 shrink-0 bg-dm-accent" />
-            <span className="font-body text-[12px] leading-relaxed text-zinc-300 sm:text-sm">
+            <span className="font-body text-[12px] leading-relaxed text-zinc-300 sm:text-sm lg:text-sm xl:text-base 2xl:text-lg">
               {tip}
             </span>
           </li>
@@ -299,7 +299,7 @@ export function TutorialOverlay({ onComplete }: TutorialOverlayProps) {
       transition={{ duration: 0.3, ease: EASE }}
     >
       <motion.div
-        className="pixel-border relative mx-4 flex w-full max-w-lg flex-col gap-6 rounded-lg bg-dm-bg/95 px-6 py-8 sm:px-8 sm:py-10"
+        className="pixel-border relative mx-4 flex w-full max-w-lg flex-col gap-6 rounded-lg bg-dm-bg/95 px-6 py-8 sm:px-8 sm:py-10 lg:max-w-xl lg:gap-8 2xl:max-w-2xl 2xl:gap-10 2xl:px-10 2xl:py-12"
         initial={{ scale: 0.9, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -361,7 +361,7 @@ export function TutorialOverlay({ onComplete }: TutorialOverlayProps) {
         </div>
 
         {/* Skip shortcut hint */}
-        <p className="text-center font-body text-[10px] text-zinc-600">
+        <p className="text-center font-body text-[10px] text-zinc-600 lg:text-sm xl:text-sm 2xl:text-base">
           ESC ile geç &middot; Enter/Space ile ilerle
         </p>
       </motion.div>

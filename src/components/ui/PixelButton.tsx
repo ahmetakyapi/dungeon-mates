@@ -35,7 +35,10 @@ export function PixelButton({
       className={`
         relative cursor-pointer border-2 px-5 py-3 font-pixel text-[10px] uppercase tracking-wider
         transition-colors
-        sm:text-xs
+        sm:text-xs lg:text-sm lg:px-6 lg:py-3.5
+        2xl:text-base 2xl:px-7 2xl:py-4
+        3xl:px-8 3xl:py-4
+        4xl:text-lg 4xl:px-10 4xl:py-5
         ${VARIANT_STYLES[variant]}
         ${fullWidth ? 'w-full' : ''}
         ${disabled ? 'cursor-not-allowed opacity-50' : ''}

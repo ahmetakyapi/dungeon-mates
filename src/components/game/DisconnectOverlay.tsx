@@ -68,7 +68,7 @@ export function DisconnectOverlay({ isDisconnected, onLeave }: DisconnectOverlay
 
           {/* Content */}
           <motion.div
-            className="relative z-10 mx-4 flex w-full max-w-sm flex-col items-center gap-6"
+            className="relative z-10 mx-4 flex w-full max-w-sm flex-col items-center gap-6 lg:max-w-md 2xl:max-w-lg"
             initial={{ scale: 0.9, y: 20 }}
             animate={{ scale: 1, y: 0 }}
             exit={{ scale: 0.9, y: 20 }}
@@ -89,11 +89,11 @@ export function DisconnectOverlay({ isDisconnected, onLeave }: DisconnectOverlay
 
             {/* Text */}
             <div className="flex flex-col items-center gap-2">
-              <h2 className="font-pixel text-sm text-dm-health sm:text-base">
+              <h2 className="font-pixel text-sm text-dm-health sm:text-base lg:text-lg xl:text-xl 2xl:text-2xl">
                 Bağlantı Koptu
               </h2>
               <motion.p
-                className="font-pixel text-[10px] text-zinc-400"
+                className="font-pixel text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base"
                 animate={{ opacity: [0.5, 1, 0.5] }}
                 transition={{ duration: 1.5, repeat: Infinity }}
               >
@@ -103,10 +103,10 @@ export function DisconnectOverlay({ isDisconnected, onLeave }: DisconnectOverlay
 
             {/* Retry info */}
             <div className="flex flex-col items-center gap-1">
-              <p className="font-pixel text-[9px] text-zinc-500">
+              <p className="font-pixel text-[9px] text-zinc-500 lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">
                 Sonraki deneme: {countdown}sn
               </p>
-              <p className="font-pixel text-[8px] text-zinc-600">
+              <p className="font-pixel text-[8px] text-zinc-600 lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">
                 Deneme #{retryCount + 1}
               </p>
             </div>

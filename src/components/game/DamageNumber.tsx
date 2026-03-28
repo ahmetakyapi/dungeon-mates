@@ -22,8 +22,7 @@ const TYPE_CONFIG: Record<
     color: string;
     prefix: string;
     suffix: string;
-    fontSize: string;
-    mobileFontSize: string;
+    fontClasses: string;
     glow: string;
     duration: number;
     yTravel: number;
@@ -33,8 +32,7 @@ const TYPE_CONFIG: Record<
     color: '#ffffff',
     prefix: '-',
     suffix: '',
-    fontSize: 'text-sm',
-    mobileFontSize: 'text-xs',
+    fontClasses: 'text-xs sm:text-sm lg:text-base 2xl:text-lg',
     glow: 'rgba(255,255,255,0.4)',
     duration: 0.8,
     yTravel: -50,
@@ -43,8 +41,7 @@ const TYPE_CONFIG: Record<
     color: '#fbbf24',
     prefix: '-',
     suffix: '!',
-    fontSize: 'text-lg',
-    mobileFontSize: 'text-base',
+    fontClasses: 'text-base sm:text-lg lg:text-xl 2xl:text-2xl',
     glow: 'rgba(251,191,36,0.6)',
     duration: 1.0,
     yTravel: -65,
@@ -53,8 +50,7 @@ const TYPE_CONFIG: Record<
     color: '#4ade80',
     prefix: '+',
     suffix: '',
-    fontSize: 'text-sm',
-    mobileFontSize: 'text-xs',
+    fontClasses: 'text-xs sm:text-sm lg:text-base 2xl:text-lg',
     glow: 'rgba(74,222,128,0.4)',
     duration: 0.9,
     yTravel: -40,
@@ -63,8 +59,7 @@ const TYPE_CONFIG: Record<
     color: '#c084fc',
     prefix: '',
     suffix: '',
-    fontSize: 'text-xs',
-    mobileFontSize: 'text-[10px]',
+    fontClasses: 'text-[10px] sm:text-xs lg:text-sm 2xl:text-base',
     glow: 'rgba(192,132,252,0.4)',
     duration: 1.0,
     yTravel: -45,
@@ -73,8 +68,7 @@ const TYPE_CONFIG: Record<
     color: '#fbbf24',
     prefix: '',
     suffix: '',
-    fontSize: 'text-xs',
-    mobileFontSize: 'text-[10px]',
+    fontClasses: 'text-[10px] sm:text-xs lg:text-sm 2xl:text-base',
     glow: 'rgba(251,191,36,0.4)',
     duration: 0.9,
     yTravel: -40,
@@ -116,7 +110,7 @@ export function DamageNumber({
 
   return (
     <motion.div
-      className={`pointer-events-none absolute z-40 font-pixel font-bold ${config.fontSize} sm:${config.mobileFontSize}`}
+      className={`pointer-events-none absolute z-40 font-pixel font-bold ${config.fontClasses}`}
       style={{
         left: x,
         top: y + staggerOffsetY,

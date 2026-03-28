@@ -69,7 +69,7 @@ export function KillFeed({ entries, onExpire }: KillFeedProps) {
   const visibleEntries = entries.slice(-MAX_VISIBLE);
 
   return (
-    <div className="pointer-events-none absolute bottom-16 left-1/2 z-30 hidden -translate-x-1/2 flex-col items-center gap-1 sm:bottom-20 sm:flex">
+    <div className="pointer-events-none absolute bottom-16 left-1/2 z-30 flex -translate-x-1/2 flex-col items-center gap-1 sm:bottom-20">
       <AnimatePresence mode="popLayout">
         {visibleEntries.map((entry) => {
           const classColor = CLASS_STATS[entry.playerClass].color;
@@ -84,7 +84,7 @@ export function KillFeed({ entries, onExpire }: KillFeedProps) {
               exit={{ opacity: 0, y: -10, scale: 0.9 }}
               transition={{ duration: 0.3, ease: EASE }}
             >
-              <span className="font-pixel text-[7px]">
+              <span className="font-pixel text-[7px] sm:text-[8px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
                 <span style={{ color: classColor }}>{entry.playerName}</span>
                 <span className="text-zinc-500"> → </span>
                 <span className="text-zinc-300">{entry.monsterName}</span>

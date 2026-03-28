@@ -97,7 +97,7 @@ function StarRating({ stars }: { stars: number }) {
       {items.map((i) => (
         <motion.span
           key={i}
-          className="text-2xl sm:text-3xl"
+          className="text-2xl sm:text-3xl lg:text-4xl 2xl:text-5xl"
           initial={{ scale: 0, rotate: -180 }}
           animate={{
             scale: i < stars ? 1 : 0.6,
@@ -122,7 +122,7 @@ function StarRating({ stars }: { stars: number }) {
 function SkullAnimation() {
   return (
     <motion.div
-      className="text-5xl sm:text-6xl"
+      className="text-5xl sm:text-6xl lg:text-7xl 2xl:text-8xl"
       initial={{ scale: 0, rotate: -30 }}
       animate={{ scale: [0, 1.3, 1], rotate: [-30, 10, 0] }}
       transition={{ delay: 0.5, duration: 0.6, ease: EASE }}
@@ -199,14 +199,14 @@ export function GameOverScreen({
       ))}
 
       <motion.div
-        className="relative z-10 flex w-full max-w-md flex-col items-center gap-5 px-4"
+        className="relative z-10 flex w-full max-w-md flex-col items-center gap-5 px-4 lg:max-w-lg lg:gap-6 2xl:max-w-xl 2xl:gap-8"
         initial={{ scale: 0.5, opacity: 0, y: 30 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         transition={{ duration: 0.7, ease: EASE, delay: 0.15 }}
       >
         {/* Title */}
         <motion.h1
-          className={`font-pixel text-4xl sm:text-6xl ${
+          className={`font-pixel text-4xl sm:text-6xl lg:text-7xl 2xl:text-8xl ${
             isVictory ? 'glow-gold text-dm-gold' : 'text-dm-health'
           }`}
           initial={{ scale: 0.3, opacity: 0 }}
@@ -227,7 +227,7 @@ export function GameOverScreen({
         {/* Victory: pulse glow, Defeat: skull */}
         {isVictory ? (
           <motion.div
-            className="font-pixel text-[10px] text-dm-gold/80"
+            className="font-pixel text-[10px] text-dm-gold/80 lg:text-sm xl:text-sm 2xl:text-base"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6 }}
@@ -238,7 +238,7 @@ export function GameOverScreen({
           <>
             <SkullAnimation />
             <motion.p
-              className="font-pixel text-[9px] text-zinc-500"
+              className="font-pixel text-[9px] text-zinc-500 lg:text-[11px] xl:text-[12px] 2xl:text-[14px]"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 1 }}
@@ -267,10 +267,9 @@ export function GameOverScreen({
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 1.5, ease: EASE }}
           >
-            <span className="font-pixel text-[10px] text-dm-gold">
+            <span className="font-pixel text-[10px] text-dm-gold lg:text-sm xl:text-sm 2xl:text-base">
               ⭐ MVP ⭐
-            </span>
-          </motion.div>
+            </span>          </motion.div>
         )}
 
         {/* Stats — scrollable on small screens */}
@@ -282,7 +281,7 @@ export function GameOverScreen({
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: isVictory ? 1.4 : 1.2, ease: EASE }}
         >
-          <p className="mb-3 font-pixel text-[10px] text-dm-accent">
+          <p className="mb-3 font-pixel text-[10px] text-dm-accent lg:text-sm xl:text-sm 2xl:text-base">
             İstatistikler
           </p>
           <div className="flex flex-col gap-2.5">
@@ -298,9 +297,9 @@ export function GameOverScreen({
                 }}
               >
                 <div className="flex items-center gap-2">
-                  <span className="text-sm">{row.icon}</span>
+                  <span className="text-sm lg:text-base xl:text-lg 2xl:text-xl">{row.icon}</span>
                   <span
-                    className={`font-pixel text-[8px] ${
+                    className={`font-pixel text-[8px] lg:text-[10px] xl:text-[11px] 2xl:text-[13px] ${
                       isVictory ? 'text-zinc-300' : 'text-zinc-500'
                     }`}
                   >
@@ -308,7 +307,7 @@ export function GameOverScreen({
                   </span>
                 </div>
                 <span
-                  className={`font-pixel text-[10px] ${
+                  className={`font-pixel text-[10px] lg:text-sm xl:text-sm 2xl:text-base ${
                     isVictory ? 'text-dm-gold' : 'text-zinc-400'
                   }`}
                 >

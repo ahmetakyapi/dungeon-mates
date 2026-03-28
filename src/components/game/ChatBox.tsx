@@ -108,7 +108,7 @@ export function ChatBox({ messages, onSend, compact = false }: ChatBoxProps) {
         {/* Toggle button */}
         <button
           onClick={toggleOpen}
-          className={`mb-1 rounded-lg border border-dm-border/50 bg-dm-bg/80 px-3 py-1.5 font-pixel text-[7px] text-zinc-400 backdrop-blur-md transition-colors hover:text-white sm:text-[8px] ${
+          className={`mb-1 rounded-lg border border-dm-border/50 bg-dm-bg/80 px-3 py-1.5 font-pixel text-[7px] text-zinc-400 backdrop-blur-md transition-colors hover:text-white sm:text-[8px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px] ${
             newMessagePulse ? 'chat-pulse' : ''
           }`}
         >
@@ -130,16 +130,16 @@ export function ChatBox({ messages, onSend, compact = false }: ChatBoxProps) {
               transition={{ duration: 0.3, ease: EASE }}
             >
               {/* Messages */}
-              <div className="flex max-h-28 flex-col gap-0.5 overflow-y-auto p-2 sm:max-h-36">
+              <div className="flex max-h-28 flex-col gap-0.5 overflow-y-auto p-2 sm:max-h-36 lg:max-h-44 2xl:max-h-52">
                 {displayMessages.length === 0 && (
-                  <p className="font-pixel text-[7px] text-zinc-600">
+                  <p className="font-pixel text-[7px] text-zinc-600 sm:text-[8px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
                     Henüz mesaj yok...
                   </p>
                 )}
                 {displayMessages.map((msg) => (
                   <motion.div
                     key={msg.id}
-                    className="font-pixel text-[7px] leading-relaxed"
+                    className="font-pixel text-[7px] leading-relaxed sm:text-[8px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px]"
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.2 }}
@@ -168,7 +168,7 @@ export function ChatBox({ messages, onSend, compact = false }: ChatBoxProps) {
                       <button
                         key={preset.text}
                         onClick={() => handleQuickChat(preset.text)}
-                        className="rounded border border-dm-border/40 bg-dm-surface/50 px-2 py-1 font-pixel text-[6px] text-zinc-300 transition-colors hover:bg-dm-accent/20 hover:text-white"
+                        className="rounded border border-dm-border/40 bg-dm-surface/50 px-2 py-1 font-pixel text-[6px] text-zinc-300 transition-colors hover:bg-dm-accent/20 hover:text-white sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]"
                       >
                         {preset.emoji} {preset.text}
                       </button>
@@ -197,11 +197,11 @@ export function ChatBox({ messages, onSend, compact = false }: ChatBoxProps) {
                   onChange={(e) => setInputValue(e.target.value)}
                   maxLength={100}
                   placeholder="Mesaj yaz..."
-                  className="flex-1 bg-transparent px-1 py-1.5 font-pixel text-[7px] text-white placeholder-zinc-600 outline-none"
+                  className="flex-1 bg-transparent px-1 py-1.5 font-pixel text-[7px] text-white placeholder-zinc-600 outline-none sm:text-[8px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px]"
                 />
                 <button
                   type="submit"
-                  className="px-2 font-pixel text-[7px] text-dm-accent transition-colors hover:text-white"
+                  className="px-2 font-pixel text-[7px] text-dm-accent transition-colors hover:text-white sm:text-[8px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px]"
                 >
                   Gönder
                 </button>
@@ -226,7 +226,7 @@ export function ChatBox({ messages, onSend, compact = false }: ChatBoxProps) {
         onClick={toggleOpen}
         className="flex w-full items-center justify-between border-b border-dm-border/50 px-3 py-2 transition-colors hover:bg-dm-bg/50"
       >
-        <span className="font-pixel text-[9px] text-dm-accent">💬 Sohbet</span>
+        <span className="font-pixel text-[9px] text-dm-accent sm:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">💬 Sohbet</span>
         <motion.span
           className="text-xs text-zinc-500"
           animate={{ rotate: isOpen ? 180 : 0 }}
@@ -245,16 +245,16 @@ export function ChatBox({ messages, onSend, compact = false }: ChatBoxProps) {
             transition={{ duration: 0.3, ease: EASE }}
           >
             {/* Messages */}
-            <div className="flex h-40 flex-col gap-1 overflow-y-auto p-3">
+            <div className="flex h-40 flex-col gap-1 overflow-y-auto p-3 lg:h-48 2xl:h-56">
               {displayMessages.length === 0 && (
-                <p className="font-pixel text-[8px] text-zinc-600">
+                <p className="font-pixel text-[8px] text-zinc-600 sm:text-[9px] lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">
                   Henüz mesaj yok... Merhaba de!
                 </p>
               )}
               {displayMessages.map((msg) => (
                 <motion.div
                   key={msg.id}
-                  className="font-pixel text-[8px] leading-relaxed"
+                  className="font-pixel text-[8px] leading-relaxed sm:text-[9px] lg:text-[10px] xl:text-[11px] 2xl:text-[13px]"
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.2 }}
@@ -275,7 +275,7 @@ export function ChatBox({ messages, onSend, compact = false }: ChatBoxProps) {
                 <button
                   key={preset.text}
                   onClick={() => handleQuickChat(preset.text)}
-                  className="rounded border border-dm-border/40 bg-dm-surface/50 px-2 py-1 font-pixel text-[7px] text-zinc-300 transition-colors hover:bg-dm-accent/20 hover:text-white"
+                  className="rounded border border-dm-border/40 bg-dm-surface/50 px-2 py-1 font-pixel text-[7px] text-zinc-300 transition-colors hover:bg-dm-accent/20 hover:text-white sm:text-[8px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px]"
                 >
                   {preset.emoji} {preset.text}
                 </button>
@@ -294,11 +294,11 @@ export function ChatBox({ messages, onSend, compact = false }: ChatBoxProps) {
                 onChange={(e) => setInputValue(e.target.value)}
                 maxLength={100}
                 placeholder="Mesaj yaz..."
-                className="flex-1 bg-transparent px-3 py-2 font-pixel text-[8px] text-white placeholder-zinc-600 outline-none"
+                className="flex-1 bg-transparent px-3 py-2 font-pixel text-[8px] text-white placeholder-zinc-600 outline-none sm:text-[9px] lg:text-[10px] xl:text-[11px] 2xl:text-[13px]"
               />
               <button
                 type="submit"
-                className="px-3 font-pixel text-[8px] text-dm-accent transition-colors hover:text-white"
+                className="px-3 font-pixel text-[8px] text-dm-accent transition-colors hover:text-white sm:text-[9px] lg:text-[10px] xl:text-[11px] 2xl:text-[13px]"
               >
                 Gönder
               </button>

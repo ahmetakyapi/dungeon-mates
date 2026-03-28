@@ -40,7 +40,7 @@ function StatBar({ label, value, max, color }: StatBarProps) {
   const percentage = Math.min((value / max) * 100, 100);
   return (
     <div className="flex items-center gap-2">
-      <span className="w-12 font-pixel text-[7px] text-zinc-400 sm:text-[8px]">
+      <span className="w-12 font-pixel text-[7px] text-zinc-400 sm:text-[8px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
         {label}
       </span>
       <div className="h-2 flex-1 overflow-hidden rounded-sm bg-zinc-800">
@@ -52,7 +52,7 @@ function StatBar({ label, value, max, color }: StatBarProps) {
           transition={{ duration: 0.6, ease: EASE }}
         />
       </div>
-      <span className="w-6 text-right font-pixel text-[7px] text-zinc-300">
+      <span className="w-6 text-right font-pixel text-[7px] text-zinc-300 lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
         {value}
       </span>
     </div>
@@ -248,7 +248,7 @@ export function ClassSelect({
         transition={{ duration: 0.4, ease: EASE }}
       >
         <motion.div
-          className={`flex h-12 w-12 items-center justify-center rounded-full border-2 sm:h-14 sm:w-14 ${
+          className={`flex h-12 w-12 items-center justify-center rounded-full border-2 sm:h-14 sm:w-14 lg:h-16 lg:w-16 2xl:h-20 2xl:w-20 ${
             countdown <= 5
               ? 'border-dm-health bg-dm-health/10'
               : 'border-dm-accent/40 bg-dm-accent/10'
@@ -261,7 +261,7 @@ export function ClassSelect({
           transition={countdown <= 5 ? { duration: 1, repeat: Infinity } : {}}
         >
           <span
-            className={`font-pixel text-base sm:text-lg ${
+            className={`font-pixel text-base sm:text-lg lg:text-xl xl:text-2xl 2xl:text-3xl ${
               countdown <= 5 ? 'text-dm-health' : 'text-dm-accent'
             }`}
           >
@@ -269,7 +269,7 @@ export function ClassSelect({
           </span>
         </motion.div>
         {/* Progress bar */}
-        <div className="h-1 w-32 overflow-hidden rounded-full bg-dm-border sm:w-40">
+        <div className="h-1 w-32 overflow-hidden rounded-full bg-dm-border sm:w-40 lg:w-48 2xl:w-56">
           <motion.div
             className={`h-full rounded-full ${countdown <= 5 ? 'bg-dm-health' : 'bg-dm-accent'}`}
             initial={{ width: '100%' }}
@@ -280,7 +280,7 @@ export function ClassSelect({
       </motion.div>
 
       <motion.h1
-        className="glow-purple z-10 mb-2 font-pixel text-lg text-dm-accent sm:text-2xl"
+        className="glow-purple z-10 mb-2 font-pixel text-lg text-dm-accent sm:text-2xl lg:text-3xl 2xl:text-4xl"
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5, ease: EASE }}
@@ -289,7 +289,7 @@ export function ClassSelect({
       </motion.h1>
 
       <motion.p
-        className="z-10 mb-6 font-pixel text-[10px] text-zinc-400 sm:mb-8"
+        className="z-10 mb-6 font-pixel text-[10px] text-zinc-400 sm:mb-8 lg:text-sm xl:text-sm 2xl:text-base"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.2 }}
@@ -300,7 +300,7 @@ export function ClassSelect({
       {/* Class cards — stack vertically on small screens, horizontal on larger */}
       <div
         ref={scrollContainerRef}
-        className="z-10 flex w-full max-w-4xl flex-col gap-3 px-2 pb-2 sm:flex-row sm:snap-x sm:snap-mandatory sm:gap-6 sm:overflow-x-auto"
+        className="z-10 flex w-full max-w-4xl flex-col gap-3 px-2 pb-2 sm:flex-row sm:snap-x sm:snap-mandatory sm:gap-6 sm:overflow-x-auto lg:gap-8 2xl:max-w-6xl 2xl:gap-10"
       >
         {CLASSES.map((cls, i) => {
           const stats = CLASS_STATS[cls];
@@ -310,7 +310,7 @@ export function ClassSelect({
           return (
             <motion.button
               key={cls}
-              className={`pixel-border relative w-full flex-1 shrink-0 cursor-pointer rounded-lg p-4 text-left transition-colors sm:min-w-0 sm:snap-center sm:p-6 ${
+              className={`pixel-border relative w-full flex-1 shrink-0 cursor-pointer rounded-lg p-4 text-left transition-colors sm:min-w-0 sm:snap-center sm:p-6 lg:p-8 2xl:p-10 ${
                 isSelected
                   ? 'border-dm-accent bg-dm-accent/10'
                   : 'bg-dm-surface hover:bg-dm-surface/80'
@@ -351,7 +351,7 @@ export function ClassSelect({
                   animate={{ scale: 1 }}
                   transition={{ delay: 0.6 + i * 0.1, ease: EASE }}
                 >
-                  <span className="font-pixel text-[6px] text-dm-gold">
+                  <span className="font-pixel text-[6px] text-dm-gold lg:text-[8px] xl:text-[9px] 2xl:text-[10px]">
                     Popüler
                   </span>
                 </motion.div>
@@ -367,7 +367,7 @@ export function ClassSelect({
 
               {/* Name */}
               <h2
-                className="mb-1 font-pixel text-sm sm:text-base"
+                className="mb-1 font-pixel text-sm sm:text-base lg:text-lg xl:text-xl 2xl:text-2xl"
                 style={{ color: stats.color }}
               >
                 {stats.label}
@@ -375,7 +375,7 @@ export function ClassSelect({
 
               {/* Ability tooltip trigger */}
               <button
-                className="mb-2 flex items-center gap-1 font-pixel text-[7px] text-dm-gold/70 transition-colors hover:text-dm-gold"
+                className="mb-2 flex items-center gap-1 font-pixel text-[7px] text-dm-gold/70 transition-colors hover:text-dm-gold lg:text-[9px] xl:text-[10px] 2xl:text-[12px]"
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowAbilityTooltip((prev) => (prev === cls ? null : cls));
@@ -388,7 +388,7 @@ export function ClassSelect({
               <AnimatePresence>
                 {showAbilityTooltip === cls && (
                   <motion.div
-                    className="mb-2 rounded bg-dm-bg/80 px-3 py-2 text-[10px] leading-relaxed text-zinc-300"
+                    className="mb-2 rounded bg-dm-bg/80 px-3 py-2 text-[10px] leading-relaxed text-zinc-300 lg:text-sm xl:text-sm 2xl:text-base"
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
@@ -426,17 +426,17 @@ export function ClassSelect({
               <div className="text-center">
                 <span className="text-lg">{CLASS_STATS[selected].emoji}</span>
                 <p
-                  className="font-pixel text-[7px]"
+                  className="font-pixel text-[7px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px]"
                   style={{ color: CLASS_STATS[selected].color }}
                 >
                   {CLASS_STATS[selected].label}
                 </p>
               </div>
-              <span className="font-pixel text-[10px] text-dm-gold">VS</span>
+              <span className="font-pixel text-[10px] text-dm-gold lg:text-sm xl:text-sm 2xl:text-base">VS</span>
               <div className="text-center">
                 <span className="text-lg">{CLASS_STATS[hoveredClass].emoji}</span>
                 <p
-                  className="font-pixel text-[7px]"
+                  className="font-pixel text-[7px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px]"
                   style={{ color: CLASS_STATS[hoveredClass].color }}
                 >
                   {CLASS_STATS[hoveredClass].label}
@@ -456,17 +456,17 @@ export function ClassSelect({
                 return (
                   <div key={stat} className="flex items-center justify-between gap-4">
                     <span
-                      className={`font-pixel text-[7px] ${
+                      className={`font-pixel text-[7px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px] ${
                         selVal > hovVal ? 'text-dm-xp' : selVal < hovVal ? 'text-dm-health' : 'text-zinc-400'
                       }`}
                     >
                       {selVal}
                     </span>
-                    <span className="font-pixel text-[6px] text-zinc-500">
+                    <span className="font-pixel text-[6px] text-zinc-500 lg:text-[8px] xl:text-[9px] 2xl:text-[10px]">
                       {labels[stat]}
                     </span>
                     <span
-                      className={`font-pixel text-[7px] ${
+                      className={`font-pixel text-[7px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px] ${
                         hovVal > selVal ? 'text-dm-xp' : hovVal < selVal ? 'text-dm-health' : 'text-zinc-400'
                       }`}
                     >
@@ -493,7 +493,7 @@ export function ClassSelect({
               key={player.id}
               className="flex items-center gap-2 rounded bg-dm-surface px-3 py-2"
             >
-              <span className="font-pixel text-[9px] text-zinc-300">
+              <span className="font-pixel text-[9px] text-zinc-300 lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">
                 {player.name}
               </span>
               {player.class ? (
@@ -502,7 +502,7 @@ export function ClassSelect({
                 </span>
               ) : (
                 <motion.span
-                  className="font-pixel text-[8px] text-zinc-500"
+                  className="font-pixel text-[8px] text-zinc-500 lg:text-[10px] xl:text-[11px] 2xl:text-[13px]"
                   animate={{ opacity: [0.5, 1, 0.5] }}
                   transition={{ duration: 1.5, repeat: Infinity }}
                 >

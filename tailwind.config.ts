@@ -5,6 +5,10 @@ const config: Config = {
   darkMode: 'class',
   theme: {
     extend: {
+      screens: {
+        '3xl': '2560px',
+        '4xl': '3840px',
+      },
       colors: {
         dm: {
           bg: '#0a0e17',

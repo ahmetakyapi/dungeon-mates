@@ -125,7 +125,7 @@ function HPBar({
   return (
     <div className={`relative ${isLow ? 'low-hp-pulse' : ''}`}>
       <div
-        className={`relative h-3.5 overflow-hidden rounded-sm border border-zinc-700/80 bg-zinc-900 sm:h-4 ${
+        className={`relative h-3.5 overflow-hidden rounded-sm border border-zinc-700/80 bg-zinc-900 sm:h-4 lg:h-4 2xl:h-5 ${
           isFlashing ? 'hp-flash' : ''
         }`}
       >
@@ -138,7 +138,7 @@ function HPBar({
         {/* Shine overlay */}
         <div className="absolute inset-0 rounded-sm bg-gradient-to-b from-white/10 to-transparent" style={{ height: '50%' }} />
         {showNumbers && (
-          <span className="absolute inset-0 flex items-center justify-center font-pixel text-[6px] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] sm:text-[7px]">
+          <span className="absolute inset-0 flex items-center justify-center font-pixel text-[6px] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">
             {Math.ceil(value)}/{max} HP
           </span>
         )}
@@ -159,7 +159,7 @@ function ManaBar({
   const percentage = Math.max(0, Math.min((value / max) * 100, 100));
 
   return (
-    <div className="relative h-3 overflow-hidden rounded-sm border border-zinc-700/80 bg-zinc-900 sm:h-3.5">
+    <div className="relative h-3 overflow-hidden rounded-sm border border-zinc-700/80 bg-zinc-900 sm:h-3.5 lg:h-4 2xl:h-5">
       <motion.div
         className="absolute inset-y-0 left-0 rounded-sm"
         style={{ background: 'linear-gradient(90deg, #2563eb, #3b82f6, #60a5fa)' }}
@@ -168,7 +168,7 @@ function ManaBar({
       />
       <div className="absolute inset-0 rounded-sm bg-gradient-to-b from-white/10 to-transparent" style={{ height: '50%' }} />
       {showNumbers && (
-        <span className="absolute inset-0 flex items-center justify-center font-pixel text-[5px] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] sm:text-[6px]">
+        <span className="absolute inset-0 flex items-center justify-center font-pixel text-[5px] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">
           {Math.ceil(value)}/{max} MP
         </span>
       )}
@@ -190,7 +190,7 @@ function XPBar({
 
   return (
     <div>
-      <div className="relative h-2 overflow-hidden rounded-sm border border-zinc-700/60 bg-zinc-900 sm:h-2.5">
+      <div className="relative h-2 overflow-hidden rounded-sm border border-zinc-700/60 bg-zinc-900 sm:h-2.5 lg:h-3 2xl:h-3.5">
         <motion.div
           className="absolute inset-y-0 left-0 rounded-sm"
           style={{ background: 'linear-gradient(90deg, #d97706, #f59e0b, #fbbf24)' }}
@@ -198,7 +198,7 @@ function XPBar({
           transition={{ duration: 0.3, ease: EASE }}
         />
       </div>
-      <p className="mt-0.5 font-pixel text-[5px] text-dm-gold/70 sm:text-[6px]">
+      <p className="mt-0.5 font-pixel text-[5px] text-dm-gold/70 sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">
         Seviye {level} — {currentXP}/{xpToNext} XP
       </p>
     </div>
@@ -221,7 +221,7 @@ function ToastList({ toasts }: { toasts: Toast[] }) {
           >
             <span className="text-xs sm:text-sm">{toast.icon}</span>
             <span
-              className="font-pixel text-[7px] sm:text-[8px]"
+              className="font-pixel text-[7px] sm:text-[8px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px]"
               style={{ color: TOAST_COLORS[toast.type] }}
             >
               {toast.text}
@@ -274,14 +274,14 @@ function BossHPBar({ gameState }: { gameState: GameState }) {
         {/* Boss name with skulls */}
         <div className="mb-1.5 flex items-center justify-center gap-2">
           <span className="text-xs sm:text-sm">💀</span>
-          <span className="boss-pulse font-pixel text-[9px] text-dm-health sm:text-[11px]">
+          <span className="boss-pulse font-pixel text-[9px] text-dm-health sm:text-[11px] lg:text-[12px] xl:text-[13px] 2xl:text-[15px]">
             İblis Lordu
           </span>
           <span className="text-xs sm:text-sm">💀</span>
         </div>
 
         {/* HP Bar */}
-        <div className="relative h-5 overflow-hidden rounded-sm border border-red-900/60 bg-zinc-900 sm:h-6">
+        <div className="relative h-5 overflow-hidden rounded-sm border border-red-900/60 bg-zinc-900 sm:h-6 lg:h-7 2xl:h-8">
           {/* Delayed damage bar (yellow/orange) */}
           <motion.div
             className="absolute inset-y-0 left-0 rounded-sm bg-amber-600/60"
@@ -309,10 +309,10 @@ function BossHPBar({ gameState }: { gameState: GameState }) {
           )}
           {/* HP text */}
           <div className="absolute inset-0 flex items-center justify-center gap-2">
-            <span className="font-pixel text-[7px] text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] sm:text-[8px]">
+            <span className="font-pixel text-[7px] text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] sm:text-[8px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
               {Math.ceil(boss.hp)}/{boss.maxHp}
             </span>
-            <span className="font-pixel text-[6px] text-red-300/60 sm:text-[7px]">
+            <span className="font-pixel text-[6px] text-red-300/60 sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">
               ({Math.round(percentage)}%)
             </span>
           </div>
@@ -339,14 +339,32 @@ function Minimap({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const size = expanded ? 200 : 120;
-  const mobileSize = expanded ? 160 : 80;
+  const [screenTier, setScreenTier] = useState(0); // 0=mobile, 1=sm, 2=lg, 3=xl, 4=2xl
 
   useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 640);
+    const check = () => {
+      const w = window.innerWidth;
+      if (w >= 1536) setScreenTier(4);
+      else if (w >= 1280) setScreenTier(3);
+      else if (w >= 1024) setScreenTier(2);
+      else if (w >= 640) setScreenTier(1);
+      else setScreenTier(0);
+    };
     check();
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
+  }, []);
+
+  const sizeByTier = [120, 120, 140, 160, 180] as const;
+  const expandedSizeByTier = [160, 200, 220, 240, 260] as const;
+  const size = expanded ? expandedSizeByTier[screenTier] : sizeByTier[screenTier];
+  const mobileSize = expanded ? 160 : 80;
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 640);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
   const toggleExpand = useCallback(() => {
@@ -396,8 +414,8 @@ function Minimap({
   return (
     <PixelFrame className="cursor-pointer p-1.5 sm:p-2" >
       <div className="mb-1 flex items-center justify-between" onClick={toggleExpand}>
-        <span className="font-pixel text-[6px] text-zinc-500 sm:text-[7px]">Harita</span>
-        <span className="font-pixel text-[5px] text-zinc-600">
+        <span className="font-pixel text-[6px] text-zinc-500 sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">Harita</span>
+        <span className="font-pixel text-[5px] text-zinc-600 sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">
           {expanded ? '−' : '+'}
         </span>
       </div>
@@ -567,7 +585,7 @@ function SprintIndicator() {
   return (
     <PixelFrame className="flex items-center gap-1.5 px-2 py-1.5 sm:px-3 sm:py-2">
       <motion.div
-        className="h-2.5 w-2.5 rounded-full sm:h-3 sm:w-3"
+        className="h-2.5 w-2.5 rounded-full sm:h-3 sm:w-3 lg:h-3.5 lg:w-3.5 2xl:h-4 2xl:w-4"
         animate={{
           backgroundColor: isSprinting ? '#f59e0b' : '#3f3f46',
           boxShadow: isSprinting
@@ -578,12 +596,12 @@ function SprintIndicator() {
       />
       <div className="flex flex-col">
         <span
-          className="font-pixel text-[6px] sm:text-[7px]"
+          className="font-pixel text-[6px] sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]"
           style={{ color: isSprinting ? '#f59e0b' : '#71717a' }}
         >
           {isSprinting ? 'Sprint' : 'Yuru'}
         </span>
-        <span className="font-pixel text-[5px] text-zinc-600">Shift</span>
+        <span className="font-pixel text-[5px] text-zinc-600 sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">Shift</span>
       </div>
     </PixelFrame>
   );
@@ -604,7 +622,7 @@ function ActionInfo({
     <PixelFrame className="flex flex-col items-center gap-1.5 p-2 sm:p-3">
       {/* Circular cooldown */}
       <div className="relative flex items-center justify-center">
-        <svg width={40} height={40} className="rotate-[-90deg]">
+        <svg viewBox="0 0 40 40" className="h-10 w-10 rotate-[-90deg] lg:h-12 lg:w-12 2xl:h-14 2xl:w-14">
           <circle cx={20} cy={20} r={radius} fill="none" stroke="#1f2937" strokeWidth={3} />
           <circle
             cx={20}
@@ -619,11 +637,11 @@ function ActionInfo({
             style={{ transition: 'stroke-dashoffset 0.1s linear' }}
           />
         </svg>
-        <span className="absolute font-pixel text-[6px] text-zinc-300">⚔</span>
+        <span className="absolute font-pixel text-[6px] text-zinc-300 lg:text-[7px] 2xl:text-[9px]">⚔</span>
       </div>
       <div className="flex flex-col items-center gap-0.5">
-        <span className="font-pixel text-[5px] text-zinc-500 sm:text-[6px]">Saldırı</span>
-        <span className="hidden font-pixel text-[5px] text-zinc-600 sm:block">Space</span>
+        <span className="font-pixel text-[5px] text-zinc-500 sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">Saldırı</span>
+        <span className="hidden font-pixel text-[5px] text-zinc-600 sm:block sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">Space</span>
       </div>
     </PixelFrame>
   );
@@ -656,7 +674,7 @@ function AbilityInfo({
     <PixelFrame className="flex flex-col items-center gap-1.5 p-2 sm:p-3">
       {/* Circular cooldown */}
       <div className="relative flex items-center justify-center">
-        <svg width={40} height={40} className="rotate-[-90deg]">
+        <svg viewBox="0 0 40 40" className="h-10 w-10 rotate-[-90deg] lg:h-12 lg:w-12 2xl:h-14 2xl:w-14">
           <circle cx={20} cy={20} r={radius} fill="none" stroke="#1f2937" strokeWidth={3} />
           <circle
             cx={20}
@@ -671,11 +689,11 @@ function AbilityInfo({
             style={{ transition: 'stroke-dashoffset 0.1s linear' }}
           />
         </svg>
-        <span className="absolute font-pixel text-[6px] text-zinc-300">{meta.icon}</span>
+        <span className="absolute font-pixel text-[6px] text-zinc-300 lg:text-[7px] 2xl:text-[9px]">{meta.icon}</span>
       </div>
       <div className="flex flex-col items-center gap-0.5">
-        <span className="font-pixel text-[5px] text-zinc-500 sm:text-[6px]">{meta.label}</span>
-        <span className="hidden font-pixel text-[5px] text-zinc-600 sm:block">E</span>
+        <span className="font-pixel text-[5px] text-zinc-500 sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">{meta.label}</span>
+        <span className="hidden font-pixel text-[5px] text-zinc-600 sm:block sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">E</span>
       </div>
     </PixelFrame>
   );
@@ -698,16 +716,16 @@ function FloorInfo({
     <PixelFrame className="flex items-center gap-2 px-3 py-1.5 sm:gap-3 sm:px-4 sm:py-2">
       <span className="text-xs sm:text-sm">🏰</span>
       <div className="flex flex-col items-center">
-        <span className="font-pixel text-[8px] text-dm-gold sm:text-[9px]">
+        <span className="font-pixel text-[8px] text-dm-gold sm:text-[9px] lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">
           Kat {floor}
         </span>
-        <span className="font-pixel text-[6px] text-zinc-400 sm:text-[7px]">
+        <span className="font-pixel text-[6px] text-zinc-400 sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">
           Oda {currentRoom + 1}/{totalRooms}
         </span>
       </div>
       {isBossPhase && (
         <motion.span
-          className="boss-pulse rounded border border-red-500/30 bg-red-950/40 px-1.5 py-0.5 font-pixel text-[7px] text-dm-health sm:text-[8px]"
+          className="boss-pulse rounded border border-red-500/30 bg-red-950/40 px-1.5 py-0.5 font-pixel text-[7px] text-dm-health sm:text-[8px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px]"
           animate={{ scale: [1, 1.05, 1] }}
           transition={{ duration: 1.2, repeat: Infinity }}
         >
@@ -896,15 +914,15 @@ export function HUD({ player, gameState, fps, onPing, attackCooldownPct = 1, abi
 
       {/* Top-Left: Player Stats */}
       <div className="absolute left-2 top-2 sm:left-4 sm:top-4">
-        <PixelFrame className="w-44 p-2 sm:w-56 sm:p-3">
+        <PixelFrame className="w-44 p-2 sm:w-56 sm:p-3 lg:w-60 xl:w-64 2xl:w-72 2xl:p-4">
           {/* Player header */}
           <div className="mb-1.5 flex items-center gap-1.5">
             <span className="text-sm">{classInfo.emoji}</span>
-            <span className="font-pixel text-[8px] text-white sm:text-[9px]">
+            <span className="font-pixel text-[8px] text-white sm:text-[9px] lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">
               {player.name}
             </span>
             <span
-              className="rounded px-1 py-0.5 font-pixel text-[6px] sm:text-[7px]"
+              className="rounded px-1 py-0.5 font-pixel text-[6px] sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]"
               style={{
                 backgroundColor: `${classInfo.color}20`,
                 color: classInfo.color,
@@ -948,15 +966,15 @@ export function HUD({ player, gameState, fps, onPing, attackCooldownPct = 1, abi
                     onMouseLeave={() => setHoveredTeammate(null)}
                   >
                     <div className="mb-0.5 flex items-center gap-1">
-                      <span className="text-[8px]">{mateClass.emoji}</span>
+                      <span className="text-[8px] lg:text-[9px] 2xl:text-[11px]">{mateClass.emoji}</span>
                       <span
-                        className="font-pixel text-[6px]"
+                        className="font-pixel text-[6px] sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]"
                         style={{ color: mateClass.color }}
                       >
                         {mate.name}
                       </span>
                     </div>
-                    <div className="h-2 overflow-hidden rounded-sm border border-zinc-700/60 bg-zinc-900">
+                    <div className="h-2 overflow-hidden rounded-sm border border-zinc-700/60 bg-zinc-900 sm:h-2.5 lg:h-3 2xl:h-3.5">
                       <motion.div
                         className="h-full rounded-sm"
                         style={{
@@ -984,7 +1002,7 @@ export function HUD({ player, gameState, fps, onPing, attackCooldownPct = 1, abi
           {/* Ping button */}
           {teammates.length > 0 && (
             <motion.button
-              className="pointer-events-auto mt-2 w-full rounded border border-dm-border/50 bg-dm-surface/50 py-1 font-pixel text-[6px] text-dm-gold transition-colors hover:bg-dm-accent/20 sm:text-[7px]"
+              className="pointer-events-auto mt-2 w-full rounded border border-dm-border/50 bg-dm-surface/50 py-1 font-pixel text-[6px] text-dm-gold transition-colors hover:bg-dm-accent/20 sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]"
               onClick={handlePing}
               whileTap={{ scale: 0.95 }}
               transition={{ duration: 0.1 }}
@@ -1005,11 +1023,11 @@ export function HUD({ player, gameState, fps, onPing, attackCooldownPct = 1, abi
           <PixelFrame className="p-2 sm:p-3">
             <div className="flex items-center gap-2">
               <span className="text-xs">🪙</span>
-              <span className="font-pixel text-[8px] text-dm-gold sm:text-[9px]">
+              <span className="font-pixel text-[8px] text-dm-gold sm:text-[9px] lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">
                 {player.score * 10}
               </span>
               <span className="text-xs">💀</span>
-              <span className="font-pixel text-[8px] text-white sm:text-[9px]">
+              <span className="font-pixel text-[8px] text-white sm:text-[9px] lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">
                 {player.score}
               </span>
             </div>
@@ -1046,7 +1064,7 @@ export function HUD({ player, gameState, fps, onPing, attackCooldownPct = 1, abi
 
       {/* FPS counter (debug) */}
       <div className="absolute bottom-1 left-1/2 -translate-x-1/2">
-        <span className="font-pixel text-[5px] text-zinc-700">
+        <span className="font-pixel text-[5px] text-zinc-700 sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">
           {fps} FPS
         </span>
       </div>
@@ -1059,11 +1077,11 @@ export function HUD({ player, gameState, fps, onPing, attackCooldownPct = 1, abi
           animate={{ opacity: 1 }}
         >
           <div className="rounded-lg border border-dm-health/30 bg-black/60 px-8 py-4 backdrop-blur-sm">
-            <p className="text-center font-pixel text-sm text-dm-health">
+            <p className="text-center font-pixel text-sm text-dm-health 2xl:text-lg">
               Yenildin!
             </p>
             <motion.p
-              className="mt-2 text-center font-pixel text-[10px] text-zinc-400"
+              className="mt-2 text-center font-pixel text-[10px] text-zinc-400 sm:text-xs lg:text-sm 2xl:text-base"
               animate={{ opacity: [0.5, 1, 0.5] }}
               transition={{ duration: 1.5, repeat: Infinity }}
             >
