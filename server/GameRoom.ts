@@ -27,7 +27,60 @@ type ReadyState = {
   ready: boolean;
 };
 
-const MONSTER_TYPES_NORMAL: MonsterType[] = ['slime', 'skeleton', 'bat', 'goblin'];
+// Floor-based monster pools with weights
+type WeightedMonster = { type: MonsterType; weight: number };
+
+const MONSTER_POOL_BY_FLOOR: Record<number, WeightedMonster[]> = {
+  1: [
+    { type: 'rat', weight: 3 },
+    { type: 'slime', weight: 3 },
+    { type: 'bat', weight: 2 },
+  ],
+  2: [
+    { type: 'skeleton', weight: 3 },
+    { type: 'spider', weight: 2 },
+    { type: 'rat', weight: 2 },
+    { type: 'slime', weight: 2 },
+    { type: 'bat', weight: 2 },
+  ],
+  3: [
+    { type: 'skeleton', weight: 3 },
+    { type: 'goblin', weight: 2 },
+    { type: 'spider', weight: 2 },
+    { type: 'wraith', weight: 2 },
+    { type: 'mushroom', weight: 1 },
+  ],
+  4: [
+    { type: 'skeleton', weight: 2 },
+    { type: 'goblin', weight: 3 },
+    { type: 'spider', weight: 2 },
+    { type: 'wraith', weight: 3 },
+    { type: 'mushroom', weight: 1 },
+    { type: 'rat', weight: 1 },
+    { type: 'bat', weight: 1 },
+    { type: 'slime', weight: 1 },
+  ],
+  5: [
+    { type: 'skeleton', weight: 2 },
+    { type: 'goblin', weight: 3 },
+    { type: 'spider', weight: 2 },
+    { type: 'wraith', weight: 3 },
+    { type: 'mushroom', weight: 1 },
+    { type: 'rat', weight: 1 },
+    { type: 'bat', weight: 1 },
+  ],
+};
+
+/** Pick a random monster type from a weighted pool. */
+function pickWeightedMonster(pool: WeightedMonster[]): MonsterType {
+  const totalWeight = pool.reduce((sum, entry) => sum + entry.weight, 0);
+  let roll = Math.random() * totalWeight;
+  for (const entry of pool) {
+    roll -= entry.weight;
+    if (roll <= 0) return entry.type;
+  }
+  return pool[pool.length - 1].type;
+}
 
 let nextLootId = 0;
 
@@ -386,17 +439,35 @@ export class GameRoom {
         const baseCount = Math.max(3, Math.floor(area / 20));
         const scaledCount = Math.min(10, Math.max(1, Math.round(baseCount * monsterMultiplier)));
 
+        const pool = MONSTER_POOL_BY_FLOOR[this.currentFloor] ?? MONSTER_POOL_BY_FLOOR[4];
+
         for (let i = 0; i < scaledCount; i++) {
-          const type = MONSTER_TYPES_NORMAL[Math.floor(Math.random() * MONSTER_TYPES_NORMAL.length)];
+          const type = pickWeightedMonster(pool);
+
           const mx = room.x + 1 + Math.floor(Math.random() * (room.width - 2));
           const my = room.y + 1 + Math.floor(Math.random() * (room.height - 2));
 
-          const monster = new Monster(type, { x: mx + 0.5, y: my + 0.5 }, room.id);
-          monster.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
-          if (this.isSolo) monster.scaleForSolo();
-          monster.scaleForPlayerCount(clampedPlayers);
-          this.monsters.set(monster.state.id, monster);
-          room.monsterIds.push(monster.state.id);
+          // Rats spawn in groups of 2-3
+          if (type === 'rat') {
+            const groupSize = 2 + Math.floor(Math.random() * 2); // 2-3
+            for (let r = 0; r < groupSize; r++) {
+              const rx = mx + (Math.random() - 0.5) * 1.5;
+              const ry = my + (Math.random() - 0.5) * 1.5;
+              const rat = new Monster('rat', { x: rx + 0.5, y: ry + 0.5 }, room.id);
+              rat.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
+              if (this.isSolo) rat.scaleForSolo();
+              rat.scaleForPlayerCount(clampedPlayers);
+              this.monsters.set(rat.state.id, rat);
+              room.monsterIds.push(rat.state.id);
+            }
+          } else {
+            const monster = new Monster(type, { x: mx + 0.5, y: my + 0.5 }, room.id);
+            monster.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
+            if (this.isSolo) monster.scaleForSolo();
+            monster.scaleForPlayerCount(clampedPlayers);
+            this.monsters.set(monster.state.id, monster);
+            room.monsterIds.push(monster.state.id);
+          }
         }
       }
     }
@@ -537,6 +608,33 @@ export class GameRoom {
           if (!targetPlayer.state.alive) {
             this.io.to(this.roomCode).emit('game:player_died', {
               playerId: attackResult.targetId,
+            });
+          }
+        }
+      }
+
+      // Spider web: apply slow debuff to targeted player
+      if (monster.webTarget) {
+        const webPlayer = this.players.get(monster.webTarget.playerId);
+        if (webPlayer && webPlayer.state.alive) {
+          webPlayer.applySlow(monster.webTarget.slowMult, monster.webTarget.slowTicks);
+        }
+      }
+
+      // Mushroom poison aura: damage nearby players
+      for (const poisonTarget of monster.poisonAuraTargets) {
+        const poisonPlayer = this.players.get(poisonTarget.playerId);
+        if (poisonPlayer && poisonPlayer.state.alive) {
+          const actualDamage = poisonPlayer.takeDamage(poisonTarget.damage);
+          this.io.to(this.roomCode).emit('game:damage', {
+            targetId: poisonTarget.playerId,
+            damage: actualDamage,
+            sourceId: monsterId,
+          });
+
+          if (!poisonPlayer.state.alive) {
+            this.io.to(this.roomCode).emit('game:player_died', {
+              playerId: poisonTarget.playerId,
             });
           }
         }

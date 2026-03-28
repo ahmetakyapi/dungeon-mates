@@ -44,6 +44,8 @@ export class Player {
   private abilityActiveTicks: number;
   private speedBoostMultiplier: number;
   private speedBoostTicks: number;
+  private slowMultiplier: number;
+  private slowTicks: number;
   private attackAnimTicks: number;
 
   constructor(id: string, name: string, spawnPos: Vec2) {
@@ -57,6 +59,8 @@ export class Player {
     this.abilityActiveTicks = 0;
     this.speedBoostMultiplier = 1;
     this.speedBoostTicks = 0;
+    this.slowMultiplier = 1;
+    this.slowTicks = 0;
     this.attackAnimTicks = 0;
 
     this.state = {
@@ -106,6 +110,11 @@ export class Player {
     this.spawnPosition = { ...pos };
   }
 
+  applySlow(multiplier: number, ticks: number): void {
+    this.slowMultiplier = multiplier;
+    this.slowTicks = ticks;
+  }
+
   processInput(input: PlayerInput, tiles: TileType[][], currentTick: number, monsters: MonsterTarget[] = []): Projectile | null {
     // Tick down ability cooldown
     if (this.abilityCooldownTicks > 0) this.abilityCooldownTicks--;
@@ -123,6 +132,14 @@ export class Player {
       this.speedBoostTicks--;
       if (this.speedBoostTicks <= 0) {
         this.speedBoostMultiplier = 1;
+      }
+    }
+
+    // Slow debuff tick down
+    if (this.slowTicks > 0) {
+      this.slowTicks--;
+      if (this.slowTicks <= 0) {
+        this.slowMultiplier = 1;
       }
     }
 
@@ -154,7 +171,7 @@ export class Player {
 
     // Movement with collision
     const classStats = CLASS_STATS[this.state.class];
-    const speed = classStats.speed * PLAYER_SPEED * this.speedBoostMultiplier / TICK_RATE;
+    const speed = classStats.speed * PLAYER_SPEED * this.speedBoostMultiplier * this.slowMultiplier / TICK_RATE;
 
     const newX = this.state.position.x + dx * speed;
     const newY = this.state.position.y + dy * speed;

@@ -124,6 +124,26 @@ export class GameRenderer {
   private lightingCanvas: HTMLCanvasElement | null = null;
   private lightingCtx: CanvasRenderingContext2D | null = null;
 
+  // Environmental decorations
+  private bloodSplatters: Array<{ x: number; y: number }> = [];
+  private boneFragments: Array<{ x: number; y: number; seed: number }> = [];
+  private cobwebPositions: Array<{ x: number; y: number; corner: number }> = [];
+  private floorCracks: Array<{ x: number; y: number; seed: number }> = [];
+  private decorCacheFloor = -1; // track floor changes for clearing
+  private waterDripTimer = 0;
+
+  // Boss room entrance effect
+  private bossEntranceFlash = 0;
+  private bossEntranceShake = false;
+
+  // Loot pickup flash
+  private lootFlashAlpha = 0;
+  private lootFlashColor = '#fbbf24';
+
+  // Fog noise animation timer
+  private fogNoiseTimer = 0;
+  private fogNoiseCanvas: HTMLCanvasElement | null = null;
+
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     const ctx = canvas.getContext('2d');
@@ -306,6 +326,10 @@ export class GameRenderer {
     const isBossPhase = state.phase === 'boss';
     if (isBossPhase && !this.wasBossPhase) {
       this.camera.enterBossRoom();
+      // Boss entrance: red flash + screen shake
+      this.bossEntranceFlash = 0.5;
+      this.bossEntranceShake = true;
+      this.camera.shake(6, 400);
     } else if (!isBossPhase && this.wasBossPhase) {
       this.camera.leaveBossRoom();
     }
@@ -360,6 +384,28 @@ export class GameRenderer {
       this.screenFlashAlpha = Math.max(0, this.screenFlashAlpha - dt * 6); // ~0.1s decay
     }
 
+    // Decay boss entrance flash
+    if (this.bossEntranceFlash > 0) {
+      this.bossEntranceFlash = Math.max(0, this.bossEntranceFlash - dt * 3);
+    }
+
+    // Decay loot flash
+    if (this.lootFlashAlpha > 0) {
+      this.lootFlashAlpha = Math.max(0, this.lootFlashAlpha - dt * 4);
+    }
+
+    // Build environmental decorations (deterministic, only rebuilds on floor change)
+    this.buildEnvironmentalDecor(state);
+
+    // Check particle system screen flash request
+    if (this.particles.screenFlashRequested) {
+      this.particles.screenFlashRequested = false;
+      // Subtle white micro-flash from hit sparks
+      if (this.screenFlashAlpha < 0.1) {
+        this.triggerScreenFlash('#ffffff', 0.08);
+      }
+    }
+
     // Detect HP changes for flash effects + damage numbers
     this.detectHpChanges(state, localPlayerId);
 
@@ -405,7 +451,12 @@ export class GameRenderer {
     // 1. Render tiles
     this.renderTiles(ctx, state, camX, camY, startTileX, startTileY, endTileX, endTileY);
 
-    // 2. Render torch light sources on floor (additive glow on top)
+    // 2. Render environmental decorations (blood, bones, cobwebs, cracks, water)
+    if (preset.effects) {
+      this.renderEnvironmentalDecor(ctx, camX, camY, dt);
+    }
+
+    // 2b. Render torch light sources on floor (additive glow on top)
     if (preset.effects) {
       this.renderTorchLights(ctx, camX, camY);
     }
@@ -433,17 +484,28 @@ export class GameRenderer {
     // 10. Render fog of war (with gradient edges)
     this.renderFog(ctx, state, camX, camY, startTileX, startTileY, endTileX, endTileY, localPlayerId);
 
+    // 10b. Boss health bar at top of screen (after fog so it's always visible)
+    if (isBossPhase) {
+      this.drawBossHealthBar(ctx, state);
+    }
+
     // 11. Post-processing effects (drawn on top of everything)
     if (preset.effects) {
-      // Low HP: pulsing red vignette (not flat tint)
+      // Low HP (<25%): strong pulsing red vignette overlay
       if (localPlayer && localPlayer.alive) {
         const hpRatio = localPlayer.hp / localPlayer.maxHp;
-        if (hpRatio < 0.5) {
-          this.lowHpPulseTimer += dt * 3;
+        if (hpRatio < 0.25) {
+          this.lowHpPulseTimer += dt * 3.5;
           const pulse = 0.5 + Math.sin(this.lowHpPulseTimer) * 0.5; // 0..1 pulse
-          const baseIntensity = (1 - hpRatio / 0.5) * 0.3; // max 0.3 at 0 hp
-          const intensity = baseIntensity * (0.6 + pulse * 0.4); // pulsing between 60%-100%
+          const baseIntensity = (1 - hpRatio / 0.25) * 0.4; // max 0.4 at 0 hp
+          const intensity = baseIntensity * (0.5 + pulse * 0.5); // pulsing between 50%-100%
           this.renderRedVignette(ctx, intensity);
+        } else if (hpRatio < 0.5) {
+          // Subtle warning between 25-50%
+          this.lowHpPulseTimer += dt * 2;
+          const pulse = 0.5 + Math.sin(this.lowHpPulseTimer) * 0.5;
+          const baseIntensity = (1 - hpRatio / 0.5) * 0.15;
+          this.renderRedVignette(ctx, baseIntensity * (0.7 + pulse * 0.3));
         } else {
           this.lowHpPulseTimer = 0;
         }
@@ -479,6 +541,22 @@ export class GameRenderer {
     if (this.screenFlashAlpha > 0.01) {
       ctx.globalAlpha = this.screenFlashAlpha;
       ctx.fillStyle = this.screenFlashColor;
+      ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
+      ctx.globalAlpha = 1;
+    }
+
+    // Boss entrance red flash
+    if (this.bossEntranceFlash > 0.01) {
+      ctx.globalAlpha = this.bossEntranceFlash * 0.4;
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
+      ctx.globalAlpha = 1;
+    }
+
+    // Loot pickup flash
+    if (this.lootFlashAlpha > 0.01) {
+      ctx.globalAlpha = this.lootFlashAlpha;
+      ctx.fillStyle = this.lootFlashColor;
       ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
       ctx.globalAlpha = 1;
     }
@@ -574,6 +652,190 @@ export class GameRenderer {
       ctx.drawImage(this.offscreen, 0, y, w, 2, shift, y, w, 2);
     }
     ctx.globalAlpha = 1;
+  }
+
+  // ===== ENVIRONMENTAL DECORATIONS =====
+
+  /** Public: add blood splatter when a monster dies (call from game logic) */
+  addBloodSplatter(worldX: number, worldY: number): void {
+    if (this.bloodSplatters.length >= 50) {
+      this.bloodSplatters.shift();
+    }
+    this.bloodSplatters.push({ x: worldX, y: worldY });
+  }
+
+  /** Trigger loot pickup screen flash */
+  triggerLootFlash(color: string): void {
+    this.lootFlashAlpha = 0.25;
+    this.lootFlashColor = color;
+  }
+
+  /** Clear all decorations (called on floor change) */
+  clearDecorations(): void {
+    this.bloodSplatters = [];
+    this.boneFragments = [];
+    this.cobwebPositions = [];
+    this.floorCracks = [];
+  }
+
+  /** Build environmental decorations for the current floor layout */
+  private buildEnvironmentalDecor(state: GameState): void {
+    const floorId = state.dungeon.currentFloor ?? 0;
+    if (this.decorCacheFloor === floorId) return;
+    this.decorCacheFloor = floorId;
+    this.clearDecorations();
+
+    const tiles = state.dungeon.tiles;
+    const dw = state.dungeon.width;
+    const dh = state.dungeon.height;
+
+    // Generate bone fragments in rooms (2-3 per room)
+    for (const room of state.dungeon.rooms) {
+      const boneCount = 2 + Math.floor(this.tileHash(room.id, 777) % 2);
+      for (let b = 0; b < boneCount; b++) {
+        const seed = this.tileHash(room.id * 10 + b, 1234);
+        const rx = room.x + 1 + (seed % Math.max(1, room.width - 2));
+        const ry = room.y + 1 + ((seed >> 8) % Math.max(1, room.height - 2));
+        if (rx < dw && ry < dh && tiles[ry] && tiles[ry][rx] === 'floor') {
+          this.boneFragments.push({ x: rx * TILE_SIZE + (seed % 10), y: ry * TILE_SIZE + ((seed >> 4) % 10), seed });
+        }
+      }
+    }
+
+    // Find cobweb corners (where 2+ walls meet in L-shape)
+    for (let ty = 1; ty < dh - 1; ty++) {
+      const row = tiles[ty];
+      if (!row) continue;
+      for (let tx = 1; tx < dw - 1; tx++) {
+        if (row[tx] !== 'floor') continue;
+        const above = tiles[ty - 1]?.[tx] === 'wall';
+        const below = tiles[ty + 1]?.[tx] === 'wall';
+        const left = row[tx - 1] === 'wall';
+        const right = row[tx + 1] === 'wall';
+
+        // Only add cobwebs at some corners (hash-based so it's deterministic)
+        const h = this.tileHash(tx * 13, ty * 29);
+        if (h % 5 !== 0) continue;
+
+        if (above && left) this.cobwebPositions.push({ x: tx * TILE_SIZE, y: ty * TILE_SIZE, corner: 0 });
+        else if (above && right) this.cobwebPositions.push({ x: tx * TILE_SIZE + TILE_SIZE, y: ty * TILE_SIZE, corner: 1 });
+        else if (below && left) this.cobwebPositions.push({ x: tx * TILE_SIZE, y: ty * TILE_SIZE + TILE_SIZE, corner: 2 });
+        else if (below && right) this.cobwebPositions.push({ x: tx * TILE_SIZE + TILE_SIZE, y: ty * TILE_SIZE + TILE_SIZE, corner: 3 });
+      }
+    }
+
+    // Floor cracks near boss room
+    const bossRoom = state.dungeon.rooms.find(r => r.isBossRoom);
+    if (bossRoom) {
+      for (let i = 0; i < 6; i++) {
+        const seed = this.tileHash(i * 37, 5555);
+        const cx = bossRoom.x + (seed % bossRoom.width);
+        const cy = bossRoom.y + ((seed >> 8) % bossRoom.height);
+        if (cx < dw && cy < dh) {
+          this.floorCracks.push({ x: cx * TILE_SIZE, y: cy * TILE_SIZE, seed });
+        }
+      }
+    }
+  }
+
+  /** Render environmental decorations (blood, bones, cobwebs, cracks, water drips) */
+  private renderEnvironmentalDecor(ctx: CanvasRenderingContext2D, camX: number, camY: number, dt: number): void {
+    // Blood splatters
+    for (let i = 0; i < this.bloodSplatters.length; i++) {
+      const b = this.bloodSplatters[i];
+      const sx = Math.floor(b.x - camX);
+      const sy = Math.floor(b.y - camY);
+      if (sx < -16 || sx > this.logicalWidth + 16 || sy < -16 || sy > this.logicalHeight + 16) continue;
+
+      ctx.globalAlpha = 0.4;
+      ctx.fillStyle = '#7f1d1d';
+      // Irregular splatter shape (3-4 pixel cluster)
+      ctx.fillRect(sx, sy, 2, 1);
+      ctx.fillRect(sx - 1, sy + 1, 3, 1);
+      ctx.fillRect(sx, sy + 2, 1, 1);
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = '#450a0a';
+      ctx.fillRect(sx + 2, sy + 1, 1, 1);
+      ctx.globalAlpha = 1;
+    }
+
+    // Bone fragments (tiny white/gray pixels)
+    for (let i = 0; i < this.boneFragments.length; i++) {
+      const bone = this.boneFragments[i];
+      const sx = Math.floor(bone.x - camX);
+      const sy = Math.floor(bone.y - camY);
+      if (sx < -4 || sx > this.logicalWidth + 4 || sy < -4 || sy > this.logicalHeight + 4) continue;
+
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = (bone.seed % 2 === 0) ? '#d6d3d1' : '#a8a29e';
+      ctx.fillRect(sx, sy, 2, 1);
+      ctx.fillRect(sx + 1, sy + 1, 1, 1);
+      ctx.globalAlpha = 1;
+    }
+
+    // Cobwebs in corners
+    for (let i = 0; i < this.cobwebPositions.length; i++) {
+      const cw = this.cobwebPositions[i];
+      const sx = Math.floor(cw.x - camX);
+      const sy = Math.floor(cw.y - camY);
+      if (sx < -8 || sx > this.logicalWidth + 8 || sy < -8 || sy > this.logicalHeight + 8) continue;
+
+      ctx.globalAlpha = 0.2;
+      ctx.fillStyle = '#d1d5db';
+      // Draw small L-shaped web based on corner
+      switch (cw.corner) {
+        case 0: // top-left
+          ctx.fillRect(sx, sy, 4, 1);
+          ctx.fillRect(sx, sy + 1, 1, 3);
+          ctx.fillRect(sx + 1, sy + 1, 1, 1);
+          break;
+        case 1: // top-right
+          ctx.fillRect(sx - 4, sy, 4, 1);
+          ctx.fillRect(sx - 1, sy + 1, 1, 3);
+          ctx.fillRect(sx - 2, sy + 1, 1, 1);
+          break;
+        case 2: // bottom-left
+          ctx.fillRect(sx, sy - 1, 4, 1);
+          ctx.fillRect(sx, sy - 4, 1, 3);
+          ctx.fillRect(sx + 1, sy - 2, 1, 1);
+          break;
+        case 3: // bottom-right
+          ctx.fillRect(sx - 4, sy - 1, 4, 1);
+          ctx.fillRect(sx - 1, sy - 4, 1, 3);
+          ctx.fillRect(sx - 2, sy - 2, 1, 1);
+          break;
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // Floor cracks near boss room
+    for (let i = 0; i < this.floorCracks.length; i++) {
+      const crack = this.floorCracks[i];
+      const sx = Math.floor(crack.x - camX);
+      const sy = Math.floor(crack.y - camY);
+      if (sx < -16 || sx > this.logicalWidth + 16 || sy < -16 || sy > this.logicalHeight + 16) continue;
+
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = '#1c1917';
+      // Crack pattern based on seed
+      const s = crack.seed;
+      ctx.fillRect(sx + (s % 5), sy + ((s >> 3) % 5), 3, 1);
+      ctx.fillRect(sx + (s % 5) + 1, sy + ((s >> 3) % 5) + 1, 1, 2);
+      ctx.fillRect(sx + (s % 5) + 2, sy + ((s >> 3) % 5) + 2, 2, 1);
+      ctx.globalAlpha = 1;
+    }
+
+    // Water drips (periodic 1px blue drops from ceiling)
+    this.waterDripTimer += dt;
+    if (this.waterDripTimer > 0.4) {
+      this.waterDripTimer -= 0.4;
+      // Random drip position near camera
+      if (Math.random() < 0.3) {
+        const dripX = camX + Math.random() * this.logicalWidth;
+        const dripY = camY + Math.random() * this.logicalHeight * 0.15;
+        this.particles.emitWaterDrip(dripX, dripY);
+      }
+    }
   }
 
   /** Render warm light circles at torch positions with animated flame sprites */
@@ -688,64 +950,62 @@ export class GameRenderer {
       lCanvas.height = this.logicalHeight;
     }
 
+    // Start with dark overlay
     lCtx.globalCompositeOperation = 'source-over';
     lCtx.fillStyle = 'rgba(0,0,0,0.35)';
     lCtx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
 
+    // Punch light holes with destination-out
     lCtx.globalCompositeOperation = 'destination-out';
 
+    // --- Torch lights (radius ~3 tiles = ~48px, warm orange falloff) ---
     for (let i = 0; i < this.torchPositions.length; i++) {
       const torch = this.torchPositions[i];
       const sx = torch.x - camX;
       const sy = torch.y - camY;
-      if (sx < -50 || sx > this.logicalWidth + 50 || sy < -50 || sy > this.logicalHeight + 50) continue;
+      if (sx < -60 || sx > this.logicalWidth + 60 || sy < -60 || sy > this.logicalHeight + 60) continue;
       const flickerScale = 1 + Math.sin(this.animFrame * 0.7 + i * 1.3) * 0.06;
-      const radius = 40 * flickerScale;
+      const radius = 48 * flickerScale; // ~3 tiles
       const gradient = lCtx.createRadialGradient(sx, sy, 0, sx, sy, radius);
-      gradient.addColorStop(0, 'rgba(0,0,0,0.9)');
-      gradient.addColorStop(0.3, 'rgba(0,0,0,0.6)');
-      gradient.addColorStop(0.6, 'rgba(0,0,0,0.3)');
+      gradient.addColorStop(0, 'rgba(0,0,0,0.95)');
+      gradient.addColorStop(0.2, 'rgba(0,0,0,0.7)');
+      gradient.addColorStop(0.5, 'rgba(0,0,0,0.35)');
+      gradient.addColorStop(0.75, 'rgba(0,0,0,0.1)');
       gradient.addColorStop(1, 'rgba(0,0,0,0)');
       lCtx.fillStyle = gradient;
       lCtx.fillRect(sx - radius, sy - radius, radius * 2, radius * 2);
     }
 
-    const lp = state.players[localPlayerId];
-    if (lp && lp.alive) {
-      const plx = lp.position.x * TILE_SIZE + TILE_SIZE / 2 - camX;
-      const ply = lp.position.y * TILE_SIZE + TILE_SIZE / 2 - camY;
-      const playerRadius = 30;
-      const pg = lCtx.createRadialGradient(plx, ply, 0, plx, ply, playerRadius);
-      pg.addColorStop(0, 'rgba(0,0,0,0.7)');
-      pg.addColorStop(0.4, 'rgba(0,0,0,0.4)');
-      pg.addColorStop(0.7, 'rgba(0,0,0,0.15)');
-      pg.addColorStop(1, 'rgba(0,0,0,0)');
-      lCtx.fillStyle = pg;
-      lCtx.fillRect(plx - playerRadius, ply - playerRadius, playerRadius * 2, playerRadius * 2);
-    }
-
-    const allP = Object.values(state.players);
-    for (let i = 0; i < allP.length; i++) {
-      const p = allP[i];
-      if (!p.alive || p.id === localPlayerId) continue;
+    // --- Player light sources (class-based radius) ---
+    const allPlayers = Object.values(state.players);
+    for (let i = 0; i < allPlayers.length; i++) {
+      const p = allPlayers[i];
+      if (!p.alive) continue;
       const ppx = p.position.x * TILE_SIZE + TILE_SIZE / 2 - camX;
       const ppy = p.position.y * TILE_SIZE + TILE_SIZE / 2 - camY;
-      const oR = 24;
-      const og = lCtx.createRadialGradient(ppx, ppy, 0, ppx, ppy, oR);
-      og.addColorStop(0, 'rgba(0,0,0,0.5)');
-      og.addColorStop(0.5, 'rgba(0,0,0,0.2)');
-      og.addColorStop(1, 'rgba(0,0,0,0)');
-      lCtx.fillStyle = og;
-      lCtx.fillRect(ppx - oR, ppy - oR, oR * 2, oR * 2);
+
+      // Mage: ~5 tiles, warrior/archer: ~4 tiles
+      const baseRadius = p.class === 'mage' ? (5 * TILE_SIZE) : (4 * TILE_SIZE);
+      const playerRadius = p.id === localPlayerId ? baseRadius : baseRadius * 0.7;
+
+      const pg = lCtx.createRadialGradient(ppx, ppy, 0, ppx, ppy, playerRadius);
+      pg.addColorStop(0, 'rgba(0,0,0,0.8)');
+      pg.addColorStop(0.3, 'rgba(0,0,0,0.5)');
+      pg.addColorStop(0.6, 'rgba(0,0,0,0.2)');
+      pg.addColorStop(0.85, 'rgba(0,0,0,0.05)');
+      pg.addColorStop(1, 'rgba(0,0,0,0)');
+      lCtx.fillStyle = pg;
+      lCtx.fillRect(ppx - playerRadius, ppy - playerRadius, playerRadius * 2, playerRadius * 2);
     }
 
+    // --- Loot item tiny glow (radius ~0.5 tile = ~8px) ---
     const lootArr = Object.values(state.loot);
     for (let i = 0; i < lootArr.length; i++) {
       const lt = lootArr[i];
       const lx = lt.position.x * TILE_SIZE + TILE_SIZE / 2 - camX;
       const ly = lt.position.y * TILE_SIZE + TILE_SIZE / 2 - camY;
       if (lx < -16 || lx > this.logicalWidth + 16 || ly < -16 || ly > this.logicalHeight + 16) continue;
-      const lr = 10;
+      const lr = 8; // ~0.5 tile
       const lg = lCtx.createRadialGradient(lx, ly, 0, lx, ly, lr);
       lg.addColorStop(0, 'rgba(0,0,0,0.5)');
       lg.addColorStop(0.6, 'rgba(0,0,0,0.2)');
@@ -754,27 +1014,98 @@ export class GameRenderer {
       lCtx.fillRect(lx - lr, ly - lr, lr * 2, lr * 2);
     }
 
+    // --- Monster glow (faint, radius ~1 tile = ~16px, wraith gets cyan) ---
+    const monsters = Object.values(state.monsters);
+    for (let i = 0; i < monsters.length; i++) {
+      const m = monsters[i];
+      if (!m.alive) continue;
+      const stats = MONSTER_STATS[m.type];
+      const mx = m.position.x * TILE_SIZE + (TILE_SIZE * stats.size) / 2 - camX;
+      const my = m.position.y * TILE_SIZE + (TILE_SIZE * stats.size) / 2 - camY;
+      if (mx < -30 || mx > this.logicalWidth + 30 || my < -30 || my > this.logicalHeight + 30) continue;
+
+      let monsterGlowRadius: number;
+      let glowIntensity: number;
+
+      if (m.type === 'boss_demon') {
+        // Boss demon: large fire glow (radius ~6 tiles)
+        monsterGlowRadius = 6 * TILE_SIZE;
+        glowIntensity = 0.85;
+        const bPulse = 1 + Math.sin(this.animFrame * 0.4) * 0.08;
+        monsterGlowRadius *= bPulse;
+      } else if (m.type === 'wraith') {
+        // Wraith: cyan glow, slightly larger than normal
+        monsterGlowRadius = 1.5 * TILE_SIZE;
+        glowIntensity = 0.5;
+      } else {
+        // Normal monsters: very subtle glow
+        monsterGlowRadius = 1 * TILE_SIZE;
+        glowIntensity = 0.25;
+      }
+
+      const mg = lCtx.createRadialGradient(mx, my, 0, mx, my, monsterGlowRadius);
+      mg.addColorStop(0, `rgba(0,0,0,${glowIntensity})`);
+      mg.addColorStop(0.5, `rgba(0,0,0,${glowIntensity * 0.4})`);
+      mg.addColorStop(1, 'rgba(0,0,0,0)');
+      lCtx.fillStyle = mg;
+      lCtx.fillRect(mx - monsterGlowRadius, my - monsterGlowRadius, monsterGlowRadius * 2, monsterGlowRadius * 2);
+    }
+
+    // Switch to source-over to add colored light tints on top
+    lCtx.globalCompositeOperation = 'source-over';
+
+    // --- Add warm orange tint to torch lights ---
+    for (let i = 0; i < this.torchPositions.length; i++) {
+      const torch = this.torchPositions[i];
+      const sx = torch.x - camX;
+      const sy = torch.y - camY;
+      if (sx < -60 || sx > this.logicalWidth + 60 || sy < -60 || sy > this.logicalHeight + 60) continue;
+      const flickerScale = 1 + Math.sin(this.animFrame * 0.7 + i * 1.3) * 0.06;
+      const radius = 48 * flickerScale;
+      const tg = lCtx.createRadialGradient(sx, sy, 0, sx, sy, radius);
+      tg.addColorStop(0, 'rgba(255,160,60,0.06)');
+      tg.addColorStop(0.4, 'rgba(255,130,40,0.03)');
+      tg.addColorStop(1, 'rgba(255,100,20,0)');
+      lCtx.fillStyle = tg;
+      lCtx.fillRect(sx - radius, sy - radius, radius * 2, radius * 2);
+    }
+
+    // --- Boss demon red/orange tint ---
     if (isBossPhase) {
-      const mons = Object.values(state.monsters);
-      for (let i = 0; i < mons.length; i++) {
-        const m = mons[i];
+      for (let i = 0; i < monsters.length; i++) {
+        const m = monsters[i];
         if (m.type === 'boss_demon' && m.alive) {
           const bx = m.position.x * TILE_SIZE + TILE_SIZE - camX;
           const by = m.position.y * TILE_SIZE + TILE_SIZE - camY;
-          const bR = 50;
-          const bPulse = 1 + Math.sin(this.animFrame * 0.4) * 0.1;
-          const bg = lCtx.createRadialGradient(bx, by, 0, bx, by, bR * bPulse);
-          bg.addColorStop(0, 'rgba(0,0,0,0.8)');
-          bg.addColorStop(0.4, 'rgba(0,0,0,0.4)');
-          bg.addColorStop(0.7, 'rgba(0,0,0,0.15)');
-          bg.addColorStop(1, 'rgba(0,0,0,0)');
-          lCtx.fillStyle = bg;
+          const bR = 6 * TILE_SIZE;
+          const bPulse = 1 + Math.sin(this.animFrame * 0.4) * 0.08;
+          const btg = lCtx.createRadialGradient(bx, by, 0, bx, by, bR * bPulse);
+          btg.addColorStop(0, 'rgba(220,38,38,0.06)');
+          btg.addColorStop(0.3, 'rgba(249,115,22,0.03)');
+          btg.addColorStop(1, 'rgba(0,0,0,0)');
+          lCtx.fillStyle = btg;
           lCtx.fillRect(bx - bR, by - bR, bR * 2, bR * 2);
         }
       }
     }
 
-    lCtx.globalCompositeOperation = 'source-over';
+    // --- Wraith cyan tint ---
+    for (let i = 0; i < monsters.length; i++) {
+      const m = monsters[i];
+      if (m.type === 'wraith' && m.alive) {
+        const wx = m.position.x * TILE_SIZE + TILE_SIZE / 2 - camX;
+        const wy = m.position.y * TILE_SIZE + TILE_SIZE / 2 - camY;
+        if (wx < -30 || wx > this.logicalWidth + 30 || wy < -30 || wy > this.logicalHeight + 30) continue;
+        const wr = 1.5 * TILE_SIZE;
+        const wg = lCtx.createRadialGradient(wx, wy, 0, wx, wy, wr);
+        wg.addColorStop(0, 'rgba(103,232,249,0.08)');
+        wg.addColorStop(0.5, 'rgba(103,232,249,0.03)');
+        wg.addColorStop(1, 'rgba(0,0,0,0)');
+        lCtx.fillStyle = wg;
+        lCtx.fillRect(wx - wr, wy - wr, wr * 2, wr * 2);
+      }
+    }
+
     ctx.drawImage(lCanvas, 0, 0);
   }
 
@@ -1013,8 +1344,15 @@ export class GameRenderer {
 
       this.sprites.drawMonster(ctx, sx, sy, monster.type, monster.facing, this.animFrame, flashWhite);
 
-      if (monster.hp < monster.maxHp) {
-        this.drawHealthBar(ctx, sx, sy - 3, Math.floor(renderSize), monster.hp, monster.maxHp);
+      // Monster-specific particle effects (throttled)
+      if (monster.type === 'mushroom' && this.animFrame % 6 === 0) {
+        this.particles.emitPoisonCloud(sx + renderSize / 2, sy + renderSize * 0.3);
+      } else if (monster.type === 'spider' && this.animFrame % 4 === 0) {
+        this.particles.emitSpiderLegs(sx + renderSize / 2, sy + renderSize);
+      }
+
+      if (monster.hp < monster.maxHp && monster.type !== 'boss_demon') {
+        this.drawHealthBar(ctx, sx, sy - 3, Math.floor(renderSize), monster.hp, monster.maxHp, monster.id);
       }
     }
   }
@@ -1122,7 +1460,8 @@ export class GameRenderer {
       }
 
       this.drawNameTag(ctx, sx + TILE_SIZE / 2, sy - 6, player.name, player.id === localPlayerId);
-      this.drawHealthBar(ctx, sx, sy + TILE_SIZE + 1, TILE_SIZE, player.hp, player.maxHp);
+      this.drawHealthBar(ctx, sx, sy + TILE_SIZE + 1, TILE_SIZE, player.hp, player.maxHp, player.id);
+      this.drawManaBar(ctx, sx, sy + TILE_SIZE + 5, TILE_SIZE, player.mana, player.maxMana);
 
       // "R" interaction indicator for local player near chests/stairs
       if (player.id === localPlayerId) {
@@ -1160,13 +1499,13 @@ export class GameRenderer {
     width: number,
     hp: number,
     maxHp: number,
+    entityId?: string,
   ): void {
-    const isBoss = maxHp >= 200;
-    const barHeight = isBoss ? 6 : 4;
+    const barHeight = 2; // thin 2px bars for monsters
     const ratio = Math.max(0, hp / maxHp);
 
-    // Background with 1px dark border
-    ctx.fillStyle = '#0a0a14';
+    // 1px black outline
+    ctx.fillStyle = '#000000';
     ctx.fillRect(x - 1, y - 1, width + 2, barHeight + 2);
 
     // Inner background
@@ -1176,7 +1515,6 @@ export class GameRenderer {
     // Health fill with gradient coloring
     const filledWidth = Math.ceil(width * ratio);
     if (filledWidth > 0) {
-      // Color based on health ratio
       if (ratio > 0.6) {
         ctx.fillStyle = '#4ade80';
       } else if (ratio > 0.4) {
@@ -1199,29 +1537,116 @@ export class GameRenderer {
       } else {
         ctx.fillStyle = '#fca5a5';
       }
-      ctx.fillRect(x, y, filledWidth, Math.floor(barHeight / 2));
-      ctx.globalAlpha = 1;
-
-      // Inner shadow at top of bar
-      ctx.globalAlpha = 0.2;
-      ctx.fillStyle = '#000000';
       ctx.fillRect(x, y, filledWidth, 1);
       ctx.globalAlpha = 1;
     }
 
-    // Boss health bar pulsing glow when low
-    if (isBoss && ratio < 0.3 && ratio > 0) {
-      const pulse = 0.1 + Math.sin(Date.now() * 0.005) * 0.06;
-      ctx.globalAlpha = pulse;
-      ctx.fillStyle = '#ef4444';
-      ctx.fillRect(x - 2, y - 2, width + 4, barHeight + 4);
+    // Damage flash: white flash when HP just decreased (entityId tracked in prevHp)
+    if (entityId) {
+      const prev = this.prevHp.get(entityId);
+      if (prev !== undefined && prev > hp) {
+        ctx.globalAlpha = 0.6;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(x, y, width, barHeight);
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+
+  /** Draw boss health bar centered at top of screen */
+  private drawBossHealthBar(
+    ctx: CanvasRenderingContext2D,
+    state: GameState,
+  ): void {
+    const monsters = Object.values(state.monsters);
+    const boss = monsters.find(m => m.type === 'boss_demon' && m.alive);
+    if (!boss) return;
+
+    const barWidth = Math.floor(this.logicalWidth * 0.5);
+    const barHeight = 6;
+    const barX = Math.floor((this.logicalWidth - barWidth) / 2);
+    const barY = 8;
+    const ratio = Math.max(0, boss.hp / boss.maxHp);
+
+    // Name label
+    ctx.font = 'bold 5px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillStyle = '#000000';
+    ctx.fillText('BOSS DEMON', this.logicalWidth / 2 + 1, barY - 2 + 1);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillText('BOSS DEMON', this.logicalWidth / 2, barY - 2);
+
+    // 1px black outline
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(barX - 1, barY - 1, barWidth + 2, barHeight + 2);
+
+    // Inner background
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(barX, barY, barWidth, barHeight);
+
+    // Health fill
+    const filledWidth = Math.ceil(barWidth * ratio);
+    if (filledWidth > 0) {
+      if (ratio > 0.6) {
+        ctx.fillStyle = '#ef4444';
+      } else if (ratio > 0.3) {
+        ctx.fillStyle = '#f97316';
+      } else {
+        ctx.fillStyle = '#dc2626';
+      }
+      ctx.fillRect(barX, barY, filledWidth, barHeight);
+
+      // Top highlight
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = '#fca5a5';
+      ctx.fillRect(barX, barY, filledWidth, Math.floor(barHeight / 2));
       ctx.globalAlpha = 1;
     }
 
-    // Outer border
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 0.5;
-    ctx.strokeRect(x - 1, y - 1, width + 2, barHeight + 2);
+    // 25% segment lines
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    for (let s = 1; s < 4; s++) {
+      const sx = barX + Math.floor(barWidth * s / 4);
+      ctx.fillRect(sx, barY, 1, barHeight);
+    }
+
+    // Pulsing glow when low
+    if (ratio < 0.3 && ratio > 0) {
+      const pulse = 0.08 + Math.sin(Date.now() * 0.005) * 0.05;
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(barX - 2, barY - 2, barWidth + 4, barHeight + 4);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  /** Draw player mana bar (thin blue line below HP bar) */
+  private drawManaBar(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    mana: number,
+    maxMana: number,
+  ): void {
+    const barHeight = 1;
+
+    // 1px black outline
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(x - 1, y - 1, width + 2, barHeight + 2);
+
+    // Background
+    ctx.fillStyle = '#0a0a2e';
+    ctx.fillRect(x, y, width, barHeight);
+
+    // Mana fill
+    const ratio = Math.max(0, mana / maxMana);
+    const filledWidth = Math.ceil(width * ratio);
+    if (filledWidth > 0) {
+      ctx.fillStyle = '#3b82f6';
+      ctx.fillRect(x, y, filledWidth, barHeight);
+    }
   }
 
   private renderDamageNumbers(
@@ -1346,7 +1771,7 @@ export class GameRenderer {
   ): void {
     const isSimple = QUALITY_PRESETS[this.quality].fogSimple;
 
-    // Render basic fog tiles
+    // Render basic fog tiles with blue tint
     for (let ty = startY; ty < endY; ty++) {
       const fogRow = this.fogGrid[ty];
       if (!fogRow) continue;
@@ -1358,11 +1783,18 @@ export class GameRenderer {
         const sy = ty * TILE_SIZE - camY;
 
         if (fog === 0) {
-          ctx.fillStyle = '#000000';
+          // Hidden: dark blue-black instead of pure black
+          ctx.fillStyle = '#060810';
           ctx.fillRect(sx, sy, TILE_SIZE, TILE_SIZE);
         } else {
-          ctx.fillStyle = isSimple ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.6)';
+          // Explored but not visible: dark blue-gray
+          ctx.fillStyle = isSimple ? 'rgba(10,12,30,0.5)' : 'rgba(10,12,30,0.55)';
           ctx.fillRect(sx, sy, TILE_SIZE, TILE_SIZE);
+          // Subtle blue tint layer
+          ctx.globalAlpha = 0.08;
+          ctx.fillStyle = '#1e3a5f';
+          ctx.fillRect(sx, sy, TILE_SIZE, TILE_SIZE);
+          ctx.globalAlpha = 1;
         }
       }
     }
@@ -1412,14 +1844,13 @@ export class GameRenderer {
 
         if (!hasHiddenNeighbor) continue;
 
-        // This is a border tile - draw soft gradient overlay
+        // This is a border tile - draw soft gradient overlay with larger radius
         const sx = tx * TILE_SIZE - camX;
         const sy = ty * TILE_SIZE - camY;
 
-        // Calculate distance to nearest fog as alpha
-        // Use a subtle darkening at the edge
-        ctx.globalAlpha = 0.15;
-        ctx.fillStyle = '#000000';
+        // Softer gradient transition
+        ctx.globalAlpha = 0.12;
+        ctx.fillStyle = '#0a0c1a'; // blue-tinted dark
         ctx.fillRect(sx, sy, TILE_SIZE, TILE_SIZE);
         ctx.globalAlpha = 1;
       }
@@ -1435,13 +1866,15 @@ export class GameRenderer {
       const pcy = p.position.y * TILE_SIZE + TILE_SIZE / 2 - camY;
       const visionPx = VISION_RADIUS * TILE_SIZE;
 
-      // Create a radial gradient that darkens at the edges of vision
-      const grad = ctx.createRadialGradient(pcx, pcy, visionPx * 0.5, pcx, pcy, visionPx);
+      // Create a radial gradient that darkens at the edges of vision (larger, softer falloff)
+      const extendedVision = visionPx * 1.2;
+      const grad = ctx.createRadialGradient(pcx, pcy, visionPx * 0.4, pcx, pcy, extendedVision);
       grad.addColorStop(0, 'rgba(0,0,0,0)');
-      grad.addColorStop(0.7, 'rgba(0,0,0,0)');
-      grad.addColorStop(1, 'rgba(0,0,0,0.3)');
+      grad.addColorStop(0.5, 'rgba(0,0,0,0)');
+      grad.addColorStop(0.75, 'rgba(6,8,16,0.1)');
+      grad.addColorStop(1, 'rgba(6,8,16,0.35)');
       ctx.fillStyle = grad;
-      ctx.fillRect(pcx - visionPx, pcy - visionPx, visionPx * 2, visionPx * 2);
+      ctx.fillRect(pcx - extendedVision, pcy - extendedVision, extendedVision * 2, extendedVision * 2);
     }
   }
 
@@ -1518,6 +1951,8 @@ export class GameRenderer {
         if (preset.particles) {
           this.particles.emitDeath(wx, wy, MONSTER_STATS[m.type].color);
         }
+        // Add blood splatter at death location
+        this.addBloodSplatter(wx, wy);
         // Boss death = big shake
         if (m.type === 'boss_demon') {
           this.camera.shakeBossSlam();
@@ -1597,8 +2032,10 @@ export class GameRenderer {
     this.fogCacheCtx = null;
     this.fogGradientCanvas = null;
     this.grainCanvas = null;
+    this.fogNoiseCanvas = null;
     this.lightingCanvas = null;
     this.lightingCtx = null;
     this.torchPositions = [];
+    this.clearDecorations();
   }
 }

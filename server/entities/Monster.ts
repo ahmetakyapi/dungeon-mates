@@ -8,7 +8,7 @@ import {
   TICK_RATE,
 } from '../../shared/types';
 
-type AIState = 'idle' | 'chase' | 'attack' | 'retreat' | 'charge';
+type AIState = 'idle' | 'chase' | 'attack' | 'retreat' | 'charge' | 'phase';
 
 let nextMonsterId = 0;
 
@@ -27,6 +27,18 @@ const BOSS_CHARGE_DURATION = 15; // ticks
 const BOSS_SUMMON_COOLDOWN = 300; // ticks
 const GOBLIN_RETREAT_HP_RATIO = 0.3;
 
+// New monster constants
+const RAT_ERRATIC_CHANCE = 0.3;
+const SPIDER_WEB_COOLDOWN = 100; // ticks
+const SPIDER_WEB_SLOW_MULT = 0.5;
+const SPIDER_WEB_SLOW_DURATION = 40; // ticks
+const WRAITH_PHASE_DURATION = 20; // ticks invulnerable
+const WRAITH_PHASE_INTERVAL = 80; // ticks between phases
+const MUSHROOM_AGGRO_RANGE = 3; // tiles
+const MUSHROOM_POISON_RANGE = 1.5; // tiles
+const MUSHROOM_POISON_DAMAGE = 2;
+const MUSHROOM_POISON_INTERVAL = 20; // ticks
+
 export class Monster {
   public state: MonsterState;
   private aiState: AIState;
@@ -44,6 +56,18 @@ export class Monster {
   private scaledAttack: number;
   private slowTicks: number;
   private slowMultiplier: number;
+
+  // Wraith phase state
+  private phaseTimer: number;
+  private phaseActive: boolean;
+
+  // Spider web cooldown
+  private webCooldown: number;
+  public webTarget: { playerId: string; slowMult: number; slowTicks: number } | null;
+
+  // Mushroom poison aura
+  private poisonTickCounter: number;
+  public poisonAuraTargets: { playerId: string; damage: number }[];
 
   constructor(type: MonsterType, position: Vec2, roomId: number) {
     const stats = MONSTER_STATS[type];
@@ -74,6 +98,13 @@ export class Monster {
     this.shouldSummon = false;
     this.slowTicks = 0;
     this.slowMultiplier = 1;
+
+    this.phaseTimer = WRAITH_PHASE_INTERVAL;
+    this.phaseActive = false;
+    this.webCooldown = SPIDER_WEB_COOLDOWN;
+    this.webTarget = null;
+    this.poisonTickCounter = 0;
+    this.poisonAuraTargets = [];
   }
 
   scaleForFloor(hpMultiplier: number, attackMultiplier: number): void {
@@ -124,6 +155,8 @@ export class Monster {
     }
 
     this.shouldSummon = false;
+    this.webTarget = null;
+    this.poisonAuraTargets = [];
 
     if (this.attackCooldown > 0) {
       this.attackCooldown -= 1;
@@ -140,6 +173,14 @@ export class Monster {
         return this.updateBat(nearest, tiles);
       case 'goblin':
         return this.updateGoblin(nearest, tiles);
+      case 'rat':
+        return this.updateRat(nearest, tiles);
+      case 'spider':
+        return this.updateSpider(nearest, players, tiles);
+      case 'wraith':
+        return this.updateWraith(nearest, tiles);
+      case 'mushroom':
+        return this.updateMushroom(nearest, players, tiles);
       case 'boss_demon':
         return this.updateBossDemon(nearest, tiles);
     }
@@ -378,6 +419,225 @@ export class Monster {
     return null;
   }
 
+  // --- Rat: very fast, erratic chase, small ---
+  private updateRat(
+    nearest: { id: string; position: Vec2; distance: number } | null,
+    tiles: TileType[][],
+  ): { targetId: string; damage: number } | null {
+    const stats = MONSTER_STATS.rat;
+
+    if (nearest && nearest.distance <= DETECTION_RANGE) {
+      this.aiState = 'chase';
+      this.state.targetPlayerId = nearest.id;
+
+      // Sometimes move erratically instead of directly chasing
+      if (Math.random() < RAT_ERRATIC_CHANCE) {
+        const dx = nearest.position.x - this.state.position.x;
+        const dy = nearest.position.y - this.state.position.y;
+        const dist = nearest.distance;
+        const noiseAngle = (Math.random() - 0.5) * Math.PI * 1.2;
+        const baseDx = dx / dist;
+        const baseDy = dy / dist;
+        const noisedX = baseDx * Math.cos(noiseAngle) - baseDy * Math.sin(noiseAngle);
+        const noisedY = baseDx * Math.sin(noiseAngle) + baseDy * Math.cos(noiseAngle);
+
+        const speed = stats.speed / TICK_RATE;
+        this.tryMove(noisedX * speed, noisedY * speed, tiles);
+        this.updateFacing(dx, dy);
+      } else {
+        this.moveToward(nearest.position, stats.speed, tiles);
+      }
+
+      return this.tryAttack(nearest, this.scaledAttack);
+    }
+
+    // Fast random wander
+    this.aiState = 'idle';
+    this.state.targetPlayerId = null;
+    this.wanderTimer -= 1;
+
+    if (this.wanderTimer <= 0) {
+      const angle = Math.random() * Math.PI * 2;
+      this.wanderDir = { x: Math.cos(angle), y: Math.sin(angle) };
+      this.wanderTimer = 15 + Math.floor(Math.random() * 20);
+    }
+
+    const speed = stats.speed * 0.5 / TICK_RATE;
+    this.tryMove(this.wanderDir.x * speed, this.wanderDir.y * speed, tiles);
+
+    return null;
+  }
+
+  // --- Spider: slow chase, web shot to slow players ---
+  private updateSpider(
+    nearest: { id: string; position: Vec2; distance: number } | null,
+    players: ReadonlyArray<{ id: string; position: Vec2; alive: boolean }>,
+    tiles: TileType[][],
+  ): { targetId: string; damage: number } | null {
+    const stats = MONSTER_STATS.spider;
+
+    // Web cooldown tick
+    if (this.webCooldown > 0) {
+      this.webCooldown -= 1;
+    }
+
+    if (nearest && nearest.distance <= DETECTION_RANGE) {
+      this.aiState = 'chase';
+      this.state.targetPlayerId = nearest.id;
+
+      // Web shot: mark nearest player with slow debuff
+      if (this.webCooldown <= 0 && nearest.distance <= DETECTION_RANGE) {
+        this.webCooldown = SPIDER_WEB_COOLDOWN;
+        this.webTarget = {
+          playerId: nearest.id,
+          slowMult: SPIDER_WEB_SLOW_MULT,
+          slowTicks: SPIDER_WEB_SLOW_DURATION,
+        };
+      }
+
+      // Chase slightly smarter than slime (faster ratio)
+      this.moveToward(nearest.position, stats.speed * 0.85, tiles);
+      return this.tryAttack(nearest, this.scaledAttack);
+    }
+
+    // Idle wander like slime
+    this.aiState = 'idle';
+    this.state.targetPlayerId = null;
+    this.wanderTimer -= 1;
+
+    if (this.wanderTimer <= 0) {
+      const angle = Math.random() * Math.PI * 2;
+      this.wanderDir = { x: Math.cos(angle), y: Math.sin(angle) };
+      this.wanderTimer = WANDER_CHANGE_INTERVAL + Math.floor(Math.random() * 40);
+    }
+
+    const speed = stats.speed * 0.3 / TICK_RATE;
+    this.tryMove(this.wanderDir.x * speed, this.wanderDir.y * speed, tiles);
+
+    return null;
+  }
+
+  // --- Wraith: phases through walls, periodic invulnerability ---
+  private updateWraith(
+    nearest: { id: string; position: Vec2; distance: number } | null,
+    tiles: TileType[][],
+  ): { targetId: string; damage: number } | null {
+    const stats = MONSTER_STATS.wraith;
+
+    // Phase mechanic
+    this.phaseTimer -= 1;
+    if (this.phaseActive) {
+      if (this.phaseTimer <= 0) {
+        this.phaseActive = false;
+        this.phaseTimer = WRAITH_PHASE_INTERVAL;
+      }
+      // While phased, float toward player but cannot attack or be damaged
+      if (nearest && nearest.distance <= DETECTION_RANGE) {
+        this.state.targetPlayerId = nearest.id;
+        this.moveTowardIgnoreWalls(nearest.position, stats.speed * 0.6);
+      }
+      this.aiState = 'phase';
+      return null;
+    }
+
+    if (this.phaseTimer <= 0) {
+      this.phaseActive = true;
+      this.phaseTimer = WRAITH_PHASE_DURATION;
+      return null;
+    }
+
+    // Normal behavior: float toward player, ignore walls
+    if (nearest && nearest.distance <= DETECTION_RANGE) {
+      this.aiState = 'chase';
+      this.state.targetPlayerId = nearest.id;
+      this.moveTowardIgnoreWalls(nearest.position, stats.speed);
+      return this.tryAttack(nearest, this.scaledAttack);
+    }
+
+    // Idle wander (ignore walls)
+    this.aiState = 'idle';
+    this.state.targetPlayerId = null;
+    this.wanderTimer -= 1;
+
+    if (this.wanderTimer <= 0) {
+      const angle = Math.random() * Math.PI * 2;
+      this.wanderDir = { x: Math.cos(angle), y: Math.sin(angle) };
+      this.wanderTimer = WANDER_CHANGE_INTERVAL + Math.floor(Math.random() * 30);
+    }
+
+    const speed = stats.speed * 0.3 / TICK_RATE;
+    this.state.position.x += this.wanderDir.x * speed;
+    this.state.position.y += this.wanderDir.y * speed;
+
+    return null;
+  }
+
+  // --- Mushroom: tanky, slow, poison aura ---
+  private updateMushroom(
+    nearest: { id: string; position: Vec2; distance: number } | null,
+    players: ReadonlyArray<{ id: string; position: Vec2; alive: boolean }>,
+    tiles: TileType[][],
+  ): { targetId: string; damage: number } | null {
+    const stats = MONSTER_STATS.mushroom;
+
+    // Poison aura tick
+    this.poisonTickCounter += 1;
+    if (this.poisonTickCounter >= MUSHROOM_POISON_INTERVAL) {
+      this.poisonTickCounter = 0;
+
+      // Damage all players within poison range
+      for (const player of players) {
+        if (!player.alive) continue;
+        const dx = player.position.x - this.state.position.x;
+        const dy = player.position.y - this.state.position.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist <= MUSHROOM_POISON_RANGE) {
+          this.poisonAuraTargets.push({
+            playerId: player.id,
+            damage: MUSHROOM_POISON_DAMAGE,
+          });
+        }
+      }
+    }
+
+    // Only chase if player is within aggro range
+    if (nearest && nearest.distance <= MUSHROOM_AGGRO_RANGE) {
+      this.aiState = 'chase';
+      this.state.targetPlayerId = nearest.id;
+      this.moveToward(nearest.position, stats.speed, tiles);
+      return this.tryAttack(nearest, this.scaledAttack);
+    }
+
+    // Very slow idle
+    this.aiState = 'idle';
+    this.state.targetPlayerId = null;
+    this.state.velocity = { x: 0, y: 0 };
+    return null;
+  }
+
+  /** Move toward target ignoring wall collision (for wraith). */
+  private moveTowardIgnoreWalls(target: Vec2, speed: number): void {
+    const dx = target.x - this.state.position.x;
+    const dy = target.y - this.state.position.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist < 0.01) return;
+
+    const effectiveSpeed = speed * this.slowMultiplier;
+    const vx = (dx / dist) * effectiveSpeed / TICK_RATE;
+    const vy = (dy / dist) * effectiveSpeed / TICK_RATE;
+
+    this.state.position.x += vx;
+    this.state.position.y += vy;
+    this.state.velocity = { x: vx, y: vy };
+    this.updateFacing(dx, dy);
+  }
+
+  /** Returns true if the wraith is currently phased (invulnerable). */
+  isPhased(): boolean {
+    return this.monsterType === 'wraith' && this.phaseActive;
+  }
+
   // --- Boss Demon: charge attack + area damage + summon minions ---
   private updateBossDemon(
     nearest: { id: string; position: Vec2; distance: number } | null,
@@ -440,6 +700,9 @@ export class Monster {
 
   takeDamage(damage: number): number {
     if (!this.state.alive) return 0;
+
+    // Wraith is invulnerable while phased
+    if (this.isPhased()) return 0;
 
     const stats = MONSTER_STATS[this.monsterType];
     const effectiveDamage = Math.max(1, damage - stats.defense);

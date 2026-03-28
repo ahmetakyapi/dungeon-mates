@@ -20,7 +20,7 @@ export type PlayerClass = 'warrior' | 'mage' | 'archer';
 export type GamePhase = 'lobby' | 'class_select' | 'playing' | 'boss' | 'victory' | 'defeat' | 'game_over';
 export type TileType = 'floor' | 'wall' | 'door' | 'stairs' | 'chest' | 'void';
 export type Direction = 'up' | 'down' | 'left' | 'right';
-export type MonsterType = 'skeleton' | 'slime' | 'bat' | 'goblin' | 'boss_demon';
+export type MonsterType = 'skeleton' | 'slime' | 'bat' | 'goblin' | 'rat' | 'spider' | 'wraith' | 'mushroom' | 'boss_demon';
 export type LootType = 'health_potion' | 'mana_potion' | 'damage_boost' | 'speed_boost' | 'gold';
 
 // --- Sınıf İstatistikleri ---
@@ -88,6 +88,10 @@ export const MONSTER_STATS: Record<MonsterType, {
   slime: { hp: 20, attack: 5, defense: 1, speed: 0.8, xp: 5, color: '#4ade80', size: 0.8 },
   bat: { hp: 15, attack: 6, defense: 0, speed: 2.5, xp: 7, color: '#a78bfa', size: 0.6 },
   goblin: { hp: 40, attack: 10, defense: 4, speed: 1.5, xp: 15, color: '#84cc16', size: 0.9 },
+  rat: { hp: 12, attack: 4, defense: 0, speed: 2.2, xp: 3, color: '#78716c', size: 0.5 },
+  spider: { hp: 25, attack: 7, defense: 2, speed: 1.0, xp: 8, color: '#581c87', size: 0.8 },
+  wraith: { hp: 35, attack: 14, defense: 1, speed: 1.8, xp: 15, color: '#a5f3fc', size: 1.0 },
+  mushroom: { hp: 45, attack: 8, defense: 6, speed: 0.6, xp: 12, color: '#f472b6', size: 0.9 },
   boss_demon: { hp: 300, attack: 25, defense: 12, speed: 1.0, xp: 100, color: '#dc2626', size: 2.5 },
 } as const;
 
