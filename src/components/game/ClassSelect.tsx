@@ -254,13 +254,13 @@ export function ClassSelect({
     const hasArcher = allClasses.includes('archer');
 
     if (!hasTank && allClasses.length >= 1) {
-      return { text: 'Takimda savasci yok — bir tank onerilir!', icon: '🛡', color: '#ef4444' };
+      return { text: 'Takımda savaşçı yok — bir tank önerilir!', icon: '🛡', color: '#ef4444' };
     }
     if (hasTank && hasMage && hasArcher) {
-      return { text: 'Mukemmel takim kompozisyonu!', icon: '✨', color: '#10b981' };
+      return { text: 'Mükemmel takım kompozisyonu!', icon: '✨', color: '#10b981' };
     }
     if (!hasMage && allClasses.length >= 2) {
-      return { text: 'Bir buyucu alan hasari yapabilir', icon: '🔮', color: '#a78bfa' };
+      return { text: 'Bir büyücü alan hasarı yapabilir', icon: '🔮', color: '#a78bfa' };
     }
     return null;
   }, [isSolo, otherPlayers, selected]);
@@ -405,13 +405,13 @@ export function ClassSelect({
 
               {/* Ability tooltip trigger */}
               <button
-                className="mb-2 flex items-center gap-1 font-pixel text-[7px] text-dm-gold/70 transition-colors hover:text-dm-gold lg:text-[9px] xl:text-[10px] 2xl:text-[12px]"
+                className="mb-2 flex items-center gap-1 font-pixel text-[9px] text-dm-gold/70 transition-colors hover:text-dm-gold lg:text-[10px] xl:text-[11px] 2xl:text-[13px]"
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowAbilityTooltip((prev) => (prev === cls ? null : cls));
                 }}
               >
-                <span>✦</span> Yetenek bilgisi
+                <span>✦</span> Yetenek Bilgisi
               </button>
 
               {/* Ability tooltip */}

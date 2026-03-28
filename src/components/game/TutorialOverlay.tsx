@@ -198,15 +198,15 @@ function SlideDungeon() {
 // --- Slide 4: İpuçları ---
 
 const TIPS = [
-  'Takim halinde hareket et — yalniz kalma!',
-  'Can iksirleri canavar oldurdugunde duser',
-  'Buyucunun manasi sinirli — dikkatli kullan',
-  'Yetenegin (E) hazir oldugunda HUD\'da parlak gorunur',
-  'Sandiklar her zaman loot verir — kacirma!',
-  'Odadaki tum canavarlari oldurce kapilar acilir — HUD\'da canavar sayisini takip et',
-  'Boss odasina hazirliksiz girme!',
-  'Hizli oldurme yaparak kombo zinciri olustur — daha fazla puan!',
-  'Shift ile sprint yaparak hizli hareket et',
+  'Takım halinde hareket et — yalnız kalma!',
+  'Can iksirleri canavar öldürdüğünde düşer',
+  'Büyücünün manası sınırlı — dikkatli kullan',
+  'Yeteneğin (E) hazır olduğunda HUD\'da parlak görünür',
+  'Sandıklar her zaman loot verir — kaçırma!',
+  'Odadaki tüm canavarları öldürünce kapılar açılır — HUD\'da canavar sayısını takip et',
+  'Boss odasına hazırlıksız girme!',
+  'Hızlı öldürme yaparak kombo zinciri oluştur — daha fazla puan!',
+  'Shift ile sprint yaparak hızlı hareket et',
 ] as const;
 
 function SlideTips() {

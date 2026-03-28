@@ -85,9 +85,9 @@ export class SpriteRenderer {
   private readonly deathAnims: DeathAnim[] = [];
   private readonly hitFlashTimers: Map<string, number> = new Map();
 
-  /** Register a hit flash for an entity (2 frames = ~0.25s at 8fps anim) */
+  /** Register a hit flash for an entity (5 frames for visible feedback) */
   registerHitFlash(entityId: string): void {
-    this.hitFlashTimers.set(entityId, 2);
+    this.hitFlashTimers.set(entityId, 5);
   }
 
   /** Tick down flash timers (call once per anim frame) */
@@ -729,6 +729,7 @@ export class SpriteRenderer {
     facing: Direction,
     frame: number,
     flashWhite = false,
+    attacking = false,
   ): void {
     const stats = MONSTER_STATS[type];
     const renderSize = Math.floor(TILE_SIZE * stats.size);
@@ -746,10 +747,10 @@ export class SpriteRenderer {
     }
 
     switch (type) {
-      case 'skeleton': this.drawSkeleton(ctx, x, y, facing, frame); break;
+      case 'skeleton': this.drawSkeleton(ctx, x, y, facing, frame, attacking); break;
       case 'slime': this.drawSlime(ctx, x, y, frame); break;
       case 'bat': this.drawBat(ctx, x, y, frame); break;
-      case 'goblin': this.drawGoblin(ctx, x, y, facing, frame); break;
+      case 'goblin': this.drawGoblin(ctx, x, y, facing, frame, attacking); break;
       case 'rat': this.drawRat(ctx, x, y, facing, frame); break;
       case 'spider': this.drawSpider(ctx, x, y, facing, frame); break;
       case 'wraith': this.drawWraith(ctx, x, y, facing, frame); break;
@@ -758,9 +759,8 @@ export class SpriteRenderer {
     }
   }
 
-  private drawSkeleton(ctx: CanvasRenderingContext2D, x: number, y: number, facing: Direction, frame: number): void {
+  private drawSkeleton(ctx: CanvasRenderingContext2D, x: number, y: number, facing: Direction, frame: number, attacking = false): void {
     const wobble = WALK_OFFSETS[frame % 4];
-    const attacking = false; // TODO: pass attacking state
 
     // Tattered cloth remnants hanging off bones
     ctx.globalAlpha = 0.6;
@@ -957,11 +957,11 @@ export class SpriteRenderer {
     px(ctx, bx + w - 3, by + 2, 2, 2, cHighlight); // top-right highlight
 
     // Internal "bubbles" that move (2-3 dots that shift per frame)
-    const bubble1X = bx + 3 + Math.sin(frame * 0.3) * 2;
+    const bubble1X = bx + 3 + Math.sin(frame * 0.25 + 1.2) * 2;
     const bubble1Y = by + Math.floor(h * 0.4) + Math.cos(frame * 0.25) * 1.5;
-    const bubble2X = bx + w - 5 + Math.cos(frame * 0.35) * 1.5;
+    const bubble2X = bx + w - 5 + Math.cos(frame * 0.4 + 2.8) * 1.5;
     const bubble2Y = by + Math.floor(h * 0.6) + Math.sin(frame * 0.2) * 1;
-    const bubble3X = bx + Math.floor(w * 0.5) + Math.sin(frame * 0.4) * 1;
+    const bubble3X = bx + Math.floor(w * 0.5) + Math.sin(frame * 0.18 + 4.5) * 1;
     const bubble3Y = by + Math.floor(h * 0.3) + Math.cos(frame * 0.3) * 1;
 
     px(ctx, bubble1X, bubble1Y, 2, 2, cBubble);
@@ -1084,9 +1084,8 @@ export class SpriteRenderer {
     px(ctx, bx + 5, by + 5, 1, 1, '#e5e7eb');
   }
 
-  private drawGoblin(ctx: CanvasRenderingContext2D, x: number, y: number, facing: Direction, frame: number): void {
+  private drawGoblin(ctx: CanvasRenderingContext2D, x: number, y: number, facing: Direction, frame: number, attacking = false): void {
     const wobble = WALK_OFFSETS[frame % 4];
-    const attacking = false; // TODO: pass attacking state
 
     // Legs -- more muscular
     px(ctx, x + 5, y + 11, 2, 3, '#65a30d');
@@ -1175,7 +1174,7 @@ export class SpriteRenderer {
 
   private drawBossDemon(ctx: CanvasRenderingContext2D, x: number, y: number, facing: Direction, frame: number): void {
     // 2.5x size = ~40x40
-    const pulse = Math.sin(frame * 0.3) * 2;
+    const pulse = Math.sin(frame * 0.3) * 3.5;
     const bx = x - 4;
     const by = y - 4;
 
@@ -2344,7 +2343,7 @@ export class SpriteRenderer {
   ): void {
     const loot = LOOT_TABLE[type];
     const color = loot.color;
-    const bounceY = Math.sin(frame * 0.15) * 2;
+    const bounceY = Math.sin(frame * 0.15) * 3.5;
     const ly = y + bounceY;
 
     // Elliptical shadow beneath loot
@@ -2386,12 +2385,12 @@ export class SpriteRenderer {
     px(ctx, x + 6, y + 8, 4, 1, '#fecaca');
     px(ctx, x + 7, y + 9, 2, 1, '#fecaca');
 
-    // Liquid slosh animation -- tilts left/right
+    // Liquid slosh animation -- tilts left/right (low threshold for near-constant visibility)
     const slosh = Math.sin(frame * 0.2);
-    if (slosh > 0.3) {
+    if (slosh > 0.1) {
       px(ctx, x + 5, y + 7, 2, 1, lighten('#ef4444', 0.3));
       px(ctx, x + 5, y + 8, 1, 1, lighten('#ef4444', 0.2));
-    } else if (slosh < -0.3) {
+    } else if (slosh < -0.1) {
       px(ctx, x + 9, y + 7, 2, 1, lighten('#ef4444', 0.3));
       px(ctx, x + 10, y + 8, 1, 1, lighten('#ef4444', 0.2));
     }
@@ -2553,19 +2552,33 @@ export class SpriteRenderer {
       px(ctx, x + 5 + (sheenPos - 3), y + 6, 1, 1, '#fef3c7');
     }
 
-    // Golden sparkle particles -- more prominent
-    const sparklePhase = frame % 16;
-    if (sparklePhase < 3) {
+    // Golden sparkle particles -- overlapping sine waves for frequent sparkles
+    const sparkle1 = Math.max(0, Math.sin(frame * 0.4 + 0));
+    const sparkle2 = Math.max(0, Math.sin(frame * 0.4 + 2.1));
+    const sparkle3 = Math.max(0, Math.sin(frame * 0.4 + 4.2));
+    const sparkle4 = Math.max(0, Math.sin(frame * 0.4 + 5.5));
+    if (sparkle1 > 0.3) {
+      ctx.globalAlpha = sparkle1;
       px(ctx, x + 10, y + 3, 1, 1, '#ffffff');
       px(ctx, x + 11, y + 2, 1, 1, '#fef3c7');
-    } else if (sparklePhase > 5 && sparklePhase < 8) {
+      ctx.globalAlpha = 1;
+    }
+    if (sparkle2 > 0.3) {
+      ctx.globalAlpha = sparkle2;
       px(ctx, x + 4, y + 5, 1, 1, '#ffffff');
       px(ctx, x + 3, y + 4, 1, 1, '#fef3c7');
-    } else if (sparklePhase > 9 && sparklePhase < 12) {
+      ctx.globalAlpha = 1;
+    }
+    if (sparkle3 > 0.3) {
+      ctx.globalAlpha = sparkle3;
       px(ctx, x + 8, y + 8, 1, 1, '#ffffff');
-    } else if (sparklePhase > 12 && sparklePhase < 15) {
+      ctx.globalAlpha = 1;
+    }
+    if (sparkle4 > 0.3) {
+      ctx.globalAlpha = sparkle4;
       px(ctx, x + 12, y + 6, 1, 1, '#ffffff');
       px(ctx, x + 2, y + 9, 1, 1, '#fef3c7');
+      ctx.globalAlpha = 1;
     }
   }
 

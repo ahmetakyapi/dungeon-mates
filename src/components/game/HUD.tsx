@@ -17,7 +17,7 @@ const DIFFICULTY_LABELS: Record<number, { label: string; color: string }> = {
   1: { label: 'Kolay', color: '#4ade80' },
   2: { label: 'Normal', color: '#facc15' },
   3: { label: 'Zor', color: '#f97316' },
-  4: { label: 'Cok Zor', color: '#ef4444' },
+  4: { label: 'Çok Zor', color: '#ef4444' },
 } as const;
 
 // --- Toast system ---
@@ -644,7 +644,7 @@ function SprintIndicator() {
           className="font-pixel text-[6px] sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]"
           style={{ color: isSprinting ? '#f59e0b' : '#71717a' }}
         >
-          {isSprinting ? 'Sprint' : 'Yuru'}
+          {isSprinting ? 'Sprint' : 'Yürü'}
         </span>
         <span className="font-pixel text-[5px] text-zinc-600 sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">Shift</span>
       </div>
@@ -654,10 +654,18 @@ function SprintIndicator() {
 
 // --- Action Info ---
 
+const ACTION_ICONS: Record<PlayerClass, string> = {
+  warrior: '⚔',
+  mage: '🔮',
+  archer: '🏹',
+} as const;
+
 function ActionInfo({
   attackCooldownPct,
+  playerClass,
 }: {
   attackCooldownPct: number;
+  playerClass?: PlayerClass;
 }) {
   const radius = 16;
   const circumference = 2 * Math.PI * radius;
@@ -682,7 +690,7 @@ function ActionInfo({
             style={{ transition: 'stroke-dashoffset 0.1s linear' }}
           />
         </svg>
-        <span className="absolute font-pixel text-[6px] text-zinc-300 lg:text-[7px] 2xl:text-[9px]">⚔</span>
+        <span className="absolute font-pixel text-[6px] text-zinc-300 lg:text-[7px] 2xl:text-[9px]">{ACTION_ICONS[playerClass ?? 'warrior']}</span>
       </div>
       <div className="flex flex-col items-center gap-0.5">
         <span className="font-pixel text-[5px] text-zinc-500 sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">Saldırı</span>
@@ -939,7 +947,7 @@ export function HUD({ player, gameState, fps, onPing, attackCooldownPct = 1, abi
           return dist < closestDist ? m : closest;
         });
         const XP_TO_NAME: Record<number, string> = {
-          5: 'Balcik', 7: 'Yarasa', 10: 'Iskelet', 15: 'Goblin', 100: 'Iblis Lordu',
+          5: 'Balçık', 7: 'Yarasa', 10: 'İskelet', 15: 'Goblin', 100: 'İblis Lordu',
         };
         const monsterXp = nearest.maxHp <= 20 ? 5 : nearest.maxHp <= 30 ? 7 : nearest.maxHp <= 50 ? 10 : nearest.maxHp <= 60 ? 15 : 100;
         setLastKillerMonster(XP_TO_NAME[monsterXp] ?? 'Canavar');
@@ -1252,7 +1260,7 @@ export function HUD({ player, gameState, fps, onPing, attackCooldownPct = 1, abi
             playerClass={playerClass}
           />
         )}
-        <ActionInfo attackCooldownPct={attackCooldownPct} />
+        <ActionInfo attackCooldownPct={attackCooldownPct} playerClass={playerClass} />
       </div>
 
       {/* Kill Feed — bottom center (hidden on mobile) */}
@@ -1347,7 +1355,7 @@ export function HUD({ player, gameState, fps, onPing, attackCooldownPct = 1, abi
             </p>
             {lastKillerMonster && (
               <p className="text-center font-pixel text-[9px] text-zinc-400 sm:text-[10px] lg:text-[11px] 2xl:text-[13px]">
-                {lastKillerMonster} tarafindan olduruldun
+                {lastKillerMonster} tarafından öldürüldün
               </p>
             )}
             <div className="flex flex-col items-center gap-1">

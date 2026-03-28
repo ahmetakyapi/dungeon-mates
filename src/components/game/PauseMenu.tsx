@@ -149,7 +149,7 @@ function SoundSettings() {
         }`}
       >
         <span>{muted ? '🔇' : '🔊'}</span>
-        {muted ? 'Sessiz (Açık)' : 'Sessiz'}
+        {muted ? 'Sesi Aç' : 'Sessize Al'}
       </button>
     </motion.div>
   );

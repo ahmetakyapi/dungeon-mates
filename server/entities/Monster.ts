@@ -6,6 +6,8 @@ import {
   TileType,
   MONSTER_STATS,
   TICK_RATE,
+  DUNGEON_WIDTH,
+  DUNGEON_HEIGHT,
 } from '../../shared/types';
 
 type AIState = 'idle' | 'chase' | 'attack' | 'retreat' | 'charge' | 'phase';
@@ -569,6 +571,10 @@ export class Monster {
     this.state.position.x += this.wanderDir.x * speed;
     this.state.position.y += this.wanderDir.y * speed;
 
+    // Clamp to dungeon bounds
+    this.state.position.x = Math.max(0, Math.min(DUNGEON_WIDTH - 1, this.state.position.x));
+    this.state.position.y = Math.max(0, Math.min(DUNGEON_HEIGHT - 1, this.state.position.y));
+
     return null;
   }
 
@@ -629,6 +635,11 @@ export class Monster {
 
     this.state.position.x += vx;
     this.state.position.y += vy;
+
+    // Clamp to dungeon bounds
+    this.state.position.x = Math.max(0, Math.min(DUNGEON_WIDTH - 1, this.state.position.x));
+    this.state.position.y = Math.max(0, Math.min(DUNGEON_HEIGHT - 1, this.state.position.y));
+
     this.state.velocity = { x: vx, y: vy };
     this.updateFacing(dx, dy);
   }

@@ -648,6 +648,9 @@ export class GameRoom {
             x: monster.state.position.x + (Math.random() - 0.5) * 3,
             y: monster.state.position.y + (Math.random() - 0.5) * 3,
           }, monster.roomId);
+          skel.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
+          if (this.isSolo) skel.scaleForSolo();
+          skel.scaleForPlayerCount(this.playerCount);
           this.monsters.set(skel.state.id, skel);
           room.monsterIds.push(skel.state.id);
         }

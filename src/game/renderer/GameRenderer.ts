@@ -402,7 +402,7 @@ export class GameRenderer {
       this.particles.screenFlashRequested = false;
       // Subtle white micro-flash from hit sparks
       if (this.screenFlashAlpha < 0.1) {
-        this.triggerScreenFlash('#ffffff', 0.08);
+        this.triggerScreenFlash('#ffffff', 0.15);
       }
     }
 
@@ -1406,7 +1406,11 @@ export class GameRenderer {
       const prevHp = this.prevHp.get(monster.id);
       const flashWhite = prevHp !== undefined && prevHp > monster.hp;
 
-      this.sprites.drawMonster(ctx, sx, sy, monster.type, monster.facing, this.animFrame, flashWhite);
+      // Heuristic: monster is attacking when it has a target and velocity is near zero (in melee range)
+      const velMag = Math.abs(monster.velocity.x) + Math.abs(monster.velocity.y);
+      const isAttacking = monster.targetPlayerId !== null && velMag < 0.02;
+
+      this.sprites.drawMonster(ctx, sx, sy, monster.type, monster.facing, this.animFrame, flashWhite, isAttacking);
 
       // Monster-specific particle effects (throttled)
       if (monster.type === 'mushroom' && this.animFrame % 6 === 0) {
@@ -1959,6 +1963,11 @@ export class GameRenderer {
           this.addDamageNumber(wx, wy, diff, false, isCritical ? 'critical' : 'damage');
           if (preset.particles) {
             this.particles.emitHit(wx, wy);
+            // Blood/damage particles at player position
+            this.particles.emitBloodSplatter(wx, wy + TILE_SIZE / 2);
+            if (isCritical) {
+              this.particles.emitHitSpark(wx, wy + TILE_SIZE / 2);
+            }
           }
           // Camera shake on player damage (stronger for criticals)
           if (isCritical) {
@@ -1967,9 +1976,15 @@ export class GameRenderer {
             this.camera.shakeTakeDamage();
           }
 
-          // Screen flash when player takes big damage (>30% HP)
-          if (p.id === localPlayerId && diff > p.maxHp * 0.3) {
-            this.triggerScreenFlash('#ffffff', 0.5);
+          // Screen flash on player damage (intensity scales with severity)
+          if (p.id === localPlayerId) {
+            if (diff > p.maxHp * 0.3) {
+              this.triggerScreenFlash('#ffffff', 0.5);
+            } else if (isCritical) {
+              this.triggerScreenFlash('#ffffff', 0.25);
+            } else {
+              this.triggerScreenFlash('#ffffff', 0.15);
+            }
           }
         } else {
           this.addDamageNumber(wx, wy, Math.abs(diff), true, 'heal');

@@ -169,7 +169,19 @@ export function GameOverScreen({
     [confettiCount],
   );
 
-  const starCount = stats.deaths === 0 ? 3 : stats.deaths === 1 ? 2 : 1;
+  // Nuanced star rating based on multiple factors
+  const starCount = useMemo(() => {
+    let score = 0;
+    // No deaths: +1 point
+    if (stats.deaths === 0) score += 1;
+    // Good time: under 10 minutes: +1 point
+    if (stats.timePlayed < 600) score += 1;
+    // High kill efficiency: at least 1 kill per 15 seconds of play
+    const killRate = stats.timePlayed > 0 ? stats.monstersKilled / (stats.timePlayed / 15) : 0;
+    if (killRate >= 1) score += 1;
+    // Ensure at least 1 star for victory
+    return Math.max(1, Math.min(3, score));
+  }, [stats.deaths, stats.timePlayed, stats.monstersKilled]);
 
   // Calculate total XP (estimate based on kills and floors)
   const totalXP = stats.monstersKilled * 10 + stats.floorsCleared * 50;
@@ -352,7 +364,7 @@ export function GameOverScreen({
             transition={{ delay: isVictory ? 2 : 1.8, ease: EASE }}
           >
             <p className="mb-2 font-pixel text-[9px] text-dm-accent lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">
-              Takim Istatistikleri
+              Takım İstatistikleri
             </p>
             <div className="flex flex-col gap-2">
               {/* Most damage */}
@@ -364,7 +376,7 @@ export function GameOverScreen({
                   <>
                     <div className="flex items-center justify-between">
                       <span className="font-pixel text-[7px] text-zinc-400 lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
-                        En cok hasar
+                        En çok hasar
                       </span>
                       <span className="font-pixel text-[8px] text-dm-gold lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">
                         {topDamage.name} ({topDamage.damage})
@@ -372,7 +384,7 @@ export function GameOverScreen({
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="font-pixel text-[7px] text-zinc-400 lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
-                        En cok oldurme
+                        En çok öldürme
                       </span>
                       <span className="font-pixel text-[8px] text-dm-gold lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">
                         {topKills.name} ({topKills.kills})
@@ -418,7 +430,7 @@ export function GameOverScreen({
             {isVictory ? 'Tekrar Oyna' : 'Tekrar Dene'}
           </PixelButton>
           <PixelButton variant="secondary" fullWidth onClick={onMainMenu}>
-            Ana Menu
+            Ana Menü
           </PixelButton>
         </motion.div>
       </motion.div>

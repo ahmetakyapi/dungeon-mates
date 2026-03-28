@@ -28,7 +28,7 @@ const DIFFICULTY_INFO: Record<number, { label: string; color: string }> = {
   1: { label: 'Kolay', color: '#4ade80' },
   2: { label: 'Normal Zorluk', color: '#facc15' },
   3: { label: 'Zor', color: '#f97316' },
-  4: { label: 'Cok Zor', color: '#ef4444' },
+  4: { label: 'Çok Zor', color: '#ef4444' },
 } as const;
 
 // Floating particles for lobby background
@@ -428,8 +428,8 @@ function GamePage() {
           ? Object.values(gameState.monsters).find((m) => m.type === 'boss_demon' && m.alive)
           : null;
         defeatCause = bossAlive
-          ? 'Iblis Lordu tarafindan yenildiniz'
-          : `Kat ${gameState?.dungeon.currentFloor ?? 1} zindan canavarları tarafindan yenildiniz`;
+          ? 'İblis Lordu tarafından yenildiniz'
+          : `Kat ${gameState?.dungeon.currentFloor ?? 1} zindan canavarları tarafından yenildiniz`;
       }
 
       setGameOverStats({
@@ -567,7 +567,7 @@ function GamePage() {
                   exit={{ opacity: 0, y: -5 }}
                   transition={{ duration: 0.2 }}
                 >
-                  {copied ? 'Kopyalandi!' : 'Kodu paylas! (Tikla kopyala)'}
+                  {copied ? 'Kopyalandı!' : 'Kodu paylaş! (Tıkla kopyala)'}
                 </motion.p>
               </AnimatePresence>
 

@@ -257,7 +257,7 @@ export class Player {
         );
       }
       case 'mage': {
-        const manaCost = 8;
+        const manaCost = 12;
         if (this.state.mana < manaCost) return null;
         this.state.mana -= manaCost;
         return new Projectile(
@@ -373,6 +373,8 @@ export class Player {
     this.state.hp = Math.floor(this.state.maxHp * 0.5);
     this.state.mana = Math.floor(this.state.maxMana * 0.5);
     this.state.position = { ...this.spawnPosition };
+    this.slowMultiplier = 1;
+    this.slowTicks = 0;
   }
 
   tryPickupLoot(loot: LootState): boolean {
