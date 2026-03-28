@@ -18,7 +18,7 @@ const KEY_BINDINGS = {
   toggleMap: ['Tab'] as const,
 } as const;
 
-const ATTACK_DEBOUNCE_MS = 100; // Minimal debounce; server handles cooldowns
+const ATTACK_DEBOUNCE_MS = 200; // Auto-repeat rate when holding attack key
 
 export class InputManager {
   private readonly keysDown: Set<string> = new Set();
@@ -160,7 +160,16 @@ export class InputManager {
       }
     }
 
-    const attack = this.attackPressed || this.gamepadAttackPressed || this.isDown(KEY_BINDINGS.attack) || this.isGamepadButtonDown(0);
+    // Auto-repeat attack when holding key (debounced)
+    const holdingAttack = this.isDown(KEY_BINDINGS.attack) || this.isGamepadButtonDown(0);
+    if (holdingAttack && !this.attackPressed && !this.gamepadAttackPressed) {
+      const now = performance.now();
+      if (now - this.lastAttackTime >= ATTACK_DEBOUNCE_MS) {
+        this.attackPressed = true;
+        this.lastAttackTime = now;
+      }
+    }
+    const attack = this.attackPressed || this.gamepadAttackPressed;
     const ability = this.abilityPressed || this.gamepadAbilityPressed;
     const interact = this.interactPressed || this.gamepadInteractPressed;
     const toggleMap = this.toggleMapPressed;

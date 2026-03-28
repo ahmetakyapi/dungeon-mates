@@ -276,22 +276,41 @@ export function useGameSocket(): UseGameSocketReturn {
     socketRef.current?.emit('player:ready');
   }, []);
 
+  // Throttle input to server tick rate (20fps = 50ms)
+  const lastInputTimeRef = useRef(0);
+  const pendingAttackRef = useRef(false);
+  const pendingAbilityRef = useRef(false);
+  const pendingInteractRef = useRef(false);
+
   const sendInput = useCallback((input: PlayerInput) => {
     const socket = socketRef.current;
     if (!socket) return;
 
+    // Buffer one-shot actions so they're never lost
+    if (input.attack) pendingAttackRef.current = true;
+    if (input.ability) pendingAbilityRef.current = true;
+    if (input.interact) pendingInteractRef.current = true;
+
+    // Throttle: only send at ~20fps (matching server tick rate)
+    const now = performance.now();
+    if (now - lastInputTimeRef.current < 45) return; // ~22fps
+    lastInputTimeRef.current = now;
+
     // Send movement/sprint as continuous input
     socket.emit('player:input', input);
 
-    // Send one-shot actions as separate events (won't get overwritten)
-    if (input.attack) {
+    // Send buffered one-shot actions as separate events
+    if (pendingAttackRef.current) {
       socket.emit('player:attack');
+      pendingAttackRef.current = false;
     }
-    if (input.ability) {
+    if (pendingAbilityRef.current) {
       socket.emit('player:use_ability');
+      pendingAbilityRef.current = false;
     }
-    if (input.interact) {
+    if (pendingInteractRef.current) {
       socket.emit('player:interact');
+      pendingInteractRef.current = false;
     }
   }, []);
 
