@@ -393,6 +393,16 @@ function GamePage() {
 
   const playerList = useMemo(() => Object.values(players), [players]);
 
+  // ====== CONNECTING / COLD START ======
+  if (connectionState === 'connecting' || connectionState === 'disconnected') {
+    return (
+      <LoadingScreen
+        message={connectionState === 'connecting' ? 'Sunucuya bağlanılıyor' : 'Bağlantı koptu, yeniden deneniyor'}
+        subMessage="Sunucu uyanıyor olabilir — birkaç saniye sürebilir"
+      />
+    );
+  }
+
   // ====== LOBBY PHASE ======
   if (phase === 'lobby') {
     return (
@@ -415,18 +425,6 @@ function GamePage() {
           >
             {isSolo ? 'Hazırlanıyor...' : 'Bekleme Odası'}
           </motion.h1>
-
-          {/* Connection status */}
-          {connectionState !== 'connected' && (
-            <motion.div
-              className="flex items-center gap-2 font-pixel text-[10px] text-zinc-400"
-              animate={{ opacity: [0.5, 1, 0.5] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-            >
-              <div className="h-2 w-2 rounded-full bg-dm-gold" />
-              Bağlanılıyor...
-            </motion.div>
-          )}
 
           {/* Error */}
           {error && (
