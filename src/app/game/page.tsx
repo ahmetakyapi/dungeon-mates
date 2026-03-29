@@ -16,6 +16,7 @@ import { PauseMenu } from '@/components/game/PauseMenu';
 import { DisconnectOverlay } from '@/components/game/DisconnectOverlay';
 import { FloorTransition } from '@/components/game/FloorTransition';
 import { StoryIntro } from '@/components/game/StoryIntro';
+import { PrologueCinematic } from '@/components/game/PrologueCinematic';
 import { BossIntro } from '@/components/game/BossIntro';
 import { ChatBox } from '@/components/game/ChatBox';
 import { TalentSelect } from '@/components/game/TalentSelect';
@@ -137,6 +138,7 @@ function GamePage() {
   const [showFloorTransition, setShowFloorTransition] = useState(false);
   const [floorTransitionData, setFloorTransitionData] = useState({ completed: 1, next: 2, kills: 0, time: 0 });
   const [showStoryIntro, setShowStoryIntro] = useState(false);
+  const [showPrologue, setShowPrologue] = useState(false);
   const [showBossIntro, setShowBossIntro] = useState(false);
   const storyShownRef = useRef(false);
   const [copied, setCopied] = useState(false);
@@ -198,11 +200,11 @@ function GamePage() {
 
     if (!prevPhase || prevPhase === phase) return;
 
-    // Show story intro when first entering playing phase
+    // Show prologue cinematic when first entering playing phase
     if (prevPhase === 'class_select' && phase === 'playing') {
       if (!storyShownRef.current) {
         storyShownRef.current = true;
-        setShowStoryIntro(true);
+        setShowPrologue(true);
         return;
       }
       // Fallback: show tutorial if story already shown
@@ -421,6 +423,15 @@ function GamePage() {
 
   const handleFloorTransitionContinue = useCallback(() => {
     setShowFloorTransition(false);
+  }, []);
+
+  const handlePrologueComplete = useCallback(() => {
+    setShowPrologue(false);
+    // Show tutorial after prologue if not seen
+    const tutorialSeen = localStorage.getItem('dungeon-mates-tutorial-seen');
+    if (!tutorialSeen) {
+      setShowTutorial(true);
+    }
   }, []);
 
   const handleStoryIntroComplete = useCallback(() => {
@@ -911,7 +922,12 @@ function GamePage() {
         onContinue={handleFloorTransitionContinue}
       />
 
-      {/* Story intro */}
+      {/* Prologue cinematic */}
+      <AnimatePresence>
+        {showPrologue && <PrologueCinematic onComplete={handlePrologueComplete} />}
+      </AnimatePresence>
+
+      {/* Story intro (floor intros) */}
       <AnimatePresence>
         {showStoryIntro && <StoryIntro onComplete={handleStoryIntroComplete} />}
       </AnimatePresence>
