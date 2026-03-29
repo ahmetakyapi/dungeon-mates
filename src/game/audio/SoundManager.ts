@@ -27,7 +27,6 @@ export class SoundManager {
   private musicVolume = 0.3;
   private muted = false;
   private musicIntervals: ReturnType<typeof setInterval>[] = [];
-  private musicOscillators: OscillatorNode[] = [];
   private ambientIntervals: ReturnType<typeof setInterval>[] = [];
   private noiseBuffer: AudioBuffer | null = null;
   private lastPlayTime: Map<string, number> = new Map();
@@ -49,9 +48,13 @@ export class SoundManager {
 
   private constructor() {}
 
-  private getContext(): AudioContext {
+  private getContext(): AudioContext | null {
     if (!this.ctx) {
-      this.ctx = new AudioContext();
+      try {
+        this.ctx = new AudioContext();
+      } catch {
+        return null;
+      }
 
       // Master gain
       this.masterGain = this.ctx.createGain();
@@ -93,7 +96,7 @@ export class SoundManager {
 
   private playNoise(duration: number, volume: number, filterFreq?: number, filterType?: BiquadFilterType): void {
     const ctx = this.getContext();
-    if (!this.noiseBuffer || !this.sfxGain) return;
+    if (!ctx || !this.noiseBuffer || !this.sfxGain) return;
 
     const source = ctx.createBufferSource();
     source.buffer = this.noiseBuffer;
@@ -125,8 +128,9 @@ export class SoundManager {
     freqEnd?: number,
     startTime?: number,
     destination?: AudioNode,
-  ): OscillatorNode {
+  ): OscillatorNode | null {
     const ctx = this.getContext();
+    if (!ctx) return null;
     const dest = destination ?? this.sfxGain!;
     const start = startTime ?? ctx.currentTime;
 
@@ -157,6 +161,7 @@ export class SoundManager {
     volume: number = 0.25,
   ): void {
     const ctx = this.getContext();
+    if (!ctx) return;
     notes.forEach((freq, i) => {
       const startTime = ctx.currentTime + i * gap;
       this.playTone(freq, noteDuration, waveform, volume, undefined, startTime);
@@ -170,7 +175,6 @@ export class SoundManager {
   playSwordSlash(): void {
     if (!this.canPlay('swordSlash', 150)) return;
     const variation = 0.9 + Math.random() * 0.2; // 90-110%
-    const ctx = this.getContext();
     // White noise burst
     this.playNoise(0.12, 0.25, 3000 * variation, 'highpass');
     // Descending frequency sweep
@@ -186,6 +190,7 @@ export class SoundManager {
     this.playTone(400 * variation, 0.08, 'sine', 0.2, 1200 * variation);
     // Follow-up high ping
     const ctx = this.getContext();
+    if (!ctx) return;
     this.playTone(1800 * variation, 0.06, 'sine', 0.1, 2400 * variation, ctx.currentTime + 0.05);
   }
 
@@ -193,6 +198,7 @@ export class SoundManager {
     if (!this.canPlay('fireball', 200)) return;
     const variation = 0.9 + Math.random() * 0.2; // 90-110%
     const ctx = this.getContext();
+    if (!ctx) return;
     // Low rumble ascending
     this.playTone(80 * variation, 0.25, 'sawtooth', 0.2, 400 * variation);
     // Noise burst mid-way
@@ -217,6 +223,7 @@ export class SoundManager {
   playCriticalHit(): void {
     if (!this.canPlay('criticalHit', 150)) return;
     const ctx = this.getContext();
+    if (!ctx) return;
     // Louder hit
     this.playNoise(0.1, 0.4, 2500, 'lowpass');
     this.playTone(400, 0.1, 'square', 0.3, 150);
@@ -241,6 +248,7 @@ export class SoundManager {
   playDeath(): void {
     if (!this.canPlay('death', 1000)) return;
     const ctx = this.getContext();
+    if (!ctx) return;
     // Long descending sweep
     this.playTone(800, 0.6, 'square', 0.2, 60);
     // Noise fade
@@ -262,6 +270,7 @@ export class SoundManager {
   playGoldPickup(): void {
     if (!this.canPlay('goldPickup', 100)) return;
     const ctx = this.getContext();
+    if (!ctx) return;
     // Coin "ching" - high sine ping
     this.playTone(1400, 0.08, 'sine', 0.2);
     this.playTone(2100, 0.1, 'sine', 0.15, undefined, ctx.currentTime + 0.04);
@@ -272,6 +281,7 @@ export class SoundManager {
     // Gentle ascending sweep
     this.playTone(300, 0.25, 'sine', 0.15, 800);
     const ctx = this.getContext();
+    if (!ctx) return;
     this.playTone(500, 0.2, 'triangle', 0.1, 1000, ctx.currentTime + 0.1);
   }
 
@@ -307,6 +317,7 @@ export class SoundManager {
   playLevelUp(): void {
     if (!this.canPlay('levelUp', 1000)) return;
     const ctx = this.getContext();
+    if (!ctx) return;
     // Ascending arpeggio with shimmer
     const notes = [NOTES.C4, NOTES.E4, NOTES.G4, NOTES.C5, NOTES.E5];
     notes.forEach((freq, i) => {
@@ -320,6 +331,7 @@ export class SoundManager {
   playBossAppear(): void {
     if (!this.canPlay('bossAppear', 1000)) return;
     const ctx = this.getContext();
+    if (!ctx) return;
     // Deep rumble
     this.playTone(50, 0.8, 'sawtooth', 0.25, 30);
     // Dramatic low note
@@ -340,6 +352,7 @@ export class SoundManager {
   playVictory(): void {
     if (!this.canPlay('victory', 2000)) return;
     const ctx = this.getContext();
+    if (!ctx) return;
     // First arpeggio: C-E-G
     const arp1 = [NOTES.C4, NOTES.E4, NOTES.G4];
     arp1.forEach((freq, i) => {
@@ -362,6 +375,7 @@ export class SoundManager {
   playDefeat(): void {
     if (!this.canPlay('defeat', 2000)) return;
     const ctx = this.getContext();
+    if (!ctx) return;
     // Sad descending minor notes
     const notes = [NOTES.Eb4, NOTES.C4, NOTES.Ab3, NOTES.Eb3];
     notes.forEach((freq, i) => {
@@ -374,6 +388,7 @@ export class SoundManager {
   playDoorOpen(): void {
     if (!this.canPlay('doorOpen', 500)) return;
     const ctx = this.getContext();
+    if (!ctx) return;
     // Creaking: noise with filter sweep
     if (!this.noiseBuffer || !this.sfxGain) return;
     const source = ctx.createBufferSource();
@@ -399,6 +414,7 @@ export class SoundManager {
   playChestOpen(): void {
     if (!this.canPlay('chestOpen', 500)) return;
     const ctx = this.getContext();
+    if (!ctx) return;
     // Creak
     this.playDoorOpen();
     // Magical shimmer
@@ -414,6 +430,7 @@ export class SoundManager {
   playStairsDescend(): void {
     if (!this.canPlay('stairsDescend', 1000)) return;
     const ctx = this.getContext();
+    if (!ctx) return;
     // Echoing descending notes
     const notes = [NOTES.G4, NOTES.E4, NOTES.C4, NOTES.G3, NOTES.E3, NOTES.C3];
     notes.forEach((freq, i) => {
@@ -429,7 +446,7 @@ export class SoundManager {
   playFootstep(): void {
     if (!this.canPlay('footstep', 220)) return;
     const ctx = this.getContext();
-    if (!this.noiseBuffer || !this.sfxGain) return;
+    if (!ctx || !this.noiseBuffer || !this.sfxGain) return;
     const source = ctx.createBufferSource();
     source.buffer = this.noiseBuffer;
     const filter = ctx.createBiquadFilter();
@@ -452,7 +469,7 @@ export class SoundManager {
 
   private playMusicNote(freq: number, type: OscillatorType, duration: number, volume: number): void {
     const ctx = this.getContext();
-    if (!this.musicGain) return;
+    if (!ctx || !this.musicGain) return;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = type;
@@ -467,7 +484,7 @@ export class SoundManager {
 
   private playMusicPercussion(duration: number, volume: number): void {
     const ctx = this.getContext();
-    if (!this.noiseBuffer || !this.musicGain) return;
+    if (!ctx || !this.noiseBuffer || !this.musicGain) return;
     const source = ctx.createBufferSource();
     source.buffer = this.noiseBuffer;
     const filter = ctx.createBiquadFilter();
@@ -490,7 +507,7 @@ export class SoundManager {
   playFloorMusic(floor: number): void {
     this.stopMusic();
     const ctx = this.getContext();
-    if (!this.musicGain) return;
+    if (!ctx || !this.musicGain) return;
 
     const tempo = 60 + Math.min(floor - 1, 8) * 3; // 60-84 BPM
     const stepMs = (60000 / tempo) / 2; // 8th notes
@@ -548,7 +565,7 @@ export class SoundManager {
   playBossMusic(): void {
     this.stopMusic();
     const ctx = this.getContext();
-    if (!this.musicGain) return;
+    if (!ctx || !this.musicGain) return;
 
     // Intense, faster pattern
     const bassPattern = [NOTES.C3, NOTES.C3, NOTES.Eb3, NOTES.C3, NOTES.G3, NOTES.C3, NOTES.Eb3, NOTES.Bb3];
@@ -583,10 +600,6 @@ export class SoundManager {
   stopMusic(): void {
     this.musicIntervals.forEach((id) => clearInterval(id));
     this.musicIntervals = [];
-    this.musicOscillators.forEach((osc) => {
-      try { osc.stop(); } catch { /* already stopped */ }
-    });
-    this.musicOscillators = [];
   }
 
   // =====================
@@ -595,7 +608,7 @@ export class SoundManager {
 
   startAmbience(floor: number): void {
     this.stopAmbience();
-    this.getContext();
+    if (!this.getContext()) return;
     if (!this.sfxGain) return;
 
     // Water drip — all floors, more frequent on deeper floors
@@ -642,7 +655,7 @@ export class SoundManager {
 
   private playDrip(): void {
     const ctx = this.getContext();
-    if (!this.sfxGain) return;
+    if (!ctx || !this.sfxGain) return;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sine';
@@ -658,7 +671,7 @@ export class SoundManager {
 
   private playWind(): void {
     const ctx = this.getContext();
-    if (!this.noiseBuffer || !this.sfxGain) return;
+    if (!ctx || !this.noiseBuffer || !this.sfxGain) return;
     const source = ctx.createBufferSource();
     source.buffer = this.noiseBuffer;
     const filter = ctx.createBiquadFilter();
@@ -677,7 +690,7 @@ export class SoundManager {
 
   private playWhisper(): void {
     const ctx = this.getContext();
-    if (!this.sfxGain) return;
+    if (!ctx || !this.sfxGain) return;
     // Multiple detuned sine waves for eerie whisper
     for (let i = 0; i < 3; i++) {
       const osc = ctx.createOscillator();
@@ -696,7 +709,7 @@ export class SoundManager {
 
   private playHeartbeat(): void {
     const ctx = this.getContext();
-    if (!this.sfxGain) return;
+    if (!ctx || !this.sfxGain) return;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sine';
@@ -715,8 +728,9 @@ export class SoundManager {
 
   setMasterVolume(vol: number): void {
     this.masterVolume = Math.max(0, Math.min(1, vol));
-    if (this.masterGain) {
-      this.masterGain.gain.setValueAtTime(this.muted ? 0 : this.masterVolume, this.getContext().currentTime);
+    const ctx = this.getContext();
+    if (this.masterGain && ctx) {
+      this.masterGain.gain.setValueAtTime(this.muted ? 0 : this.masterVolume, ctx.currentTime);
     }
   }
 
@@ -726,8 +740,9 @@ export class SoundManager {
 
   setSfxVolume(vol: number): void {
     this.sfxVolume = Math.max(0, Math.min(1, vol));
-    if (this.sfxGain) {
-      this.sfxGain.gain.setValueAtTime(this.sfxVolume, this.getContext().currentTime);
+    const ctx = this.getContext();
+    if (this.sfxGain && ctx) {
+      this.sfxGain.gain.setValueAtTime(this.sfxVolume, ctx.currentTime);
     }
   }
 
@@ -737,8 +752,9 @@ export class SoundManager {
 
   setMusicVolume(vol: number): void {
     this.musicVolume = Math.max(0, Math.min(1, vol));
-    if (this.musicGain) {
-      this.musicGain.gain.setValueAtTime(this.musicVolume, this.getContext().currentTime);
+    const ctx = this.getContext();
+    if (this.musicGain && ctx) {
+      this.musicGain.gain.setValueAtTime(this.musicVolume, ctx.currentTime);
     }
   }
 
@@ -748,10 +764,11 @@ export class SoundManager {
 
   toggleMute(): boolean {
     this.muted = !this.muted;
-    if (this.masterGain) {
+    const ctx = this.getContext();
+    if (this.masterGain && ctx) {
       this.masterGain.gain.setValueAtTime(
         this.muted ? 0 : this.masterVolume,
-        this.getContext().currentTime,
+        ctx.currentTime,
       );
     }
     return this.muted;

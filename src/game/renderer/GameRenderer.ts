@@ -120,10 +120,6 @@ export class GameRenderer {
   // Pre-created radial gradient canvas for fog (avoids creating gradients per-frame)
   private fogGradientCanvas: HTMLCanvasElement | null = null;
 
-  // Lighting overlay canvas
-  private lightingCanvas: HTMLCanvasElement | null = null;
-  private lightingCtx: CanvasRenderingContext2D | null = null;
-
   // Environmental decorations
   private bloodSplatters: Array<{ x: number; y: number }> = [];
   private boneFragments: Array<{ x: number; y: number; seed: number }> = [];
@@ -186,12 +182,6 @@ export class GameRenderer {
 
     // Pre-create film grain canvas
     this.createGrainCanvas();
-
-    // Create lighting overlay canvas
-    this.lightingCanvas = document.createElement('canvas');
-    this.lightingCanvas.width = this.logicalWidth;
-    this.lightingCanvas.height = this.logicalHeight;
-    this.lightingCtx = this.lightingCanvas.getContext('2d');
   }
 
   /** Get the camera instance (for external zoom control, etc.) */
@@ -308,6 +298,12 @@ export class GameRenderer {
     // Track frame time for auto-quality
     const frameStart = now;
 
+    // Cache Object.values() once per frame to avoid repeated array allocations
+    const monstersArr = Object.values(state.monsters);
+    const playersArr = Object.values(state.players);
+    const lootArr = Object.values(state.loot);
+    const projectilesArr = Object.values(state.projectiles);
+
     // Hitstop freeze frame
     if (this.freezeFrameMs > 0) {
       this.freezeFrameMs -= dt * 1000;
@@ -383,9 +379,8 @@ export class GameRenderer {
 
       // Boss aura particles
       if (isBossPhase) {
-        const monsters = Object.values(state.monsters);
-        for (let i = 0; i < monsters.length; i++) {
-          const m = monsters[i];
+        for (let i = 0; i < monstersArr.length; i++) {
+          const m = monstersArr[i];
           if (m.type === 'boss_demon' && m.alive) {
             const wx = m.position.x * TILE_SIZE + TILE_SIZE;
             const wy = m.position.y * TILE_SIZE + TILE_SIZE;
@@ -398,7 +393,7 @@ export class GameRenderer {
       this.updateTorchParticles(state);
 
       // Projectile trail particles
-      this.emitProjectileTrails(state);
+      this.emitProjectileTrails(projectilesArr);
     }
 
     // Decay screen flash
@@ -429,10 +424,10 @@ export class GameRenderer {
     }
 
     // Detect HP changes for flash effects + damage numbers
-    this.detectHpChanges(state, localPlayerId);
+    this.detectHpChanges(state, localPlayerId, playersArr, monstersArr);
 
     // Update fog of war
-    this.updateFog(state, localPlayerId);
+    this.updateFog(state, localPlayerId, playersArr);
 
     // Update damage numbers
     this.updateDamageNumbers(dt);
@@ -487,16 +482,16 @@ export class GameRenderer {
     this.renderInteractableHighlights(ctx, state, camX, camY, localPlayerId);
 
     // 3. Render loot
-    this.renderLoot(ctx, state, camX, camY);
+    this.renderLoot(ctx, lootArr, camX, camY);
 
     // 5. Render monsters
-    this.renderMonsters(ctx, state, camX, camY);
+    this.renderMonsters(ctx, monstersArr, camX, camY);
 
     // 6. Render projectiles
-    this.renderProjectiles(ctx, state, camX, camY);
+    this.renderProjectiles(ctx, projectilesArr, camX, camY);
 
     // 7. Render players
-    this.renderPlayers(ctx, state, camX, camY, localPlayerId);
+    this.renderPlayers(ctx, playersArr, state, camX, camY, localPlayerId);
 
     // 8. Render particles
     if (preset.particles) {
@@ -507,11 +502,11 @@ export class GameRenderer {
     this.renderDamageNumbers(ctx, camX, camY);
 
     // 10. Render fog of war (with gradient edges)
-    this.renderFog(ctx, state, camX, camY, startTileX, startTileY, endTileX, endTileY, localPlayerId);
+    this.renderFog(ctx, state, camX, camY, startTileX, startTileY, endTileX, endTileY, localPlayerId, playersArr);
 
     // 10b. Boss health bar at top of screen (after fog so it's always visible)
     if (isBossPhase) {
-      this.drawBossHealthBar(ctx, state);
+      this.drawBossHealthBar(ctx, monstersArr);
     }
 
     // 11. Post-processing effects (drawn on top of everything)
@@ -591,6 +586,13 @@ export class GameRenderer {
     // --- Scale offscreen to main canvas ---
     this.ctx.imageSmoothingEnabled = false;
     this.ctx.drawImage(this.offscreen, 0, 0, this.canvas.width, this.canvas.height);
+
+    // Clean up stale entity positions (prevent memory leak from dead entities)
+    for (const id of this.prevEntityPositions.keys()) {
+      if (!state.monsters[id] && !state.players[id]) {
+        this.prevEntityPositions.delete(id);
+      }
+    }
 
     // Auto-quality adjustment
     const frameTime = performance.now() - frameStart;
@@ -957,186 +959,8 @@ export class GameRenderer {
     }
   }
 
-  /** Dynamic lighting system -- creates atmospheric dungeon lighting */
-  private renderLighting(
-    ctx: CanvasRenderingContext2D,
-    state: GameState,
-    camX: number,
-    camY: number,
-    localPlayerId: string,
-    isBossPhase: boolean,
-  ): void {
-    const lCtx = this.lightingCtx;
-    const lCanvas = this.lightingCanvas;
-    if (!lCtx || !lCanvas) return;
-
-    if (lCanvas.width !== this.logicalWidth || lCanvas.height !== this.logicalHeight) {
-      lCanvas.width = this.logicalWidth;
-      lCanvas.height = this.logicalHeight;
-    }
-
-    // Start with dark overlay
-    lCtx.globalCompositeOperation = 'source-over';
-    lCtx.fillStyle = 'rgba(0,0,0,0.35)';
-    lCtx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
-
-    // Punch light holes with destination-out
-    lCtx.globalCompositeOperation = 'destination-out';
-
-    // --- Torch lights (radius ~3 tiles = ~48px, warm orange falloff) ---
-    for (let i = 0; i < this.torchPositions.length; i++) {
-      const torch = this.torchPositions[i];
-      const sx = torch.x - camX;
-      const sy = torch.y - camY;
-      if (sx < -60 || sx > this.logicalWidth + 60 || sy < -60 || sy > this.logicalHeight + 60) continue;
-      const flickerScale = 1 + Math.sin(this.animFrame * 0.7 + i * 1.3) * 0.06;
-      const radius = 48 * flickerScale; // ~3 tiles
-      const gradient = lCtx.createRadialGradient(sx, sy, 0, sx, sy, radius);
-      gradient.addColorStop(0, 'rgba(0,0,0,0.95)');
-      gradient.addColorStop(0.2, 'rgba(0,0,0,0.7)');
-      gradient.addColorStop(0.5, 'rgba(0,0,0,0.35)');
-      gradient.addColorStop(0.75, 'rgba(0,0,0,0.1)');
-      gradient.addColorStop(1, 'rgba(0,0,0,0)');
-      lCtx.fillStyle = gradient;
-      lCtx.fillRect(sx - radius, sy - radius, radius * 2, radius * 2);
-    }
-
-    // --- Player light sources (class-based radius) ---
-    const allPlayers = Object.values(state.players);
-    for (let i = 0; i < allPlayers.length; i++) {
-      const p = allPlayers[i];
-      if (!p.alive) continue;
-      const ppx = p.position.x * TILE_SIZE + TILE_SIZE / 2 - camX;
-      const ppy = p.position.y * TILE_SIZE + TILE_SIZE / 2 - camY;
-
-      // Mage: ~5 tiles, warrior/archer: ~4 tiles
-      const baseRadius = p.class === 'mage' ? (5 * TILE_SIZE) : (4 * TILE_SIZE);
-      const playerRadius = p.id === localPlayerId ? baseRadius : baseRadius * 0.7;
-
-      const pg = lCtx.createRadialGradient(ppx, ppy, 0, ppx, ppy, playerRadius);
-      pg.addColorStop(0, 'rgba(0,0,0,0.8)');
-      pg.addColorStop(0.3, 'rgba(0,0,0,0.5)');
-      pg.addColorStop(0.6, 'rgba(0,0,0,0.2)');
-      pg.addColorStop(0.85, 'rgba(0,0,0,0.05)');
-      pg.addColorStop(1, 'rgba(0,0,0,0)');
-      lCtx.fillStyle = pg;
-      lCtx.fillRect(ppx - playerRadius, ppy - playerRadius, playerRadius * 2, playerRadius * 2);
-    }
-
-    // --- Loot item tiny glow (radius ~0.5 tile = ~8px) ---
-    const lootArr = Object.values(state.loot);
-    for (let i = 0; i < lootArr.length; i++) {
-      const lt = lootArr[i];
-      const lx = lt.position.x * TILE_SIZE + TILE_SIZE / 2 - camX;
-      const ly = lt.position.y * TILE_SIZE + TILE_SIZE / 2 - camY;
-      if (lx < -16 || lx > this.logicalWidth + 16 || ly < -16 || ly > this.logicalHeight + 16) continue;
-      const lr = 8; // ~0.5 tile
-      const lg = lCtx.createRadialGradient(lx, ly, 0, lx, ly, lr);
-      lg.addColorStop(0, 'rgba(0,0,0,0.5)');
-      lg.addColorStop(0.6, 'rgba(0,0,0,0.2)');
-      lg.addColorStop(1, 'rgba(0,0,0,0)');
-      lCtx.fillStyle = lg;
-      lCtx.fillRect(lx - lr, ly - lr, lr * 2, lr * 2);
-    }
-
-    // --- Monster glow (faint, radius ~1 tile = ~16px, wraith gets cyan) ---
-    const monsters = Object.values(state.monsters);
-    for (let i = 0; i < monsters.length; i++) {
-      const m = monsters[i];
-      if (!m.alive) continue;
-      const stats = MONSTER_STATS[m.type];
-      const mx = m.position.x * TILE_SIZE + (TILE_SIZE * stats.size) / 2 - camX;
-      const my = m.position.y * TILE_SIZE + (TILE_SIZE * stats.size) / 2 - camY;
-      if (mx < -30 || mx > this.logicalWidth + 30 || my < -30 || my > this.logicalHeight + 30) continue;
-
-      let monsterGlowRadius: number;
-      let glowIntensity: number;
-
-      if (m.type === 'boss_demon') {
-        // Boss demon: large fire glow (radius ~6 tiles)
-        monsterGlowRadius = 6 * TILE_SIZE;
-        glowIntensity = 0.85;
-        const bPulse = 1 + Math.sin(this.animFrame * 0.4) * 0.08;
-        monsterGlowRadius *= bPulse;
-      } else if (m.type === 'wraith') {
-        // Wraith: cyan glow, slightly larger than normal
-        monsterGlowRadius = 1.5 * TILE_SIZE;
-        glowIntensity = 0.5;
-      } else {
-        // Normal monsters: very subtle glow
-        monsterGlowRadius = 1 * TILE_SIZE;
-        glowIntensity = 0.25;
-      }
-
-      const mg = lCtx.createRadialGradient(mx, my, 0, mx, my, monsterGlowRadius);
-      mg.addColorStop(0, `rgba(0,0,0,${glowIntensity})`);
-      mg.addColorStop(0.5, `rgba(0,0,0,${glowIntensity * 0.4})`);
-      mg.addColorStop(1, 'rgba(0,0,0,0)');
-      lCtx.fillStyle = mg;
-      lCtx.fillRect(mx - monsterGlowRadius, my - monsterGlowRadius, monsterGlowRadius * 2, monsterGlowRadius * 2);
-    }
-
-    // Switch to source-over to add colored light tints on top
-    lCtx.globalCompositeOperation = 'source-over';
-
-    // --- Add warm orange tint to torch lights ---
-    for (let i = 0; i < this.torchPositions.length; i++) {
-      const torch = this.torchPositions[i];
-      const sx = torch.x - camX;
-      const sy = torch.y - camY;
-      if (sx < -60 || sx > this.logicalWidth + 60 || sy < -60 || sy > this.logicalHeight + 60) continue;
-      const flickerScale = 1 + Math.sin(this.animFrame * 0.7 + i * 1.3) * 0.06;
-      const radius = 48 * flickerScale;
-      const tg = lCtx.createRadialGradient(sx, sy, 0, sx, sy, radius);
-      tg.addColorStop(0, 'rgba(255,160,60,0.06)');
-      tg.addColorStop(0.4, 'rgba(255,130,40,0.03)');
-      tg.addColorStop(1, 'rgba(255,100,20,0)');
-      lCtx.fillStyle = tg;
-      lCtx.fillRect(sx - radius, sy - radius, radius * 2, radius * 2);
-    }
-
-    // --- Boss demon red/orange tint ---
-    if (isBossPhase) {
-      for (let i = 0; i < monsters.length; i++) {
-        const m = monsters[i];
-        if (m.type === 'boss_demon' && m.alive) {
-          const bx = m.position.x * TILE_SIZE + TILE_SIZE - camX;
-          const by = m.position.y * TILE_SIZE + TILE_SIZE - camY;
-          const bR = 6 * TILE_SIZE;
-          const bPulse = 1 + Math.sin(this.animFrame * 0.4) * 0.08;
-          const btg = lCtx.createRadialGradient(bx, by, 0, bx, by, bR * bPulse);
-          btg.addColorStop(0, 'rgba(220,38,38,0.06)');
-          btg.addColorStop(0.3, 'rgba(249,115,22,0.03)');
-          btg.addColorStop(1, 'rgba(0,0,0,0)');
-          lCtx.fillStyle = btg;
-          lCtx.fillRect(bx - bR, by - bR, bR * 2, bR * 2);
-        }
-      }
-    }
-
-    // --- Wraith cyan tint ---
-    for (let i = 0; i < monsters.length; i++) {
-      const m = monsters[i];
-      if (m.type === 'wraith' && m.alive) {
-        const wx = m.position.x * TILE_SIZE + TILE_SIZE / 2 - camX;
-        const wy = m.position.y * TILE_SIZE + TILE_SIZE / 2 - camY;
-        if (wx < -30 || wx > this.logicalWidth + 30 || wy < -30 || wy > this.logicalHeight + 30) continue;
-        const wr = 1.5 * TILE_SIZE;
-        const wg = lCtx.createRadialGradient(wx, wy, 0, wx, wy, wr);
-        wg.addColorStop(0, 'rgba(103,232,249,0.08)');
-        wg.addColorStop(0.5, 'rgba(103,232,249,0.03)');
-        wg.addColorStop(1, 'rgba(0,0,0,0)');
-        lCtx.fillStyle = wg;
-        lCtx.fillRect(wx - wr, wy - wr, wr * 2, wr * 2);
-      }
-    }
-
-    ctx.drawImage(lCanvas, 0, 0);
-  }
-
   /** Emit trail particles for active projectiles */
-  private emitProjectileTrails(state: GameState): void {
-    const projectiles = Object.values(state.projectiles);
+  private emitProjectileTrails(projectiles: ProjectileState[]): void {
     for (let i = 0; i < projectiles.length; i++) {
       const proj = projectiles[i];
       const wx = proj.position.x * TILE_SIZE;
@@ -1383,12 +1207,11 @@ export class GameRenderer {
 
   private renderLoot(
     ctx: CanvasRenderingContext2D,
-    state: GameState,
+    lootEntries: LootState[],
     camX: number,
     camY: number,
   ): void {
     const preset = QUALITY_PRESETS[this.quality];
-    const lootEntries = Object.values(state.loot);
     for (let i = 0; i < lootEntries.length; i++) {
       const loot: LootState = lootEntries[i];
       const wx = loot.position.x * TILE_SIZE;
@@ -1406,24 +1229,36 @@ export class GameRenderer {
 
   private renderMonsters(
     ctx: CanvasRenderingContext2D,
-    state: GameState,
+    monsters: MonsterState[],
     camX: number,
     camY: number,
   ): void {
-    const monsters = Object.values(state.monsters);
+    const isFrozen = this.freezeFrameMs > 0;
     for (let i = 0; i < monsters.length; i++) {
       const monster: MonsterState = monsters[i];
       if (!monster.alive) continue;
 
-      // Smooth position interpolation
+      // Smooth position interpolation (skip during freeze frame)
       const prevMonPos = this.prevEntityPositions.get(monster.id);
-      let monRenderX = monster.position.x;
-      let monRenderY = monster.position.y;
-      if (prevMonPos) {
-        monRenderX = prevMonPos.x + (monster.position.x - prevMonPos.x) * 0.35;
-        monRenderY = prevMonPos.y + (monster.position.y - prevMonPos.y) * 0.35;
+      let monRenderX: number;
+      let monRenderY: number;
+      if (isFrozen && prevMonPos) {
+        monRenderX = prevMonPos.x;
+        monRenderY = prevMonPos.y;
+      } else {
+        monRenderX = monster.position.x;
+        monRenderY = monster.position.y;
+        if (prevMonPos) {
+          monRenderX = prevMonPos.x + (monster.position.x - prevMonPos.x) * 0.35;
+          monRenderY = prevMonPos.y + (monster.position.y - prevMonPos.y) * 0.35;
+        }
+        if (prevMonPos) {
+          prevMonPos.x = monRenderX;
+          prevMonPos.y = monRenderY;
+        } else {
+          this.prevEntityPositions.set(monster.id, { x: monRenderX, y: monRenderY });
+        }
       }
-      this.prevEntityPositions.set(monster.id, { x: monRenderX, y: monRenderY });
 
       const wx = monRenderX * TILE_SIZE;
       const wy = monRenderY * TILE_SIZE;
@@ -1459,11 +1294,10 @@ export class GameRenderer {
 
   private renderProjectiles(
     ctx: CanvasRenderingContext2D,
-    state: GameState,
+    projectiles: ProjectileState[],
     camX: number,
     camY: number,
   ): void {
-    const projectiles = Object.values(state.projectiles);
     for (let i = 0; i < projectiles.length; i++) {
       const proj: ProjectileState = projectiles[i];
       const wx = proj.position.x * TILE_SIZE;
@@ -1499,25 +1333,38 @@ export class GameRenderer {
 
   private renderPlayers(
     ctx: CanvasRenderingContext2D,
+    players: PlayerState[],
     state: GameState,
     camX: number,
     camY: number,
     localPlayerId: string,
   ): void {
-    const players = Object.values(state.players);
+    const isFrozen = this.freezeFrameMs > 0;
     for (let i = 0; i < players.length; i++) {
       const player: PlayerState = players[i];
       if (!player.alive) continue;
 
-      // Smooth position interpolation
+      // Smooth position interpolation (skip during freeze frame)
       const prevPlrPos = this.prevEntityPositions.get(player.id);
-      let plrRenderX = player.position.x;
-      let plrRenderY = player.position.y;
-      if (prevPlrPos) {
-        plrRenderX = prevPlrPos.x + (player.position.x - prevPlrPos.x) * 0.35;
-        plrRenderY = prevPlrPos.y + (player.position.y - prevPlrPos.y) * 0.35;
+      let plrRenderX: number;
+      let plrRenderY: number;
+      if (isFrozen && prevPlrPos) {
+        plrRenderX = prevPlrPos.x;
+        plrRenderY = prevPlrPos.y;
+      } else {
+        plrRenderX = player.position.x;
+        plrRenderY = player.position.y;
+        if (prevPlrPos) {
+          plrRenderX = prevPlrPos.x + (player.position.x - prevPlrPos.x) * 0.35;
+          plrRenderY = prevPlrPos.y + (player.position.y - prevPlrPos.y) * 0.35;
+        }
+        if (prevPlrPos) {
+          prevPlrPos.x = plrRenderX;
+          prevPlrPos.y = plrRenderY;
+        } else {
+          this.prevEntityPositions.set(player.id, { x: plrRenderX, y: plrRenderY });
+        }
       }
-      this.prevEntityPositions.set(player.id, { x: plrRenderX, y: plrRenderY });
 
       const wx = plrRenderX * TILE_SIZE;
       const wy = plrRenderY * TILE_SIZE;
@@ -1666,9 +1513,8 @@ export class GameRenderer {
   /** Draw boss health bar centered at top of screen */
   private drawBossHealthBar(
     ctx: CanvasRenderingContext2D,
-    state: GameState,
+    monsters: MonsterState[],
   ): void {
-    const monsters = Object.values(state.monsters);
     const boss = monsters.find(m => m.type === 'boss_demon' && m.alive);
     if (!boss) return;
 
@@ -1813,7 +1659,7 @@ export class GameRenderer {
     }
   }
 
-  private updateFog(state: GameState, localPlayerId: string): void {
+  private updateFog(state: GameState, localPlayerId: string, playersArr: PlayerState[]): void {
     const dw = state.dungeon.width;
     const dh = state.dungeon.height;
 
@@ -1847,10 +1693,8 @@ export class GameRenderer {
     }
 
     // Reveal around players
-    const players = Object.values(state.players);
-
-    for (let i = 0; i < players.length; i++) {
-      const p = players[i];
+    for (let i = 0; i < playersArr.length; i++) {
+      const p = playersArr[i];
       if (!p.alive) continue;
       const px = Math.floor(p.position.x);
       const py = Math.floor(p.position.y);
@@ -1878,6 +1722,7 @@ export class GameRenderer {
     endX: number,
     endY: number,
     localPlayerId: string,
+    playersArr: PlayerState[],
   ): void {
     const isSimple = QUALITY_PRESETS[this.quality].fogSimple;
 
@@ -1911,7 +1756,7 @@ export class GameRenderer {
 
     // Gradient fog edges (soft transition from visible to fog)
     if (!isSimple) {
-      this.renderFogGradientEdges(ctx, state, camX, camY, startX, startY, endX, endY);
+      this.renderFogGradientEdges(ctx, state, camX, camY, startX, startY, endX, endY, playersArr);
     }
   }
 
@@ -1925,6 +1770,7 @@ export class GameRenderer {
     startY: number,
     endX: number,
     endY: number,
+    playersArr: PlayerState[],
   ): void {
     // For each visible tile that borders a non-visible tile, draw a soft gradient
     for (let ty = startY; ty < endY; ty++) {
@@ -1967,9 +1813,8 @@ export class GameRenderer {
     }
 
     // Radial gradient overlay centered on each player for smooth vision falloff
-    const players = Object.values(state.players);
-    for (let i = 0; i < players.length; i++) {
-      const p = players[i];
+    for (let i = 0; i < playersArr.length; i++) {
+      const p = playersArr[i];
       if (!p.alive) continue;
 
       const pcx = p.position.x * TILE_SIZE + TILE_SIZE / 2 - camX;
@@ -1988,9 +1833,8 @@ export class GameRenderer {
     }
   }
 
-  private detectHpChanges(state: GameState, localPlayerId: string): void {
+  private detectHpChanges(state: GameState, localPlayerId: string, players: PlayerState[], monsters: MonsterState[]): void {
     const preset = QUALITY_PRESETS[this.quality];
-    const players = Object.values(state.players);
 
     for (let i = 0; i < players.length; i++) {
       const p = players[i];
@@ -2049,7 +1893,6 @@ export class GameRenderer {
       this.prevHp.set(p.id, p.hp);
     }
 
-    const monsters = Object.values(state.monsters);
     for (let i = 0; i < monsters.length; i++) {
       const m = monsters[i];
       const prev = this.prevHp.get(m.id);
@@ -2183,13 +2026,12 @@ export class GameRenderer {
     this.particles.clear();
     this.damageNumbers.length = 0;
     this.prevHp.clear();
+    this.prevEntityPositions.clear();
     this.fogCacheCanvas = null;
     this.fogCacheCtx = null;
     this.fogGradientCanvas = null;
     this.grainCanvas = null;
     this.fogNoiseCanvas = null;
-    this.lightingCanvas = null;
-    this.lightingCtx = null;
     this.torchPositions = [];
     this.clearDecorations();
   }

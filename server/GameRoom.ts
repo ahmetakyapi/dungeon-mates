@@ -120,6 +120,16 @@ function pickWeightedMonster(pool: WeightedMonster[]): MonsterType {
   return pool[pool.length - 1].type;
 }
 
+// --- Game constants ---
+const RECONNECT_TIMEOUT_MS = 30_000;
+const BOSS_BASE_HP = 300;
+const BOSS_HP_SCALE_PER_PLAYER = 0.5;
+const ROOM_AREA_PER_MONSTER = 20;
+const MAX_MONSTERS_PER_ROOM = 10;
+const MIN_MONSTERS_PER_ROOM = 3;
+const AOE_DAMAGE_MULTIPLIER = 0.6;
+const MAX_CHAT_LENGTH = 100;
+
 let nextLootId = 0;
 
 const generateLootId = (): string => {
@@ -149,6 +159,7 @@ export class GameRoom {
   private openedChests: Set<string> = new Set();
 
   private currentFloor: number;
+  private floorAdvancedThisTick: boolean;
   private readonly maxFloors: number;
   private floorHpMultiplier: number;
   private floorAttackMultiplier: number;
@@ -176,6 +187,7 @@ export class GameRoom {
     this.rooms = [];
     this.currentRoomId = 0;
     this.currentFloor = 1;
+    this.floorAdvancedThisTick = false;
     this.maxFloors = 10;
     this.floorHpMultiplier = 1.0;
     this.floorAttackMultiplier = 1.0;
@@ -271,7 +283,7 @@ export class GameRoom {
       const timeout = setTimeout(() => {
         this.disconnectedPlayers.delete(socketId);
         this.finalizeRemovePlayer(socketId);
-      }, 30000);
+      }, RECONNECT_TIMEOUT_MS);
 
       this.disconnectedPlayers.set(socketId, {
         name: player.state.name,
@@ -435,8 +447,8 @@ export class GameRoom {
         const bossType: MonsterType = this.currentFloor === this.maxFloors ? 'boss_demon' : 'boss_spider_queen';
         const boss = new Monster(bossType, { x: room.centerX, y: room.centerY }, room.id);
         // Override boss HP based on player count: 300 * (1 + (playerCount - 1) * 0.5)
-        const bossHpScale = 1 + (clampedPlayers - 1) * 0.5;
-        const bossBaseHp = Math.floor(300 * bossHpScale);
+        const bossHpScale = 1 + (clampedPlayers - 1) * BOSS_HP_SCALE_PER_PLAYER;
+        const bossBaseHp = Math.floor(BOSS_BASE_HP * bossHpScale);
         boss.state.maxHp = bossBaseHp;
         boss.state.hp = bossBaseHp;
         boss.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
@@ -475,8 +487,8 @@ export class GameRoom {
       } else {
         // Normal room: base 3-6 monsters scaled by player count multiplier
         const area = room.width * room.height;
-        const baseCount = Math.max(3, Math.floor(area / 20));
-        const scaledCount = Math.min(10, Math.max(1, Math.round(baseCount * monsterMultiplier)));
+        const baseCount = Math.max(MIN_MONSTERS_PER_ROOM, Math.floor(area / ROOM_AREA_PER_MONSTER));
+        const scaledCount = Math.min(MAX_MONSTERS_PER_ROOM, Math.max(1, Math.round(baseCount * monsterMultiplier)));
 
         const pool = MONSTER_POOL_BY_FLOOR[this.currentFloor] ?? MONSTER_POOL_BY_FLOOR[4];
 
@@ -531,6 +543,7 @@ export class GameRoom {
     if (this.phase !== 'playing' && this.phase !== 'boss') return;
 
     this.tick += 1;
+    this.floorAdvancedThisTick = false;
 
     // Determine which rooms have players in them
     const activeRoomIds = new Set<number>();
@@ -736,7 +749,7 @@ export class GameRoom {
               for (const [otherId, otherMonster] of this.monsters) {
                 if (!otherMonster.state.alive || otherId === monsterId) continue;
                 if (projectile.getAoeTargetsInRange(otherMonster.state.position, otherMonster.getRadius())) {
-                  const aoeDamage = otherMonster.takeDamage(Math.floor(projectile.state.damage * 0.6));
+                  const aoeDamage = otherMonster.takeDamage(Math.floor(projectile.state.damage * AOE_DAMAGE_MULTIPLIER));
                   if (owner) owner.state.totalDamageDealt += aoeDamage;
                   this.io.to(this.roomCode).emit('game:damage', {
                     targetId: otherId,
@@ -946,6 +959,9 @@ export class GameRoom {
   }
 
   private advanceToNextFloor(): void {
+    if (this.floorAdvancedThisTick) return;
+    this.floorAdvancedThisTick = true;
+
     this.currentFloor += 1;
 
     // Notify clients about floor completion
@@ -1098,7 +1114,7 @@ export class GameRoom {
     const player = this.players.get(socketId);
     if (!player) return;
 
-    const sanitized = text.slice(0, 100).trim();
+    const sanitized = text.slice(0, MAX_CHAT_LENGTH).trim();
     if (sanitized.length === 0) return;
 
     this.io.to(this.roomCode).emit('chat:message', {

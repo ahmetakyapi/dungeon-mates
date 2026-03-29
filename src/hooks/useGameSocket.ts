@@ -182,7 +182,7 @@ export function useGameSocket(): UseGameSocketReturn {
 
     socket.on('game:damage', (data) => {
       setDamageEvents((prev) => [
-        ...prev,
+        ...prev.slice(-19),
         {
           targetId: data.targetId,
           value: data.damage,
@@ -235,11 +235,11 @@ export function useGameSocket(): UseGameSocketReturn {
     });
 
     socket.on('game:room_cleared', (data) => {
-      setRoomClearedEvents((prev) => [...prev, data.roomId]);
+      setRoomClearedEvents((prev) => [...prev.slice(-19), data.roomId]);
     });
 
     socket.on('game:player_died', (data) => {
-      setPlayerDiedEvents((prev) => [...prev, data.playerId]);
+      setPlayerDiedEvents((prev) => [...prev.slice(-19), data.playerId]);
     });
 
     socket.on('game:floor_complete', (data) => {
@@ -273,6 +273,9 @@ export function useGameSocket(): UseGameSocketReturn {
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
+      socket.io.off('reconnect_attempt');
+      socket.io.off('reconnect');
+      socket.io.off('reconnect_failed');
       socket.disconnect();
       socketRef.current = null;
     };

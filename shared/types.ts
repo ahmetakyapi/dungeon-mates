@@ -14,6 +14,7 @@ export const DUNGEON_WIDTH = 64;
 export const DUNGEON_HEIGHT = 64;
 export const MAX_PLAYERS = 4;
 export const ROOM_CODE_LENGTH = 4;
+export const XP_PER_LEVEL = 50;
 
 // --- Enum'lar ---
 export type PlayerClass = 'warrior' | 'mage' | 'archer';
@@ -72,6 +73,21 @@ export const CLASS_STATS: Record<PlayerClass, {
     label: 'Okçu',
     emoji: '🏹',
   },
+} as const;
+
+// --- Zorluk Seviyeleri ---
+export const DIFFICULTY_INFO: Record<number, { label: string; color: string }> = {
+  1: { label: 'Kolay', color: '#4ade80' },
+  2: { label: 'Normal', color: '#facc15' },
+  3: { label: 'Zor', color: '#f97316' },
+  4: { label: 'Çok Zor', color: '#ef4444' },
+} as const;
+
+// --- Yetenek Cooldown Süreleri (tick cinsinden) ---
+export const ABILITY_MAX_COOLDOWNS: Record<PlayerClass, number> = {
+  warrior: 240,
+  mage: 300,
+  archer: 200,
 } as const;
 
 // --- Monster İstatistikleri ---

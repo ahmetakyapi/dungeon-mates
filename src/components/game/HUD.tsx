@@ -3,7 +3,7 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { PlayerState, GameState, DungeonRoom, PlayerClass, MonsterState, TileType } from '../../../shared/types';
-import { CLASS_STATS } from '../../../shared/types';
+import { CLASS_STATS, DIFFICULTY_INFO, XP_PER_LEVEL } from '../../../shared/types';
 import { KillFeed, createKillFeedEntry } from './KillFeed';
 import type { KillFeedEntry } from './KillFeed';
 import { PlayerHoverCard } from './PlayerHoverCard';
@@ -13,12 +13,7 @@ const TOAST_DURATION = 3000;
 const MAX_TOASTS = 4;
 const COMBO_WINDOW_MS = 3000;
 
-const DIFFICULTY_LABELS: Record<number, { label: string; color: string }> = {
-  1: { label: 'Kolay', color: '#4ade80' },
-  2: { label: 'Normal', color: '#facc15' },
-  3: { label: 'Zor', color: '#f97316' },
-  4: { label: 'Çok Zor', color: '#ef4444' },
-} as const;
+// DIFFICULTY_INFO imported from shared/types
 
 // --- Toast system ---
 
@@ -55,8 +50,7 @@ export type HUDEvent =
   | { type: 'room_cleared'; roomId: number }
   | { type: 'level_up'; level: number }
   | { type: 'loot_pickup'; lootType: string; value: number }
-  | { type: 'monster_killed'; playerName: string; playerClass: string; monsterName: string; xp: number }
-  | { type: 'ping' };
+  | { type: 'monster_killed'; playerName: string; playerClass: string; monsterName: string; xp: number };
 
 function useToasts() {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -583,6 +577,7 @@ function Minimap({
   useEffect(() => {
     const check = () => {
       const w = window.innerWidth;
+      setIsMobile(w < 640);
       if (w >= 1536) setScreenTier(4);
       else if (w >= 1280) setScreenTier(3);
       else if (w >= 1024) setScreenTier(2);
@@ -598,13 +593,6 @@ function Minimap({
   const expandedSizeByTier = [180, 220, 250, 280, 310] as const;
   const size = expanded ? expandedSizeByTier[screenTier] : sizeByTier[screenTier];
   const mobileSize = expanded ? 180 : 90;
-
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 640);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
 
   const toggleExpand = useCallback(() => {
     setExpanded((prev) => !prev);
@@ -1021,7 +1009,7 @@ function FloorInfo({
   monstersInRoom: number;
   playerCount: number;
 }) {
-  const difficulty = DIFFICULTY_LABELS[Math.min(playerCount, 4)] ?? DIFFICULTY_LABELS[1];
+  const difficulty = DIFFICULTY_INFO[Math.min(playerCount, 4)] ?? DIFFICULTY_INFO[1];
 
   return (
     <PixelFrame className="flex flex-col items-center gap-1 px-3 py-1.5 sm:gap-1.5 sm:px-4 sm:py-2">
@@ -1091,7 +1079,7 @@ type HUDProps = {
   player: PlayerState;
   gameState: GameState;
   fps: number;
-  onPing?: () => void;
+
   attackCooldownPct?: number;
   abilityCooldownPct?: number;
   abilityActive?: boolean;
@@ -1100,7 +1088,7 @@ type HUDProps = {
   lootPickupEvents?: Array<{ playerId: string; lootType: string; value: number }>;
 };
 
-export function HUD({ player, gameState, fps, onPing, attackCooldownPct = 1, abilityCooldownPct = 0, abilityActive = false, playerClass, monsterKillEvents, lootPickupEvents }: HUDProps) {
+export function HUD({ player, gameState, fps, attackCooldownPct = 1, abilityCooldownPct = 0, abilityActive = false, playerClass, monsterKillEvents, lootPickupEvents }: HUDProps) {
   const { toasts, addToast } = useToasts();
   const [killFeedEntries, setKillFeedEntries] = useState<KillFeedEntry[]>([]);
   const [hpFlash, setHpFlash] = useState(false);
@@ -1132,7 +1120,7 @@ export function HUD({ player, gameState, fps, onPing, attackCooldownPct = 1, abi
     [gameState.dungeon.rooms],
   );
 
-  const xpToNextLevel = 50;
+  const xpToNextLevel = XP_PER_LEVEL;
   const isBossPhase = gameState.phase === 'boss';
 
   const isAbilityReady = abilityCooldownPct === 0 && !abilityActive;
@@ -1236,11 +1224,6 @@ export function HUD({ player, gameState, fps, onPing, attackCooldownPct = 1, abi
     }
     prevHpRef.current = player.hp;
   }, [player.hp, addToast]);
-
-  const handlePing = useCallback(() => {
-    addToast('Ping gönderildi!', '📍', 'warning');
-    onPing?.();
-  }, [addToast, onPing]);
 
   const handleKillFeedExpire = useCallback((id: string) => {
     setKillFeedEntries((prev) => prev.filter((e) => e.id !== id));
@@ -1433,17 +1416,6 @@ export function HUD({ player, gameState, fps, onPing, attackCooldownPct = 1, abi
             </div>
           )}
 
-          {/* Ping button */}
-          {teammates.length > 0 && (
-            <motion.button
-              className="pointer-events-auto mt-2 w-full rounded border border-dm-border/50 bg-dm-surface/50 py-1 font-pixel text-[6px] text-dm-gold transition-colors hover:bg-dm-accent/20 sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]"
-              onClick={handlePing}
-              whileTap={{ scale: 0.95 }}
-              transition={{ duration: 0.1 }}
-            >
-              📍 Ping
-            </motion.button>
-          )}
         </PixelFrame>
       </div>
 

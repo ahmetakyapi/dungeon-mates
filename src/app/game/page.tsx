@@ -22,16 +22,11 @@ import { ChatBox } from '@/components/game/ChatBox';
 import { PixelButton } from '@/components/ui/PixelButton';
 import { PixelHero } from '@/components/game/PixelHero';
 import type { PlayerInput, GamePhase } from '../../../shared/types';
-import { CLASS_STATS } from '../../../shared/types';
+import { CLASS_STATS, DIFFICULTY_INFO, ABILITY_MAX_COOLDOWNS } from '../../../shared/types';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
-const DIFFICULTY_INFO: Record<number, { label: string; color: string }> = {
-  1: { label: 'Kolay', color: '#4ade80' },
-  2: { label: 'Normal Zorluk', color: '#facc15' },
-  3: { label: 'Zor', color: '#f97316' },
-  4: { label: 'Çok Zor', color: '#ef4444' },
-} as const;
+// DIFFICULTY_INFO imported from shared/types
 
 // Floating particles for lobby background
 function LobbyParticles() {
@@ -279,8 +274,6 @@ function GamePage() {
   }, [gameState?.dungeon.currentFloor, gameState]);
 
   const localPlayer = gameState?.players[playerId];
-
-  const ABILITY_MAX_COOLDOWNS = { warrior: 240, mage: 300, archer: 200 } as const;
 
   const abilityCooldownPct = useMemo(() => {
     if (!localPlayer || localPlayer.abilityCooldownTicks <= 0) return 0;

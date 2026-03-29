@@ -10,6 +10,7 @@ import {
   CLASS_STATS,
   PLAYER_SPEED,
   TICK_RATE,
+  XP_PER_LEVEL,
 } from '../../shared/types';
 import { Projectile } from './Projectile';
 
@@ -17,8 +18,6 @@ export type ServerAbilityResult =
   | { type: 'shield_wall' }
   | { type: 'ice_storm'; position: Vec2; damage: number; radius: number }
   | { type: 'arrow_rain'; projectiles: Projectile[] };
-
-const XP_PER_LEVEL = 50;
 const LEVEL_STAT_MULTIPLIER = 0.1;
 const LOOT_PICKUP_RADIUS = 0.8;
 const PLAYER_RADIUS = 0.4;
