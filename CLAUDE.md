@@ -120,8 +120,21 @@ Tip'ler: feat, fix, style, refactor, docs, chore, perf
 Örnek: feat: add floor 5 mid-boss encounter
 ```
 
-## Aktif Skills
+## Aktif Skills (11 adet)
 
-- `game-dev-specialist` — Canvas render, sprite, particle, monster AI, ses motoru, hit feel
-- `nextjs-app-router` — Next.js 14, server/client component, Tailwind, build
+### Temel (Proje geneli)
+- `game-dev-specialist` — Canvas render, 14 canavar, hit feel, ses motoru, WebSocket protokolü
+- `nextjs-app-router` — Next.js 14, server/client component, Tailwind, build komutları
 - `context-management` — Büyük dosya stratejisi, agent kullanımı, bağımlılık haritası
+
+### Uzman (Alan bazlı)
+- `canvas-render-pipeline` — 16ms frame budget, object pooling, pixel art, freeze frame, interpolation
+- `multiplayer-netcode` — Socket.IO tick protokolü, reconnection, transport stratejisi, state broadcast
+- `procedural-audio` — Web Audio synthesizer, per-floor müzik, ambient katmanlar, ses tasarımı
+- `monster-ai-design` — 14 canavar AI, boss faz sistemi, zorluk ölçekleme, ekleme checklist'i
+- `pixel-art-sprites` — Prosedürel sprite çizimi, renk paleti, animasyon, dekor elemanları
+- `game-production` — İçerik pipeline'ları, kalite kontrol, agent parallelization, lore tutarlılığı
+
+### Koruma (Hata önleme)
+- `nextjs-anti-patterns` — 14 anti-pattern: server import yasağı, useState misuse, SSR güvenliği
+- `nextjs-game-integration` — Oyun akışı, faz geçişleri, ses entegrasyonu, Canvas lifecycle
