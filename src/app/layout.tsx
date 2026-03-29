@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter, Press_Start_2P } from 'next/font/google';
+import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 
 const inter = Inter({
@@ -40,7 +41,10 @@ export default function RootLayout({
       className={`dark ${inter.variable} ${pressStart2P.variable}`}
       suppressHydrationWarning
     >
-      <body className="font-body antialiased safe-area-padding">{children}</body>
+      <body className="font-body antialiased safe-area-padding">
+        {children}
+        <Analytics />
+      </body>
     </html>
   );
 }
