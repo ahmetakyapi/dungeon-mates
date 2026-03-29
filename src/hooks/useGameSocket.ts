@@ -10,6 +10,9 @@ import type {
   PlayerClass,
   PlayerInput,
   PlayerState,
+  TalentDef,
+  ShopItem,
+  FloorModifier,
 } from '../../shared/types';
 import type { ChatMessage } from '@/components/game/ChatBox';
 
@@ -51,6 +54,15 @@ type UseGameSocketReturn = {
   sendInput: (input: PlayerInput) => void;
   sendChat: (text: string) => void;
   retryConnection: () => void;
+  // Talent & Shop
+  talentChoiceEvent: { playerId: string; talents: TalentDef[] } | null;
+  shopOpenEvent: { items: ShopItem[]; playerGold: Record<string, number> } | null;
+  levelUpEvent: { playerId: string; level: number } | null;
+  floorModifiers: FloorModifier[];
+  bossDialogue: { bossType: string; dialogue: string; phase: number } | null;
+  selectTalent: (talentId: string) => void;
+  buyItem: (itemId: string) => void;
+  shopDone: () => void;
 };
 
 export function useGameSocket(): UseGameSocketReturn {
@@ -80,6 +92,12 @@ export function useGameSocket(): UseGameSocketReturn {
   const [chestOpenedEvents, setChestOpenedEvents] = useState<Array<{ x: number; y: number }>>([]);
   const [stairsUsedEvents, setStairsUsedEvents] = useState<number[]>([]);
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
+  // Talent & Shop
+  const [talentChoiceEvent, setTalentChoiceEvent] = useState<{ playerId: string; talents: TalentDef[] } | null>(null);
+  const [shopOpenEvent, setShopOpenEvent] = useState<{ items: ShopItem[]; playerGold: Record<string, number> } | null>(null);
+  const [levelUpEvent, setLevelUpEvent] = useState<{ playerId: string; level: number } | null>(null);
+  const [floorModifiers, setFloorModifiers] = useState<FloorModifier[]>([]);
+  const [bossDialogue, setBossDialogue] = useState<{ bossType: string; dialogue: string; phase: number } | null>(null);
 
   // Room intent tracking for reconnection
   const roomIntentRef = useRef<{
@@ -323,6 +341,41 @@ export function useGameSocket(): UseGameSocketReturn {
       setPhase('defeat');
     });
 
+    socket.on('game:talent_choice', (data) => {
+      setTalentChoiceEvent(data);
+    });
+
+    socket.on('game:talent_selected', () => {
+      setTalentChoiceEvent(null);
+    });
+
+    socket.on('game:level_up', (data) => {
+      setLevelUpEvent(data);
+      setTimeout(() => setLevelUpEvent(null), 3000);
+    });
+
+    socket.on('game:shop_open', (data) => {
+      setShopOpenEvent(data);
+    });
+
+    socket.on('game:item_purchased', () => {
+      // State updated via game:state broadcast
+    });
+
+    socket.on('game:floor_modifier', (data) => {
+      setFloorModifiers(data.modifiers);
+    });
+
+    socket.on('game:boss_phase', () => {
+      // Handled via game:state broadcast
+    });
+
+    socket.on('game:boss_dialogue', (data: { monsterId: string; bossType: string; dialogue: string; phase: number }) => {
+      setBossDialogue({ bossType: data.bossType, dialogue: data.dialogue, phase: data.phase });
+      // Auto-clear after 4 seconds
+      setTimeout(() => setBossDialogue(null), 4000);
+    });
+
     // Handle mobile background/foreground — reconnect when page becomes visible
     const handleVisibility = () => {
       if (!document.hidden && socket && !socket.connected) {
@@ -433,6 +486,20 @@ export function useGameSocket(): UseGameSocketReturn {
     socket.emit('chat:send', { text });
   }, []);
 
+  const selectTalent = useCallback((talentId: string) => {
+    socketRef.current?.emit('player:select_talent', { talentId });
+    setTalentChoiceEvent(null);
+  }, []);
+
+  const buyItem = useCallback((itemId: string) => {
+    socketRef.current?.emit('player:buy_item', { itemId });
+  }, []);
+
+  const shopDone = useCallback(() => {
+    socketRef.current?.emit('player:shop_done');
+    setShopOpenEvent(null);
+  }, []);
+
   const retryConnection = useCallback(() => {
     const socket = socketRef.current;
     if (!socket) return;
@@ -478,5 +545,13 @@ export function useGameSocket(): UseGameSocketReturn {
     sendInput,
     sendChat,
     retryConnection,
+    talentChoiceEvent,
+    shopOpenEvent,
+    levelUpEvent,
+    floorModifiers,
+    bossDialogue,
+    selectTalent,
+    buyItem,
+    shopDone,
   };
 }

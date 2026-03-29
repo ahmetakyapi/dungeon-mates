@@ -7,10 +7,16 @@ import {
   TileType,
   LootState,
   LootType,
+  TalentId,
+  TalentDef,
+  TalentBranch,
   CLASS_STATS,
   PLAYER_SPEED,
   TICK_RATE,
-  XP_PER_LEVEL,
+  TALENT_TREE,
+  levelFromXp,
+  xpForLevel,
+  totalXpForLevel,
 } from '../../shared/types';
 import { Projectile } from './Projectile';
 
@@ -18,15 +24,15 @@ export type ServerAbilityResult =
   | { type: 'shield_wall' }
   | { type: 'ice_storm'; position: Vec2; damage: number; radius: number }
   | { type: 'arrow_rain'; projectiles: Projectile[] };
-const LEVEL_STAT_MULTIPLIER = 0.1;
+
 const LOOT_PICKUP_RADIUS = 0.8;
 const PLAYER_RADIUS = 0.4;
 const RESPAWN_DELAY_TICKS = 5 * TICK_RATE;
 
-const SOLO_MANA_REGEN = 0.08;
-const SOLO_HP_REGEN = 0.02;
-const SOLO_NO_COMBAT_THRESHOLD = 100; // ticks without damage before HP regen
-const SOLO_MAX_DEATHS = 3;
+const SOLO_MANA_REGEN = 0.06;
+const SOLO_HP_REGEN = 0.01;
+const SOLO_NO_COMBAT_THRESHOLD = 100;
+const SOLO_MAX_DEATHS = 2;
 const SOLO_RESPAWN_DELAY_TICKS = 3 * TICK_RATE;
 
 export type MonsterTarget = { position: Vec2; alive: boolean };
@@ -36,6 +42,14 @@ export class Player {
   public totalDeaths: number;
   public isSolo: boolean;
   public shieldActive: boolean;
+  // Talent sistemi — toplam birikmiş efektler
+  private talentBonuses: {
+    maxHp: number; maxMana: number; attack: number; defense: number; speed: number;
+    lifesteal: number; manaCostReduction: number; abilityDamageBonus: number;
+    shieldDmgReduction: number; thornsDamage: number;
+    critChance: number; critMultiplier: number; dodgeChance: number;
+    manaRegen: number; hpRegen: number;
+  };
   private respawnTimer: number;
   private spawnPosition: Vec2;
   private ticksSinceLastDamage: number;
@@ -46,6 +60,8 @@ export class Player {
   private slowMultiplier: number;
   private slowTicks: number;
   private attackAnimTicks: number;
+  // Dükkan bonusları (kalıcı)
+  private shopBonuses: { maxHp: number; maxMana: number; attack: number; defense: number; speed: number };
 
   constructor(id: string, name: string, spawnPos: Vec2) {
     this.spawnPosition = { ...spawnPos };
@@ -61,6 +77,14 @@ export class Player {
     this.slowMultiplier = 1;
     this.slowTicks = 0;
     this.attackAnimTicks = 0;
+    this.talentBonuses = {
+      maxHp: 0, maxMana: 0, attack: 0, defense: 0, speed: 0,
+      lifesteal: 0, manaCostReduction: 0, abilityDamageBonus: 0,
+      shieldDmgReduction: 0, thornsDamage: 0,
+      critChance: 0, critMultiplier: 1.5, dodgeChance: 0,
+      manaRegen: 0, hpRegen: 0,
+    };
+    this.shopBonuses = { maxHp: 0, maxMana: 0, attack: 0, defense: 0, speed: 0 };
 
     this.state = {
       id,
@@ -86,6 +110,11 @@ export class Player {
       speedBoosted: false,
       totalDamageDealt: 0,
       goldCollected: 0,
+      gold: 0,
+      talents: [],
+      talentBranch: null,
+      pendingTalentChoice: false,
+      stunTicks: 0,
     };
   }
 
@@ -94,15 +123,10 @@ export class Player {
   }
 
   selectClass(playerClass: PlayerClass): void {
-    const stats = CLASS_STATS[playerClass];
     this.state.class = playerClass;
-    this.state.maxHp = stats.maxHp;
-    this.state.hp = stats.maxHp;
-    this.state.maxMana = stats.maxMana;
-    this.state.mana = stats.maxMana;
-    this.state.attack = stats.attack;
-    this.state.defense = stats.defense;
-    this.applyLevelBonuses();
+    this.recalculateStats();
+    this.state.hp = this.state.maxHp;
+    this.state.mana = this.state.maxMana;
   }
 
   setSpawnPosition(pos: Vec2): void {
@@ -114,7 +138,7 @@ export class Player {
     this.slowTicks = ticks;
   }
 
-  processInput(input: PlayerInput, tiles: TileType[][], currentTick: number, monsters: MonsterTarget[] = []): Projectile | null {
+  processInput(input: PlayerInput, tiles: TileType[][], currentTick: number, monsters: MonsterTarget[] = [], droughtActive = false): Projectile | null {
     // Tick down ability cooldown
     if (this.abilityCooldownTicks > 0) this.abilityCooldownTicks--;
 
@@ -168,9 +192,17 @@ export class Player {
       }
     }
 
+    // Stun check
+    if (this.state.stunTicks > 0) {
+      this.state.stunTicks--;
+      this.state.velocity = { x: 0, y: 0 };
+      return null;
+    }
+
     // Movement with collision
     const classStats = CLASS_STATS[this.state.class];
-    const speed = classStats.speed * PLAYER_SPEED * this.speedBoostMultiplier * this.slowMultiplier / TICK_RATE;
+    const totalSpeed = classStats.speed + this.getShopSpeedBonus();
+    const speed = totalSpeed * PLAYER_SPEED * this.speedBoostMultiplier * this.slowMultiplier / TICK_RATE;
 
     const newX = this.state.position.x + dx * speed;
     const newY = this.state.position.y + dy * speed;
@@ -209,16 +241,23 @@ export class Player {
       }
     }
 
-    // Mana regen (faster in solo)
-    const manaRegenRate = this.isSolo ? SOLO_MANA_REGEN : 0.05;
+    // Mana regen (faster in solo) + talent bonus — drought halves it
+    const baseManaRegen = this.isSolo ? SOLO_MANA_REGEN : 0.03;
+    const manaRegenRate = (baseManaRegen + this.talentBonuses.manaRegen) * (droughtActive ? 0.5 : 1);
     if (this.state.mana < this.state.maxMana) {
       this.state.mana = Math.min(this.state.maxMana, this.state.mana + manaRegenRate);
     }
 
-    // Solo HP regen when not in combat
+    // HP regen (solo out-of-combat + talent bonus always)
     this.ticksSinceLastDamage += 1;
-    if (this.isSolo && this.state.hp < this.state.maxHp && this.ticksSinceLastDamage >= SOLO_NO_COMBAT_THRESHOLD) {
-      this.state.hp = Math.min(this.state.maxHp, this.state.hp + SOLO_HP_REGEN);
+    if (this.state.hp < this.state.maxHp) {
+      let hpRegen = this.talentBonuses.hpRegen;
+      if (this.isSolo && this.ticksSinceLastDamage >= SOLO_NO_COMBAT_THRESHOLD) {
+        hpRegen += SOLO_HP_REGEN;
+      }
+      if (hpRegen > 0) {
+        this.state.hp = Math.min(this.state.maxHp, this.state.hp + hpRegen);
+      }
     }
 
     return projectile;
@@ -331,18 +370,27 @@ export class Player {
     return false;
   }
 
-  takeDamage(damage: number): number {
-    if (!this.state.alive) return 0;
+  takeDamage(damage: number): { effectiveDamage: number; thornsDamage: number; dodged: boolean } {
+    if (!this.state.alive) return { effectiveDamage: 0, thornsDamage: 0, dodged: false };
 
     this.ticksSinceLastDamage = 0;
 
-    // Warrior shield: reduce incoming damage by 70%
+    // Dodge kontrolü
+    if (this.talentBonuses.dodgeChance > 0 && Math.random() < this.talentBonuses.dodgeChance) {
+      return { effectiveDamage: 0, thornsDamage: 0, dodged: true };
+    }
+
+    // Warrior shield
     if (this.shieldActive) {
-      damage = Math.floor(damage * 0.3);
+      const reduction = this.talentBonuses.shieldDmgReduction > 0 ? this.talentBonuses.shieldDmgReduction : 0.7;
+      damage = Math.floor(damage * (1 - reduction));
     }
 
     const effectiveDamage = Math.max(1, damage - this.state.defense);
     this.state.hp -= effectiveDamage;
+
+    // Thorns hasarı
+    const thornsDamage = this.talentBonuses.thornsDamage;
 
     if (this.state.hp <= 0) {
       this.state.hp = 0;
@@ -350,17 +398,15 @@ export class Player {
       this.totalDeaths += 1;
 
       if (this.isSolo) {
-        // Solo: respawn after 3 seconds (until max deaths reached)
         if (this.totalDeaths < SOLO_MAX_DEATHS) {
           this.respawnTimer = SOLO_RESPAWN_DELAY_TICKS;
         }
-        // If max deaths reached, no respawn — game checks for defeat
       } else {
         this.respawnTimer = RESPAWN_DELAY_TICKS;
       }
     }
 
-    return effectiveDamage;
+    return { effectiveDamage, thornsDamage, dodged: false };
   }
 
   getSoloDeathsRemaining(): number {
@@ -405,6 +451,7 @@ export class Player {
         this.speedBoostTicks = 10 * TICK_RATE; // 10 seconds
         break;
       case 'gold':
+        this.state.gold += loot.value;
         this.state.score += loot.value;
         this.state.goldCollected += loot.value;
         break;
@@ -413,55 +460,184 @@ export class Player {
 
   addXp(amount: number): boolean {
     this.state.xp += amount;
-    const newLevel = Math.floor(this.state.xp / XP_PER_LEVEL) + 1;
+    const newLevel = levelFromXp(this.state.xp);
 
     if (newLevel > this.state.level) {
       this.state.level = newLevel;
-      this.applyLevelBonuses();
+      this.recalculateStats();
       this.state.hp = this.state.maxHp;
       this.state.mana = this.state.maxMana;
+      this.state.pendingTalentChoice = true;
       return true;
     }
 
     return false;
   }
 
-  private applyLevelBonuses(): void {
-    const baseStats = CLASS_STATS[this.state.class];
-    const multiplier = 1 + (this.state.level - 1) * LEVEL_STAT_MULTIPLIER;
+  /** Talent seçme */
+  selectTalent(talentId: TalentId): boolean {
+    const tree = TALENT_TREE[this.state.class];
+    const talent = tree.find(t => t.id === talentId);
+    if (!talent) return false;
+    if (talent.level > this.state.level) return false;
+    if (this.state.talents.includes(talentId)) return false;
 
-    this.state.maxHp = Math.floor(baseStats.maxHp * multiplier);
-    this.state.maxMana = Math.floor(baseStats.maxMana * multiplier);
-    this.state.attack = Math.floor(baseStats.attack * multiplier);
-    this.state.defense = Math.floor(baseStats.defense * multiplier);
+    // Dalı kilitle (ilk seçimde)
+    if (this.state.talentBranch === null) {
+      this.state.talentBranch = talent.branch;
+    } else if (talent.branch !== this.state.talentBranch) {
+      return false; // yanlış dal
+    }
+
+    // Bu level için zaten seçilmiş talent var mı?
+    const existingForLevel = tree.find(t => t.level === talent.level && this.state.talents.includes(t.id));
+    if (existingForLevel) return false;
+
+    this.state.talents.push(talentId);
+    this.state.pendingTalentChoice = false;
+
+    // Talent bonuslarını yeniden hesapla
+    this.recalculateTalentBonuses();
+    this.recalculateStats();
+
+    return true;
+  }
+
+  /** Mevcut level için seçilebilir talentleri döndür */
+  getAvailableTalents(): TalentDef[] {
+    const tree = TALENT_TREE[this.state.class];
+    const level = this.state.level;
+
+    // Bu level için zaten seçilmiş mi?
+    const alreadySelected = tree.some(t => t.level === level && this.state.talents.includes(t.id));
+    if (alreadySelected) return [];
+
+    // Dal belirlenmişse sadece o dalın talent'ını göster
+    if (this.state.talentBranch !== null) {
+      return tree.filter(t => t.level === level && t.branch === this.state.talentBranch);
+    }
+
+    // Dal belirlenmemişse tüm dallardan bu level'deki talent'ları göster
+    return tree.filter(t => t.level === level);
+  }
+
+  private recalculateTalentBonuses(): void {
+    const tree = TALENT_TREE[this.state.class];
+    // Reset
+    this.talentBonuses = {
+      maxHp: 0, maxMana: 0, attack: 0, defense: 0, speed: 0,
+      lifesteal: 0, manaCostReduction: 0, abilityDamageBonus: 0,
+      shieldDmgReduction: 0, thornsDamage: 0,
+      critChance: 0, critMultiplier: 1.5, dodgeChance: 0,
+      manaRegen: 0, hpRegen: 0,
+    };
+
+    for (const talentId of this.state.talents) {
+      const talent = tree.find(t => t.id === talentId);
+      if (!talent) continue;
+      const e = talent.effects;
+      if (e.maxHp) this.talentBonuses.maxHp += e.maxHp;
+      if (e.maxMana) this.talentBonuses.maxMana += e.maxMana;
+      if (e.attack) this.talentBonuses.attack += e.attack;
+      if (e.defense) this.talentBonuses.defense += e.defense;
+      if (e.speed) this.talentBonuses.speed += e.speed;
+      if (e.lifesteal) this.talentBonuses.lifesteal += e.lifesteal;
+      if (e.manaCostReduction) this.talentBonuses.manaCostReduction += e.manaCostReduction;
+      if (e.abilityDamageBonus) this.talentBonuses.abilityDamageBonus += e.abilityDamageBonus;
+      if (e.shieldDmgReduction) this.talentBonuses.shieldDmgReduction = e.shieldDmgReduction; // override, not additive
+      if (e.thornsDamage) this.talentBonuses.thornsDamage += e.thornsDamage;
+      if (e.critChance) this.talentBonuses.critChance += e.critChance;
+      if (e.critMultiplier) this.talentBonuses.critMultiplier = e.critMultiplier; // override
+      if (e.dodgeChance) this.talentBonuses.dodgeChance += e.dodgeChance;
+      if (e.manaRegen) this.talentBonuses.manaRegen += e.manaRegen;
+      if (e.hpRegen) this.talentBonuses.hpRegen += e.hpRegen;
+    }
+  }
+
+  /** Shop item satın al */
+  buyShopItem(effect: { hp?: number; mana?: number; maxHp?: number; maxMana?: number; attack?: number; defense?: number; speed?: number }, cost: number): boolean {
+    if (this.state.gold < cost) return false;
+    this.state.gold -= cost;
+
+    // Tüketimlik efektler
+    if (effect.hp) {
+      this.state.hp = Math.min(this.state.maxHp, this.state.hp + effect.hp);
+    }
+    if (effect.mana) {
+      this.state.mana = Math.min(this.state.maxMana, this.state.mana + effect.mana);
+    }
+    // Kalıcı yükseltmeler
+    if (effect.maxHp) this.shopBonuses.maxHp += effect.maxHp;
+    if (effect.maxMana) this.shopBonuses.maxMana += effect.maxMana;
+    if (effect.attack) this.shopBonuses.attack += effect.attack;
+    if (effect.defense) this.shopBonuses.defense += effect.defense;
+    if (effect.speed) this.shopBonuses.speed += effect.speed;
+
+    this.recalculateStats();
+    return true;
+  }
+
+  /** Tüm stat'ları base + talent + shop bonuslarıyla yeniden hesapla */
+  private recalculateStats(): void {
+    const baseStats = CLASS_STATS[this.state.class];
+    const prevMaxHp = this.state.maxHp;
+    const prevMaxMana = this.state.maxMana;
+
+    this.state.maxHp = baseStats.maxHp + this.talentBonuses.maxHp + this.shopBonuses.maxHp;
+    this.state.maxMana = baseStats.maxMana + this.talentBonuses.maxMana + this.shopBonuses.maxMana;
+    this.state.attack = baseStats.attack + this.talentBonuses.attack + this.shopBonuses.attack;
+    this.state.defense = baseStats.defense + this.talentBonuses.defense + this.shopBonuses.defense;
+
+    // HP/Mana artışlarını koru
+    if (this.state.maxHp > prevMaxHp) {
+      this.state.hp += (this.state.maxHp - prevMaxHp);
+    }
+    if (this.state.maxMana > prevMaxMana) {
+      this.state.mana += (this.state.maxMana - prevMaxMana);
+    }
+    this.state.hp = Math.min(this.state.hp, this.state.maxHp);
+    this.state.mana = Math.min(this.state.mana, this.state.maxMana);
+  }
+
+  getTalentBonuses() {
+    return this.talentBonuses;
+  }
+
+  getShopSpeedBonus(): number {
+    return this.shopBonuses.speed + this.talentBonuses.speed;
   }
 
   useAbility(monsters: MonsterTarget[] = []): ServerAbilityResult | null {
     if (this.abilityCooldownTicks > 0) return null;
+    const costReduction = 1 - this.talentBonuses.manaCostReduction;
+    const abilityDmgMult = 1 + this.talentBonuses.abilityDamageBonus;
 
     switch (this.state.class) {
       case 'warrior': {
-        if (this.state.mana < 15) return null;
-        this.state.mana -= 15;
+        const cost = Math.floor(15 * costReduction);
+        if (this.state.mana < cost) return null;
+        this.state.mana -= cost;
         this.shieldActive = true;
-        this.abilityActiveTicks = 80; // 4 saniye
-        this.abilityCooldownTicks = 240; // 12 saniye
+        this.abilityActiveTicks = 80;
+        this.abilityCooldownTicks = 240;
         return { type: 'shield_wall' };
       }
       case 'mage': {
-        if (this.state.mana < 35) return null;
-        this.state.mana -= 35;
-        this.abilityCooldownTicks = 300; // 15 saniye
+        const cost = Math.floor(35 * costReduction);
+        if (this.state.mana < cost) return null;
+        this.state.mana -= cost;
+        this.abilityCooldownTicks = 300;
         return {
           type: 'ice_storm',
           position: { ...this.state.position },
-          damage: Math.floor(this.state.attack * 1.5),
+          damage: Math.floor(this.state.attack * 1.5 * abilityDmgMult),
           radius: 4,
         };
       }
       case 'archer': {
-        if (this.state.mana < 20) return null;
-        this.state.mana -= 20;
+        const cost = Math.floor(20 * costReduction);
+        if (this.state.mana < cost) return null;
+        this.state.mana -= cost;
         this.abilityActiveTicks = 10; // 0.5 saniye görsel geri bildirim
         this.abilityCooldownTicks = 200; // 10 saniye
         // Auto-aim toward nearest target
@@ -485,6 +661,24 @@ export class Player {
         return { type: 'arrow_rain', projectiles: arrows };
       }
     }
+  }
+
+  /** Lifesteal uygula (hasar sonrası) */
+  applyLifesteal(damageDealt: number): void {
+    if (this.talentBonuses.lifesteal > 0 && this.state.alive) {
+      const heal = Math.floor(damageDealt * this.talentBonuses.lifesteal);
+      if (heal > 0) {
+        this.state.hp = Math.min(this.state.maxHp, this.state.hp + heal);
+      }
+    }
+  }
+
+  /** Kritik vuruş kontrolü */
+  rollCrit(): { isCrit: boolean; multiplier: number } {
+    if (this.talentBonuses.critChance > 0 && Math.random() < this.talentBonuses.critChance) {
+      return { isCrit: true, multiplier: this.talentBonuses.critMultiplier };
+    }
+    return { isCrit: false, multiplier: 1 };
   }
 
   getState(): PlayerState {

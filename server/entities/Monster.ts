@@ -29,6 +29,26 @@ const BOSS_CHARGE_DURATION = 20; // ticks
 const BOSS_SUMMON_COOLDOWN = 200; // ticks
 const GOBLIN_RETREAT_HP_RATIO = 0.3;
 
+// Side boss constants
+const FORGE_SLAM_COOLDOWN = 120; // ticks — AoE slam every 6s
+const FORGE_SLAM_RANGE = 2.5; // tiles
+const FORGE_SLAM_DAMAGE_MULT = 1.8;
+const FORGE_OVERHEAT_HP = 0.5; // enrage at 50% HP
+
+const STONE_PETRIFY_COOLDOWN = 150; // ticks — petrify gaze every 7.5s
+const STONE_PETRIFY_RANGE = 4; // tiles
+const STONE_PETRIFY_STUN_TICKS = 40; // 2 seconds
+const STONE_SHIELD_HP = 0.4; // rock shield at 40% HP
+const STONE_SHIELD_DURATION = 80; // 4 seconds
+const STONE_SHIELD_DR = 0.7; // %70 damage reduction
+
+const FLAME_CHARGE_COOLDOWN = 100; // ticks — charge every 5s
+const FLAME_CHARGE_SPEED_MULT = 4.0;
+const FLAME_CHARGE_DURATION = 15; // ticks
+const FLAME_SPIN_COOLDOWN = 160; // ticks — spinning slash every 8s
+const FLAME_SPIN_RANGE = 2.0; // tiles
+const FLAME_SPIN_DAMAGE_MULT = 2.0;
+
 // New monster constants
 const RAT_ERRATIC_CHANCE = 0.3;
 const SPIDER_WEB_COOLDOWN = 70; // ticks
@@ -51,7 +71,7 @@ export class Monster {
   private chargeDir: Vec2;
   private summonCooldown: number;
   private attackCooldown: number;
-  private readonly radius: number;
+  private radius: number;
   public roomId: number;
   public shouldSummon: boolean;
 
@@ -70,6 +90,21 @@ export class Monster {
   // Mushroom poison aura
   private poisonTickCounter: number;
   public poisonAuraTargets: { playerId: string; damage: number }[];
+  public floorSpeedMultiplier: number;
+
+  // Side boss state
+  private slamCooldown: number;
+  private spinCooldown: number;
+  private petrifyGazeCooldown: number;
+  private shieldActive: boolean;
+  private shieldTicks: number;
+  private flameChargeCooldown: number;
+  private flameChargeTimer: number;
+  private flameChargeDir: Vec2;
+  /** AoE hits to apply this tick (populated by boss AI, consumed by GameRoom) */
+  public aoeHits: { playerId: string; damage: number }[];
+  /** Stun targets to apply this tick */
+  public stunTargets: { playerId: string; ticks: number }[];
 
   constructor(type: MonsterType, position: Vec2, roomId: number) {
     const stats = MONSTER_STATS[type];
@@ -84,6 +119,8 @@ export class Monster {
       alive: true,
       targetPlayerId: null,
       facing: 'down',
+      isElite: false,
+      bossPhase: 0,
     };
 
     this.monsterType = type;
@@ -107,6 +144,19 @@ export class Monster {
     this.webTarget = null;
     this.poisonTickCounter = 0;
     this.poisonAuraTargets = [];
+    this.floorSpeedMultiplier = 1;
+
+    // Side boss
+    this.slamCooldown = FORGE_SLAM_COOLDOWN;
+    this.spinCooldown = FLAME_SPIN_COOLDOWN;
+    this.petrifyGazeCooldown = STONE_PETRIFY_COOLDOWN;
+    this.shieldActive = false;
+    this.shieldTicks = 0;
+    this.flameChargeCooldown = FLAME_CHARGE_COOLDOWN;
+    this.flameChargeTimer = 0;
+    this.flameChargeDir = { x: 0, y: 0 };
+    this.aoeHits = [];
+    this.stunTargets = [];
   }
 
   scaleForFloor(hpMultiplier: number, attackMultiplier: number): void {
@@ -125,12 +175,21 @@ export class Monster {
 
   scaleForPlayerCount(playerCount: number): void {
     if (playerCount <= 1) return;
-    const hpScale = 1 + (playerCount - 1) * 0.35; // 2p=1.35x, 3p=1.7x, 4p=2.05x
-    const atkScale = 1 + (playerCount - 1) * 0.15; // 2p=1.15x, 3p=1.3x, 4p=1.45x
+    const hpScale = 1 + (playerCount - 1) * 0.35;
+    const atkScale = 1 + (playerCount - 1) * 0.15;
     this.state.maxHp = Math.floor(this.state.maxHp * hpScale);
     this.state.hp = this.state.maxHp;
     const stats = MONSTER_STATS[this.state.type];
     this.scaledAttack = Math.floor(stats.attack * atkScale);
+  }
+
+  /** Elite canavar yap: 2.5x HP, 1.5x saldırı, 1.2x boyut */
+  makeElite(): void {
+    this.state.isElite = true;
+    this.state.maxHp = Math.floor(this.state.maxHp * 2.5);
+    this.state.hp = this.state.maxHp;
+    this.scaledAttack = Math.floor(this.scaledAttack * 1.5);
+    this.radius *= 1.2;
   }
 
   getRadius(): number {
@@ -159,6 +218,8 @@ export class Monster {
     this.shouldSummon = false;
     this.webTarget = null;
     this.poisonAuraTargets = [];
+    this.aoeHits = [];
+    this.stunTargets = [];
 
     if (this.attackCooldown > 0) {
       this.attackCooldown -= 1;
@@ -192,9 +253,17 @@ export class Monster {
       case 'lava_slime':
         return this.updateSlime(nearest, tiles);
       case 'boss_spider_queen':
-        return this.updateBossDemon(nearest, tiles);
+        return this.updateBossSpiderQueen(nearest, players, tiles);
       case 'boss_demon':
         return this.updateBossDemon(nearest, tiles);
+      case 'boss_forge_guardian':
+        return this.updateForgeGuardian(nearest, players, tiles);
+      case 'boss_stone_warden':
+        return this.updateStoneWarden(nearest, players, tiles);
+      case 'boss_flame_knight':
+        return this.updateFlameKnight(nearest, players, tiles);
+      default:
+        return null;
     }
   }
 
@@ -224,7 +293,7 @@ export class Monster {
 
     if (dist < 0.01) return;
 
-    const effectiveSpeed = speed * this.slowMultiplier;
+    const effectiveSpeed = speed * this.slowMultiplier * this.floorSpeedMultiplier;
     const vx = (dx / dist) * effectiveSpeed / TICK_RATE;
     const vy = (dy / dist) * effectiveSpeed / TICK_RATE;
 
@@ -659,7 +728,93 @@ export class Monster {
     return this.monsterType === 'wraith' && this.phaseActive;
   }
 
-  // --- Boss Demon: charge attack + area damage + summon minions ---
+  // --- Selvira (Spider Queen): web swarms, 2 phases at 50% HP ---
+  private updateBossSpiderQueen(
+    nearest: { id: string; position: Vec2; distance: number } | null,
+    players: ReadonlyArray<{ id: string; position: Vec2; alive: boolean }>,
+    tiles: TileType[][],
+  ): { targetId: string; damage: number } | null {
+    const stats = MONSTER_STATS.boss_demon;
+
+    this.summonCooldown -= 1;
+    if (this.webCooldown > 0) this.webCooldown -= 1;
+
+    // Phase 2 at 50% HP: faster web, more summons, web all players
+    const hpRatio = this.state.hp / this.state.maxHp;
+    const phase2 = hpRatio <= 0.5;
+    if (phase2 && this.state.bossPhase < 1) {
+      this.state.bossPhase = 1;
+    }
+
+    const webCd = phase2 ? Math.floor(SPIDER_WEB_COOLDOWN * 0.5) : SPIDER_WEB_COOLDOWN;
+    const summonCd = phase2 ? Math.floor(BOSS_SUMMON_COOLDOWN * 0.6) : BOSS_SUMMON_COOLDOWN;
+
+    // Web shot — in phase 2, webs ALL players in range
+    if (this.webCooldown <= 0 && nearest && nearest.distance <= DETECTION_RANGE) {
+      this.webCooldown = webCd;
+      if (phase2) {
+        // Web all nearby players
+        for (const player of players) {
+          if (!player.alive) continue;
+          const dx = player.position.x - this.state.position.x;
+          const dy = player.position.y - this.state.position.y;
+          if (Math.sqrt(dx * dx + dy * dy) <= DETECTION_RANGE) {
+            this.stunTargets.push({ playerId: player.id, ticks: SPIDER_WEB_SLOW_DURATION });
+          }
+        }
+      } else {
+        this.webTarget = {
+          playerId: nearest.id,
+          slowMult: SPIDER_WEB_SLOW_MULT,
+          slowTicks: SPIDER_WEB_SLOW_DURATION,
+        };
+      }
+    }
+
+    // Summon spider minions
+    if (this.summonCooldown <= 0) {
+      this.summonCooldown = summonCd;
+      this.shouldSummon = true;
+    }
+
+    // Handle charging (same as demon)
+    if (this.chargeTimer > 0) {
+      this.chargeTimer -= 1;
+      const speed = stats.speed * BOSS_CHARGE_SPEED_MULT / TICK_RATE;
+      this.tryMove(this.chargeDir.x * speed, this.chargeDir.y * speed, tiles);
+      if (nearest && nearest.distance <= ATTACK_RANGE * 1.5 && this.attackCooldown <= 0) {
+        this.attackCooldown = Math.floor(TICK_RATE * 0.35);
+        return { targetId: nearest.id, damage: Math.floor(this.scaledAttack * 1.5) };
+      }
+      return null;
+    }
+
+    if (!nearest) {
+      this.aiState = 'idle';
+      this.state.targetPlayerId = null;
+      this.state.velocity = { x: 0, y: 0 };
+      return null;
+    }
+
+    this.state.targetPlayerId = nearest.id;
+
+    if (nearest.distance <= BOSS_CHARGE_RANGE && nearest.distance > ATTACK_RANGE && this.attackCooldown <= 0) {
+      this.aiState = 'charge';
+      this.chargeTimer = BOSS_CHARGE_DURATION;
+      const dx = nearest.position.x - this.state.position.x;
+      const dy = nearest.position.y - this.state.position.y;
+      const dist = nearest.distance;
+      this.chargeDir = { x: dx / dist, y: dy / dist };
+      this.updateFacing(dx, dy);
+      return null;
+    }
+
+    this.aiState = 'chase';
+    this.moveToward(nearest.position, stats.speed * (phase2 ? 1.2 : 1.0), tiles);
+    return this.tryAttack(nearest, this.scaledAttack);
+  }
+
+  // --- Karanmir (Boss Demon): 3 phases at 75/50/25% HP ---
   private updateBossDemon(
     nearest: { id: string; position: Vec2; distance: number } | null,
     tiles: TileType[][],
@@ -668,21 +823,38 @@ export class Monster {
 
     this.summonCooldown -= 1;
 
+    // Phase transitions: 0→1 at 75%, 1→2 at 50%, 2→3 at 25%
+    const hpRatio = this.state.hp / this.state.maxHp;
+    if (hpRatio <= 0.25 && this.state.bossPhase < 3) {
+      this.state.bossPhase = 3;
+    } else if (hpRatio <= 0.5 && this.state.bossPhase < 2) {
+      this.state.bossPhase = 2;
+    } else if (hpRatio <= 0.75 && this.state.bossPhase < 1) {
+      this.state.bossPhase = 1;
+    }
+
+    const phase = this.state.bossPhase;
+
+    // Phase scaling: faster summons, faster charges, more damage
+    const summonCdMult = phase >= 3 ? 0.4 : phase >= 2 ? 0.6 : phase >= 1 ? 0.8 : 1.0;
+    const speedMult = phase >= 3 ? 1.5 : phase >= 2 ? 1.3 : phase >= 1 ? 1.1 : 1.0;
+    const atkMult = phase >= 3 ? 1.6 : phase >= 2 ? 1.3 : phase >= 1 ? 1.1 : 1.0;
+
     // Summon minions periodically
     if (this.summonCooldown <= 0) {
-      this.summonCooldown = BOSS_SUMMON_COOLDOWN;
+      this.summonCooldown = Math.floor(BOSS_SUMMON_COOLDOWN * summonCdMult);
       this.shouldSummon = true;
     }
 
     // Handle charging
     if (this.chargeTimer > 0) {
       this.chargeTimer -= 1;
-      const speed = stats.speed * BOSS_CHARGE_SPEED_MULT / TICK_RATE;
+      const speed = stats.speed * BOSS_CHARGE_SPEED_MULT * speedMult / TICK_RATE;
       this.tryMove(this.chargeDir.x * speed, this.chargeDir.y * speed, tiles);
 
       if (nearest && nearest.distance <= ATTACK_RANGE * 1.5 && this.attackCooldown <= 0) {
         this.attackCooldown = Math.floor(TICK_RATE * 0.35);
-        return { targetId: nearest.id, damage: Math.floor(this.scaledAttack * 1.5) };
+        return { targetId: nearest.id, damage: Math.floor(this.scaledAttack * 1.5 * atkMult) };
       }
 
       return null;
@@ -715,7 +887,207 @@ export class Monster {
 
     // Normal chase
     this.aiState = 'chase';
-    this.moveToward(nearest.position, stats.speed, tiles);
+    this.moveToward(nearest.position, stats.speed * speedMult, tiles);
+    return this.tryAttack(nearest, Math.floor(this.scaledAttack * atkMult));
+  }
+
+  // --- Forge Guardian: AoE ground slam, overheat enrage at 50% HP ---
+  private updateForgeGuardian(
+    nearest: { id: string; position: Vec2; distance: number } | null,
+    players: ReadonlyArray<{ id: string; position: Vec2; alive: boolean }>,
+    tiles: TileType[][],
+  ): { targetId: string; damage: number } | null {
+    const stats = MONSTER_STATS.boss_demon; // base stats
+
+    this.summonCooldown -= 1;
+    if (this.slamCooldown > 0) this.slamCooldown -= 1;
+
+    // Enrage at 50% HP — faster attacks, faster movement
+    const hpRatio = this.state.hp / this.state.maxHp;
+    const enraged = hpRatio <= FORGE_OVERHEAT_HP;
+    const speedMult = enraged ? 1.4 : 1.0;
+    const atkMult = enraged ? 1.3 : 1.0;
+
+    // Ground slam AoE — damages all players within range
+    if (this.slamCooldown <= 0 && nearest && nearest.distance <= FORGE_SLAM_RANGE) {
+      this.slamCooldown = enraged ? Math.floor(FORGE_SLAM_COOLDOWN * 0.6) : FORGE_SLAM_COOLDOWN;
+      const slamDmg = Math.floor(this.scaledAttack * FORGE_SLAM_DAMAGE_MULT * atkMult);
+      for (const player of players) {
+        if (!player.alive) continue;
+        const dx = player.position.x - this.state.position.x;
+        const dy = player.position.y - this.state.position.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist <= FORGE_SLAM_RANGE) {
+          this.aoeHits.push({ playerId: player.id, damage: slamDmg });
+        }
+      }
+    }
+
+    // Summon minions periodically (slower than demon)
+    if (this.summonCooldown <= 0) {
+      this.summonCooldown = BOSS_SUMMON_COOLDOWN * 1.5;
+      this.shouldSummon = true;
+    }
+
+    if (!nearest) {
+      this.aiState = 'idle';
+      this.state.targetPlayerId = null;
+      this.state.velocity = { x: 0, y: 0 };
+      return null;
+    }
+
+    this.state.targetPlayerId = nearest.id;
+    this.aiState = 'chase';
+    this.moveToward(nearest.position, stats.speed * speedMult, tiles);
+    return this.tryAttack(nearest, Math.floor(this.scaledAttack * atkMult));
+  }
+
+  // --- Stone Warden: Petrify gaze (stun), rock shield phase, ground slam ---
+  private updateStoneWarden(
+    nearest: { id: string; position: Vec2; distance: number } | null,
+    players: ReadonlyArray<{ id: string; position: Vec2; alive: boolean }>,
+    tiles: TileType[][],
+  ): { targetId: string; damage: number } | null {
+    const stats = MONSTER_STATS.boss_demon;
+
+    this.summonCooldown -= 1;
+    if (this.petrifyGazeCooldown > 0) this.petrifyGazeCooldown -= 1;
+    if (this.slamCooldown > 0) this.slamCooldown -= 1;
+
+    // Rock shield — activate at 40% HP, lasts 4 seconds, recharges
+    if (this.shieldActive) {
+      this.shieldTicks -= 1;
+      if (this.shieldTicks <= 0) {
+        this.shieldActive = false;
+      }
+    }
+
+    const hpRatio = this.state.hp / this.state.maxHp;
+    if (!this.shieldActive && hpRatio <= STONE_SHIELD_HP && this.shieldTicks <= -200) {
+      // Activate shield (cooldown tracked via negative shieldTicks)
+      this.shieldActive = true;
+      this.shieldTicks = STONE_SHIELD_DURATION;
+    }
+
+    // Petrify gaze — stun nearest player
+    if (this.petrifyGazeCooldown <= 0 && nearest && nearest.distance <= STONE_PETRIFY_RANGE) {
+      this.petrifyGazeCooldown = STONE_PETRIFY_COOLDOWN;
+      this.stunTargets.push({ playerId: nearest.id, ticks: STONE_PETRIFY_STUN_TICKS });
+    }
+
+    // Ground slam AoE (slower than forge)
+    if (this.slamCooldown <= 0 && nearest && nearest.distance <= 2.0) {
+      this.slamCooldown = FORGE_SLAM_COOLDOWN * 1.2;
+      const slamDmg = Math.floor(this.scaledAttack * 1.5);
+      for (const player of players) {
+        if (!player.alive) continue;
+        const dx = player.position.x - this.state.position.x;
+        const dy = player.position.y - this.state.position.y;
+        if (Math.sqrt(dx * dx + dy * dy) <= 2.0) {
+          this.aoeHits.push({ playerId: player.id, damage: slamDmg });
+        }
+      }
+    }
+
+    // Summon gargoyle minions
+    if (this.summonCooldown <= 0) {
+      this.summonCooldown = BOSS_SUMMON_COOLDOWN * 1.3;
+      this.shouldSummon = true;
+    }
+
+    if (!nearest) {
+      this.aiState = 'idle';
+      this.state.targetPlayerId = null;
+      this.state.velocity = { x: 0, y: 0 };
+      return null;
+    }
+
+    this.state.targetPlayerId = nearest.id;
+    this.aiState = 'chase';
+    // Stone Warden is slow but tanky
+    this.moveToward(nearest.position, stats.speed * 0.7, tiles);
+    return this.tryAttack(nearest, this.scaledAttack);
+  }
+
+  // --- Flame Knight: Fast charges, spinning slash AoE, burn DoT ---
+  private updateFlameKnight(
+    nearest: { id: string; position: Vec2; distance: number } | null,
+    players: ReadonlyArray<{ id: string; position: Vec2; alive: boolean }>,
+    tiles: TileType[][],
+  ): { targetId: string; damage: number } | null {
+    const stats = MONSTER_STATS.boss_demon;
+
+    this.summonCooldown -= 1;
+    if (this.flameChargeCooldown > 0) this.flameChargeCooldown -= 1;
+    if (this.spinCooldown > 0) this.spinCooldown -= 1;
+
+    // Handle active flame charge
+    if (this.flameChargeTimer > 0) {
+      this.flameChargeTimer -= 1;
+      const speed = stats.speed * FLAME_CHARGE_SPEED_MULT / TICK_RATE;
+      this.tryMove(this.flameChargeDir.x * speed, this.flameChargeDir.y * speed, tiles);
+
+      // Hit players during charge
+      for (const player of players) {
+        if (!player.alive) continue;
+        const dx = player.position.x - this.state.position.x;
+        const dy = player.position.y - this.state.position.y;
+        if (Math.sqrt(dx * dx + dy * dy) <= ATTACK_RANGE * 1.5) {
+          this.aoeHits.push({ playerId: player.id, damage: Math.floor(this.scaledAttack * 1.5) });
+        }
+      }
+      return null;
+    }
+
+    // Spinning slash AoE — damages all in range
+    if (this.spinCooldown <= 0 && nearest && nearest.distance <= FLAME_SPIN_RANGE) {
+      this.spinCooldown = FLAME_SPIN_COOLDOWN;
+      const spinDmg = Math.floor(this.scaledAttack * FLAME_SPIN_DAMAGE_MULT);
+      for (const player of players) {
+        if (!player.alive) continue;
+        const dx = player.position.x - this.state.position.x;
+        const dy = player.position.y - this.state.position.y;
+        if (Math.sqrt(dx * dx + dy * dy) <= FLAME_SPIN_RANGE) {
+          this.aoeHits.push({ playerId: player.id, damage: spinDmg });
+        }
+      }
+    }
+
+    // Initiate charge at medium range
+    if (
+      this.flameChargeCooldown <= 0 &&
+      nearest &&
+      nearest.distance <= BOSS_CHARGE_RANGE &&
+      nearest.distance > ATTACK_RANGE * 2
+    ) {
+      this.flameChargeCooldown = FLAME_CHARGE_COOLDOWN;
+      this.flameChargeTimer = FLAME_CHARGE_DURATION;
+      const dx = nearest.position.x - this.state.position.x;
+      const dy = nearest.position.y - this.state.position.y;
+      const dist = nearest.distance;
+      this.flameChargeDir = { x: dx / dist, y: dy / dist };
+      this.updateFacing(dx, dy);
+      this.aiState = 'charge';
+      return null;
+    }
+
+    // Summon lava_slime minions
+    if (this.summonCooldown <= 0) {
+      this.summonCooldown = BOSS_SUMMON_COOLDOWN * 1.4;
+      this.shouldSummon = true;
+    }
+
+    if (!nearest) {
+      this.aiState = 'idle';
+      this.state.targetPlayerId = null;
+      this.state.velocity = { x: 0, y: 0 };
+      return null;
+    }
+
+    this.state.targetPlayerId = nearest.id;
+    this.aiState = 'chase';
+    // Flame Knight is fast
+    this.moveToward(nearest.position, stats.speed * 1.3, tiles);
     return this.tryAttack(nearest, this.scaledAttack);
   }
 
@@ -724,6 +1096,11 @@ export class Monster {
 
     // Wraith is invulnerable while phased
     if (this.isPhased()) return 0;
+
+    // Stone Warden rock shield — %70 damage reduction
+    if (this.shieldActive) {
+      damage = Math.floor(damage * (1 - STONE_SHIELD_DR));
+    }
 
     const stats = MONSTER_STATS[this.monsterType];
     const effectiveDamage = Math.max(1, damage - stats.defense);

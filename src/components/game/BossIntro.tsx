@@ -6,26 +6,71 @@ import { motion, AnimatePresence } from 'framer-motion';
 const EASE = [0.22, 1, 0.36, 1] as const;
 const AUTO_COMPLETE_MS = 7000;
 const PARTICLE_COUNT = 30;
-const BOSS_DATA: Record<string, { name: string; title: string; dialogue: string[]; color: string }> = {
+const BOSS_DATA: Record<string, { name: string; title: string; dialogue: string[]; color: string; emoji: string; battleText: string }> = {
+  forge: {
+    name: 'DEMIRCI KORUYUCU',
+    title: 'Zephara\'nın Baş Ustası',
+    dialogue: [
+      'Bu örsün sesi... altı yüz yıldır susmadı.',
+      'Geçmek istiyorsanız, ateşten geçeceksiniz.',
+    ],
+    color: '#f97316',
+    emoji: '🔨',
+    battleText: 'SAVAŞ BAŞLIYOR!',
+  },
   mid: {
-    name: 'ÖRÜMCEK KRALİÇE',
+    name: 'SELVİRA',
     title: 'Zephara\'nın Dokumacısı',
     dialogue: [
-      'Ağlarıma hoş geldiniz...',
-      'Kimse geçemez. Kimse kaçamaz.',
+      'Kapıları... kapalı tutmalıyım...',
+      'Geçmeyin... aşağısı... daha kötü...',
     ],
     color: '#7c3aed',
+    emoji: '🕸️',
+    battleText: 'SAVAŞ BAŞLIYOR!',
+  },
+  stone: {
+    name: 'TAŞ MUHAFIZ',
+    title: 'Bahçelerin Bekçisi',
+    dialogue: [
+      'Bir zamanlar çiçekler büyütürdüm.',
+      'Şimdi sadece taş büyütüyorum.',
+    ],
+    color: '#6b7280',
+    emoji: '🗿',
+    battleText: 'SAVAŞ BAŞLIYOR!',
+  },
+  flame: {
+    name: 'ALEV ŞÖVALYESİ',
+    title: 'Karanmir\'in Son Muhafızı',
+    dialogue: [
+      'Kralımız için. Zephara için.',
+      'Bu koridordan kimse geçemez.',
+    ],
+    color: '#b91c1c',
+    emoji: '🔥',
+    battleText: 'SAVAŞ BAŞLIYOR!',
   },
   final: {
-    name: "MOR'KHAN",
-    title: 'Yozlaşmış Kral',
+    name: 'KARANMİR',
+    title: 'Ateş-i Kadim\'in Esiri',
     dialogue: [
       'Ben... onları koruyacaktım.',
       'Ama ateş... ateş her şeyi aldı.',
-      'Siz de mi... yutulacaksınız?',
+      'Durdurun beni... lütfen...',
     ],
     color: '#dc2626',
+    emoji: '👑',
+    battleText: 'SON PERDE',
   },
+};
+
+const FLOOR_TO_BOSS: Record<number, string> = {
+  3: 'forge',
+  5: 'mid',
+  7: 'stone',
+  8: 'flame',
+  10: 'final',
 };
 const DIALOGUE_INTERVAL_MS = 1400;
 
@@ -96,7 +141,7 @@ function LightningFlash({ delay }: { delay: number }) {
 }
 
 export function BossIntro({ onComplete, floor }: BossIntroProps) {
-  const bossKey = floor === 5 ? 'mid' : 'final';
+  const bossKey = FLOOR_TO_BOSS[floor ?? 10] ?? 'final';
   const boss = BOSS_DATA[bossKey];
   const particles = useMemo(generateParticles, []);
   const nameLetters = useMemo(() => boss.name.split(''), [boss.name]);
@@ -215,7 +260,7 @@ export function BossIntro({ onComplete, floor }: BossIntroProps) {
             animate={{ opacity: [1, 0.6, 1], filter: ['brightness(1)', 'brightness(1.5)', 'brightness(1)'] }}
             transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
           >
-            💀
+            {boss.emoji}
           </motion.span>
         </motion.div>
 
@@ -288,7 +333,7 @@ export function BossIntro({ onComplete, floor }: BossIntroProps) {
           }}
           transition={{ delay: 3, duration: 0.6, ease: EASE }}
         >
-          {bossKey === 'mid' ? 'SAVA\u015E BA\u015ELIYOR!' : 'SON PERDE'}
+          {boss.battleText}
         </motion.h2>
 
         {/* Skip hint */}

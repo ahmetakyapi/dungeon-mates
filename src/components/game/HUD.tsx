@@ -3,7 +3,7 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { PlayerState, GameState, DungeonRoom, PlayerClass, MonsterState, TileType } from '../../../shared/types';
-import { CLASS_STATS, DIFFICULTY_INFO, XP_PER_LEVEL } from '../../../shared/types';
+import { CLASS_STATS, DIFFICULTY_INFO, xpForLevel, totalXpForLevel } from '../../../shared/types';
 import { KillFeed, createKillFeedEntry } from './KillFeed';
 import type { KillFeedEntry } from './KillFeed';
 import { PlayerHoverCard } from './PlayerHoverCard';
@@ -190,13 +190,15 @@ function ManaBar({
 function XPBar({
   xp,
   xpToNext,
+  xpProgress,
   level,
 }: {
   xp: number;
   xpToNext: number;
+  xpProgress: number;
   level: number;
 }) {
-  const currentXP = xp % xpToNext;
+  const currentXP = xpProgress;
   const percentage = Math.max(0, Math.min((currentXP / xpToNext) * 100, 100));
   const prevXpRef = useRef(xp);
   const [xpGain, setXpGain] = useState<{ amount: number; id: number } | null>(null);
@@ -272,10 +274,18 @@ function ToastList({ toasts }: { toasts: Toast[] }) {
   );
 }
 
-function BossHPBar({ gameState }: { gameState: GameState }) {
+const BOSS_DISPLAY_NAMES: Record<string, { name: string; emoji: string }> = {
+  boss_demon: { name: 'Yozlaşmış Kral Karanmir', emoji: '👑' },
+  boss_spider_queen: { name: 'Selvira — Dokumacı', emoji: '🕸️' },
+  boss_forge_guardian: { name: 'Demirci Koruyucu', emoji: '🔨' },
+  boss_stone_warden: { name: 'Taş Muhafız', emoji: '🗿' },
+  boss_flame_knight: { name: 'Alev Şövalyesi', emoji: '🔥' },
+} as const;
+
+function BossHPBar({ gameState, bossDialogue }: { gameState: GameState; bossDialogue?: { bossType: string; dialogue: string; phase: number } | null }) {
   const boss = useMemo(() => {
     const entries = Object.values(gameState.monsters);
-    return entries.find((m) => m.type === 'boss_demon' && m.alive) ?? null;
+    return entries.find((m) => m.type.startsWith('boss_') && m.alive) ?? null;
   }, [gameState.monsters]);
 
   const prevHpRef = useRef<number | null>(null);
@@ -310,14 +320,30 @@ function BossHPBar({ gameState }: { gameState: GameState }) {
       transition={{ duration: 0.6, ease: EASE }}
     >
       <PixelFrame className="p-2 sm:p-3">
-        {/* Boss name with skulls */}
+        {/* Boss name with icons */}
         <div className="mb-1.5 flex items-center justify-center gap-2">
-          <span className="text-xs sm:text-sm">💀</span>
+          <span className="text-xs sm:text-sm">{BOSS_DISPLAY_NAMES[boss.type]?.emoji ?? '💀'}</span>
           <span className="boss-pulse font-pixel text-[9px] text-dm-health sm:text-[11px] lg:text-[12px] xl:text-[13px] 2xl:text-[15px]">
-            Yozlaşmış Kral Mor'Khan
+            {BOSS_DISPLAY_NAMES[boss.type]?.name ?? 'Boss'}
           </span>
-          <span className="text-xs sm:text-sm">💀</span>
+          <span className="text-xs sm:text-sm">{BOSS_DISPLAY_NAMES[boss.type]?.emoji ?? '💀'}</span>
         </div>
+
+        {/* Boss dialogue subtitle */}
+        <AnimatePresence>
+          {bossDialogue && (
+            <motion.p
+              key={bossDialogue.dialogue}
+              className="mb-1 text-center font-pixel text-[7px] italic text-red-300/80 sm:text-[8px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px]"
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 5 }}
+              transition={{ duration: 0.3, ease: EASE }}
+            >
+              &ldquo;{bossDialogue.dialogue}&rdquo;
+            </motion.p>
+          )}
+        </AnimatePresence>
 
         {/* HP Bar */}
         <div className="relative h-5 overflow-hidden rounded-sm border border-red-900/60 bg-zinc-900 sm:h-6 lg:h-7 2xl:h-8">
@@ -1087,9 +1113,10 @@ type HUDProps = {
   monsterKillEvents?: Array<{ monsterId: string; killerId: string; xp: number }>;
   lootPickupEvents?: Array<{ playerId: string; lootType: string; value: number }>;
   isTouchDevice?: boolean;
+  bossDialogue?: { bossType: string; dialogue: string; phase: number } | null;
 };
 
-export function HUD({ player, gameState, fps, attackCooldownPct = 1, abilityCooldownPct = 0, abilityActive = false, playerClass, monsterKillEvents, lootPickupEvents, isTouchDevice = false }: HUDProps) {
+export function HUD({ player, gameState, fps, attackCooldownPct = 1, abilityCooldownPct = 0, abilityActive = false, playerClass, monsterKillEvents, lootPickupEvents, isTouchDevice = false, bossDialogue }: HUDProps) {
   const { toasts, addToast } = useToasts();
   const [killFeedEntries, setKillFeedEntries] = useState<KillFeedEntry[]>([]);
   const [hpFlash, setHpFlash] = useState(false);
@@ -1121,7 +1148,9 @@ export function HUD({ player, gameState, fps, attackCooldownPct = 1, abilityCool
     [gameState.dungeon.rooms],
   );
 
-  const xpToNextLevel = XP_PER_LEVEL;
+  const xpToNextLevel = xpForLevel(player.level);
+  const xpCurrentLevel = totalXpForLevel(player.level);
+  const xpProgress = player.xp - xpCurrentLevel;
   const isBossPhase = gameState.phase === 'boss';
 
   const isAbilityReady = abilityCooldownPct === 0 && !abilityActive;
@@ -1313,7 +1342,7 @@ export function HUD({ player, gameState, fps, attackCooldownPct = 1, abilityCool
       <ToastList toasts={toasts} />
 
       {/* Boss HP bar — center top */}
-      {isBossPhase && <BossHPBar gameState={gameState} />}
+      {isBossPhase && <BossHPBar gameState={gameState} bossDialogue={bossDialogue} />}
 
       {/* Top-Center: Floor & Room Info */}
       {!isBossPhase && (
@@ -1367,6 +1396,7 @@ export function HUD({ player, gameState, fps, attackCooldownPct = 1, abilityCool
             <XPBar
               xp={player.xp}
               xpToNext={xpToNextLevel}
+              xpProgress={xpProgress}
               level={player.level}
             />
           </div>
@@ -1431,7 +1461,7 @@ export function HUD({ player, gameState, fps, attackCooldownPct = 1, abilityCool
             <span className="mx-1 text-[6px] text-zinc-600">|</span>
             <span className="text-xs">🪙</span>
             <span className="font-pixel text-[8px] text-dm-gold sm:text-[9px] lg:text-[10px]">
-              {player.score * 10}
+              {player.gold}
             </span>
           </PixelFrame>
         ) : (
@@ -1439,7 +1469,7 @@ export function HUD({ player, gameState, fps, attackCooldownPct = 1, abilityCool
             <div className="flex items-center gap-2">
               <span className="text-xs">🪙</span>
               <span className="font-pixel text-[8px] text-dm-gold sm:text-[9px] lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">
-                {player.score * 10}
+                {player.gold}
               </span>
               <span className="text-xs">💀</span>
               <span className="font-pixel text-[8px] text-white sm:text-[9px] lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">

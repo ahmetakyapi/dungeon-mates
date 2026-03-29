@@ -183,6 +183,27 @@ io.on('connection', (socket) => {
     room.handleInteract(socket.id);
   });
 
+  socket.on('player:select_talent', ({ talentId }) => {
+    if (!currentRoomCode) return;
+    const room = rooms.get(currentRoomCode);
+    if (!room) return;
+    room.handleSelectTalent(socket.id, talentId);
+  });
+
+  socket.on('player:buy_item', ({ itemId }) => {
+    if (!currentRoomCode) return;
+    const room = rooms.get(currentRoomCode);
+    if (!room) return;
+    room.handleBuyItem(socket.id, itemId);
+  });
+
+  socket.on('player:shop_done', () => {
+    if (!currentRoomCode) return;
+    const room = rooms.get(currentRoomCode);
+    if (!room) return;
+    room.handleShopDone(socket.id);
+  });
+
   // Chat
   socket.on('chat:send', (data) => {
     if (!currentRoomCode) return;

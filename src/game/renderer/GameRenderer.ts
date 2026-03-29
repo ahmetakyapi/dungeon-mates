@@ -50,8 +50,9 @@ type FogState = 0 | 1 | 2; // 0 = hidden, 1 = explored, 2 = visible
 const PERF_SAMPLE_COUNT = 30;
 const PERF_CHECK_INTERVAL = 2000; // ms
 
-// Vision radius for fog
+// Vision radius for fog (reduced with darkness modifier)
 const VISION_RADIUS = 8;
+const VISION_RADIUS_DARKNESS = 4;
 
 export class GameRenderer {
   private readonly canvas: HTMLCanvasElement;
@@ -135,6 +136,9 @@ export class GameRenderer {
   // Loot pickup flash
   private lootFlashAlpha = 0;
   private lootFlashColor = '#fbbf24';
+
+  // Current vision radius (may be reduced by darkness modifier)
+  private currentVisionRadius = VISION_RADIUS;
 
   // Fog noise animation timer
   private fogNoiseTimer = 0;
@@ -298,6 +302,11 @@ export class GameRenderer {
 
     // Track frame time for auto-quality
     const frameStart = now;
+
+    // Update vision radius based on darkness modifier
+    this.currentVisionRadius = (state.currentFloorModifiers ?? []).some(m => m.id === 'darkness')
+      ? VISION_RADIUS_DARKNESS
+      : VISION_RADIUS;
 
     // Cache Object.values() once per frame to avoid repeated array allocations
     const monstersArr = Object.values(state.monsters);
@@ -1278,7 +1287,31 @@ export class GameRenderer {
       const velMag = Math.abs(monster.velocity.x) + Math.abs(monster.velocity.y);
       const isAttacking = monster.targetPlayerId !== null && velMag < 0.02;
 
+      // Elite golden glow — drawn before monster sprite
+      if (monster.isElite) {
+        const glowAlpha = 0.3 + Math.sin(this.animFrame * 0.15) * 0.15;
+        ctx.save();
+        ctx.globalAlpha = glowAlpha;
+        ctx.shadowColor = '#fbbf24';
+        ctx.shadowBlur = 12;
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.15)';
+        ctx.beginPath();
+        ctx.arc(sx + renderSize / 2, sy + renderSize / 2, renderSize * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
       this.sprites.drawMonster(ctx, sx, sy, monster.type, monster.facing, this.animFrame, flashWhite, isAttacking);
+
+      // Elite crown indicator above sprite
+      if (monster.isElite && !flashWhite) {
+        ctx.save();
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = `${Math.max(8, Math.floor(renderSize * 0.35))}px serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText('♛', sx + renderSize / 2, sy - 2);
+        ctx.restore();
+      }
 
       // Monster-specific particle effects (throttled)
       if (monster.type === 'mushroom' && this.animFrame % 6 === 0) {
@@ -1287,7 +1320,7 @@ export class GameRenderer {
         this.particles.emitSpiderLegs(sx + renderSize / 2, sy + renderSize);
       }
 
-      if (monster.hp < monster.maxHp && monster.type !== 'boss_demon') {
+      if (monster.hp < monster.maxHp && !monster.type.startsWith('boss_')) {
         this.drawHealthBar(ctx, sx, sy - 3, Math.floor(renderSize), monster.hp, monster.maxHp, monster.id);
       }
     }
@@ -1700,9 +1733,10 @@ export class GameRenderer {
       const px = Math.floor(p.position.x);
       const py = Math.floor(p.position.y);
 
-      for (let dy = -VISION_RADIUS; dy <= VISION_RADIUS; dy++) {
-        for (let dx = -VISION_RADIUS; dx <= VISION_RADIUS; dx++) {
-          if (dx * dx + dy * dy > VISION_RADIUS * VISION_RADIUS) continue;
+      const vr = this.currentVisionRadius;
+      for (let dy = -vr; dy <= vr; dy++) {
+        for (let dx = -vr; dx <= vr; dx++) {
+          if (dx * dx + dy * dy > vr * vr) continue;
           const tx = px + dx;
           const ty = py + dy;
           if (tx >= 0 && tx < dw && ty >= 0 && ty < dh) {
@@ -1820,7 +1854,7 @@ export class GameRenderer {
 
       const pcx = p.position.x * TILE_SIZE + TILE_SIZE / 2 - camX;
       const pcy = p.position.y * TILE_SIZE + TILE_SIZE / 2 - camY;
-      const visionPx = VISION_RADIUS * TILE_SIZE;
+      const visionPx = this.currentVisionRadius * TILE_SIZE;
 
       // Create a radial gradient that darkens at the edges of vision (larger, softer falloff)
       const extendedVision = visionPx * 1.2;

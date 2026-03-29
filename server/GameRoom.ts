@@ -11,11 +11,16 @@ import {
   DungeonRoom,
   TileType,
   Vec2,
+  FloorModifier,
+  ShopItem,
   TICK_MS,
   TICK_RATE,
   MAX_PLAYERS,
   MONSTER_STATS,
   LOOT_TABLE,
+  SHOP_ITEMS,
+  FLOOR_MODIFIERS,
+  goldValueForFloor,
 } from '../shared/types';
 import { Player } from './entities/Player';
 import { Monster } from './entities/Monster';
@@ -164,6 +169,10 @@ export class GameRoom {
   private floorHpMultiplier: number;
   private floorAttackMultiplier: number;
   private playerCount: number;
+  private shopReadyPlayers: Set<string> = new Set();
+  private shopTimeout: ReturnType<typeof setTimeout> | null = null;
+  private currentFloorModifiers: FloorModifier[] = [];
+  private bossPhaseTracker: Map<string, number> = new Map();
 
   private onEmpty: (code: string) => void;
 
@@ -385,6 +394,75 @@ export class GameRoom {
     }
   }
 
+  handleSelectTalent(socketId: string, talentId: string): void {
+    const player = this.players.get(socketId);
+    if (!player) return;
+    const success = player.selectTalent(talentId);
+    if (success) {
+      this.io.to(this.roomCode).emit('game:talent_selected', {
+        playerId: socketId,
+        talentId,
+      });
+    }
+  }
+
+  handleBuyItem(socketId: string, itemId: string): void {
+    if (this.phase !== 'shopping') return;
+    const player = this.players.get(socketId);
+    if (!player) return;
+    const item = SHOP_ITEMS.find(i => i.id === itemId);
+    if (!item) return;
+    if (item.floorRequirement && this.currentFloor < item.floorRequirement) return;
+    const success = player.buyShopItem(item.effect, item.cost);
+    if (success) {
+      this.io.to(this.roomCode).emit('game:item_purchased', {
+        playerId: socketId,
+        itemId,
+        remainingGold: player.state.gold,
+      });
+    }
+  }
+
+  handleShopDone(socketId: string): void {
+    if (this.phase !== 'shopping') return;
+    this.shopReadyPlayers.add(socketId);
+    // Tüm oyuncular hazırsa devam et
+    if (this.shopReadyPlayers.size >= this.players.size) {
+      this.endShoppingPhase();
+    }
+  }
+
+  private startShoppingPhase(): void {
+    this.phase = 'shopping';
+    this.shopReadyPlayers.clear();
+    const currentFloor = this.currentFloor;
+    const availableItems = SHOP_ITEMS.filter(
+      item => !item.floorRequirement || currentFloor >= item.floorRequirement
+    );
+    const playerGold: Record<string, number> = {};
+    for (const [id, player] of this.players) {
+      playerGold[id] = player.state.gold;
+    }
+    this.io.to(this.roomCode).emit('game:phase_change', { phase: 'shopping' });
+    this.io.to(this.roomCode).emit('game:shop_open', {
+      items: availableItems as ShopItem[],
+      playerGold,
+    });
+    // 30 saniye timeout
+    this.shopTimeout = setTimeout(() => {
+      this.endShoppingPhase();
+    }, 30000);
+  }
+
+  private endShoppingPhase(): void {
+    if (this.shopTimeout) {
+      clearTimeout(this.shopTimeout);
+      this.shopTimeout = null;
+    }
+    this.shopReadyPlayers.clear();
+    this.generateNextFloor();
+  }
+
   private startGame(): void {
     // Store player count at game start for scaling
     this.playerCount = this.players.size;
@@ -438,13 +516,22 @@ export class GameRoom {
   private spawnMonstersInRooms(): void {
     const clampedPlayers = Math.max(1, Math.min(4, this.playerCount));
     const monsterMultiplier = MONSTER_MULTIPLIER_BY_PLAYERS[clampedPlayers] ?? 1.0;
+    const hasteMultiplier = this.hasModifier('haste_monsters') ? 1.3 : 1;
 
     for (const room of this.rooms) {
       if (room.isStartRoom) continue;
 
       if (room.isBossRoom) {
         // Boss room: spawn boss type based on floor
-        const bossType: MonsterType = this.currentFloor === this.maxFloors ? 'boss_demon' : 'boss_spider_queen';
+        const bossTypeMap: Record<number, MonsterType> = {
+          3: 'boss_forge_guardian',
+          5: 'boss_spider_queen',
+          7: 'boss_stone_warden',
+          8: 'boss_flame_knight',
+        };
+        const bossType: MonsterType = this.currentFloor === this.maxFloors
+          ? 'boss_demon'
+          : (bossTypeMap[this.currentFloor] ?? 'boss_spider_queen');
         const boss = new Monster(bossType, { x: room.centerX, y: room.centerY }, room.id);
         // Override boss HP based on player count: 300 * (1 + (playerCount - 1) * 0.5)
         const bossHpScale = 1 + (clampedPlayers - 1) * BOSS_HP_SCALE_PER_PLAYER;
@@ -520,6 +607,29 @@ export class GameRoom {
             room.monsterIds.push(monster.state.id);
           }
         }
+
+        // Elite monster: %15 + kat*3% şansla bir elite canavar spawn et
+        const eliteChance = 0.15 + this.currentFloor * 0.03;
+        if (Math.random() < eliteChance) {
+          const elitePool = MONSTER_POOL_BY_FLOOR[this.currentFloor] ?? MONSTER_POOL_BY_FLOOR[4];
+          const eliteType = pickWeightedMonster(elitePool);
+          const ex = room.x + 1 + Math.floor(Math.random() * (room.width - 2));
+          const ey = room.y + 1 + Math.floor(Math.random() * (room.height - 2));
+          const elite = new Monster(eliteType, { x: ex + 0.5, y: ey + 0.5 }, room.id);
+          elite.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
+          if (this.isSolo) elite.scaleForSolo();
+          elite.scaleForPlayerCount(clampedPlayers);
+          elite.makeElite();
+          this.monsters.set(elite.state.id, elite);
+          room.monsterIds.push(elite.state.id);
+        }
+      }
+    }
+
+    // Floor modifier: hızlı canavarlar
+    if (hasteMultiplier > 1) {
+      for (const monster of this.monsters.values()) {
+        monster.floorSpeedMultiplier = hasteMultiplier;
       }
     }
   }
@@ -537,6 +647,10 @@ export class GameRoom {
       clearInterval(this.gameLoopTimer);
       this.gameLoopTimer = null;
     }
+  }
+
+  private hasModifier(id: string): boolean {
+    return this.currentFloorModifiers.some(m => m.id === id);
   }
 
   private gameTick(): void {
@@ -585,7 +699,8 @@ export class GameRoom {
       const input = this.playerInputs.get(socketId);
       if (!input) continue;
 
-      const projectile = player.processInput(input, this.tiles, this.tick, monsterTargets);
+      const droughtActive = this.hasModifier('drought');
+      const projectile = player.processInput(input, this.tiles, this.tick, monsterTargets, droughtActive);
       if (projectile) {
         this.projectiles.set(projectile.state.id, projectile);
       }
@@ -608,6 +723,7 @@ export class GameRoom {
                 if (dist <= abilityResult.radius) {
                   const actualDamage = monster.takeDamage(abilityResult.damage);
                   player.state.totalDamageDealt += actualDamage;
+                  player.applyLifesteal(actualDamage);
                   monster.applySlow(0.5, 60); // %50 yavaşlama, 3 saniye
                   this.io.to(this.roomCode).emit('game:damage', {
                     targetId: monsterId,
@@ -636,6 +752,28 @@ export class GameRoom {
       input.ability = false;
     }
 
+    // Burning ground: random fire damage to players every 40 ticks
+    if (this.hasModifier('burning_ground') && this.tick % 40 === 0) {
+      for (const [, player] of this.players) {
+        if (!player.state.alive) continue;
+        // 25% chance per player per tick interval
+        if (Math.random() < 0.25) {
+          const burnDmg = 3 + this.currentFloor;
+          const burnResult = player.takeDamage(burnDmg);
+          if (!burnResult.dodged && burnResult.effectiveDamage > 0) {
+            this.io.to(this.roomCode).emit('game:damage', {
+              targetId: player.state.id,
+              damage: burnResult.effectiveDamage,
+              sourceId: 'burning_ground',
+            });
+          }
+          if (!player.state.alive) {
+            this.handlePlayerDeath(player);
+          }
+        }
+      }
+    }
+
     // Update monsters (only in active rooms)
     const alivePlayers = Array.from(this.players.values())
       .filter((p) => p.state.alive)
@@ -650,17 +788,30 @@ export class GameRoom {
       if (attackResult) {
         const targetPlayer = this.players.get(attackResult.targetId);
         if (targetPlayer) {
-          const actualDamage = targetPlayer.takeDamage(attackResult.damage);
-          this.io.to(this.roomCode).emit('game:damage', {
-            targetId: attackResult.targetId,
-            damage: actualDamage,
-            sourceId: monsterId,
-          });
+          const fragileMultiplier = this.hasModifier('fragile') ? 1.2 : 1;
+          const result = targetPlayer.takeDamage(Math.floor(attackResult.damage * fragileMultiplier));
+          if (!result.dodged && result.effectiveDamage > 0) {
+            this.io.to(this.roomCode).emit('game:damage', {
+              targetId: attackResult.targetId,
+              damage: result.effectiveDamage,
+              sourceId: monsterId,
+            });
+            // Thorns hasarı — canavar saldırana yansıyan hasar
+            if (result.thornsDamage > 0) {
+              const thornsDmg = monster.takeDamage(result.thornsDamage);
+              this.io.to(this.roomCode).emit('game:damage', {
+                targetId: monsterId,
+                damage: thornsDmg,
+                sourceId: attackResult.targetId,
+              });
+              if (!monster.state.alive) {
+                this.handleMonsterKilled(monster, attackResult.targetId);
+              }
+            }
+          }
 
           if (!targetPlayer.state.alive) {
-            this.io.to(this.roomCode).emit('game:player_died', {
-              playerId: attackResult.targetId,
-            });
+            this.handlePlayerDeath(targetPlayer);
           }
         }
       }
@@ -677,34 +828,115 @@ export class GameRoom {
       for (const poisonTarget of monster.poisonAuraTargets) {
         const poisonPlayer = this.players.get(poisonTarget.playerId);
         if (poisonPlayer && poisonPlayer.state.alive) {
-          const actualDamage = poisonPlayer.takeDamage(poisonTarget.damage);
-          this.io.to(this.roomCode).emit('game:damage', {
-            targetId: poisonTarget.playerId,
-            damage: actualDamage,
-            sourceId: monsterId,
-          });
+          const poisonResult = poisonPlayer.takeDamage(poisonTarget.damage);
+          if (!poisonResult.dodged && poisonResult.effectiveDamage > 0) {
+            this.io.to(this.roomCode).emit('game:damage', {
+              targetId: poisonTarget.playerId,
+              damage: poisonResult.effectiveDamage,
+              sourceId: monsterId,
+            });
+          }
 
           if (!poisonPlayer.state.alive) {
-            this.io.to(this.roomCode).emit('game:player_died', {
-              playerId: poisonTarget.playerId,
-            });
+            this.handlePlayerDeath(poisonPlayer);
           }
         }
       }
 
+      // Side boss AoE hits (forge slam, stone slam, flame spin/charge)
+      for (const aoeHit of monster.aoeHits) {
+        const aoePlayer = this.players.get(aoeHit.playerId);
+        if (aoePlayer && aoePlayer.state.alive) {
+          const fragileMultiplier = this.hasModifier('fragile') ? 1.2 : 1;
+          const aoeResult = aoePlayer.takeDamage(Math.floor(aoeHit.damage * fragileMultiplier));
+          if (!aoeResult.dodged && aoeResult.effectiveDamage > 0) {
+            this.io.to(this.roomCode).emit('game:damage', {
+              targetId: aoeHit.playerId,
+              damage: aoeResult.effectiveDamage,
+              sourceId: monsterId,
+            });
+          }
+          if (!aoePlayer.state.alive) {
+            this.handlePlayerDeath(aoePlayer);
+          }
+        }
+      }
+
+      // Side boss stun targets (stone warden petrify)
+      for (const stunTarget of monster.stunTargets) {
+        const stunPlayer = this.players.get(stunTarget.playerId);
+        if (stunPlayer && stunPlayer.state.alive) {
+          stunPlayer.state.stunTicks = Math.max(stunPlayer.state.stunTicks, stunTarget.ticks);
+        }
+      }
+
       // Boss summon minions
-      if (monster.shouldSummon && (monster.state.type === 'boss_demon' || monster.state.type === 'boss_spider_queen')) {
-        const room = this.rooms.find((r) => r.id === monster.roomId);
-        if (room) {
-          const skel = new Monster('skeleton', {
-            x: monster.state.position.x + (Math.random() - 0.5) * 3,
-            y: monster.state.position.y + (Math.random() - 0.5) * 3,
-          }, monster.roomId);
-          skel.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
-          if (this.isSolo) skel.scaleForSolo();
-          skel.scaleForPlayerCount(this.playerCount);
-          this.monsters.set(skel.state.id, skel);
-          room.monsterIds.push(skel.state.id);
+      if (monster.shouldSummon) {
+        const isBossType = monster.state.type === 'boss_demon' ||
+          monster.state.type === 'boss_spider_queen' ||
+          monster.state.type === 'boss_forge_guardian' ||
+          monster.state.type === 'boss_stone_warden' ||
+          monster.state.type === 'boss_flame_knight';
+
+        if (isBossType) {
+          const room = this.rooms.find((r) => r.id === monster.roomId);
+          if (room) {
+            // Boss-specific minion type
+            const minionTypeMap: Record<string, MonsterType> = {
+              boss_demon: 'skeleton',
+              boss_spider_queen: 'spider',
+              boss_forge_guardian: 'skeleton',
+              boss_stone_warden: 'gargoyle',
+              boss_flame_knight: 'lava_slime',
+            };
+            const minionType = minionTypeMap[monster.state.type] ?? 'skeleton';
+            const minion = new Monster(minionType, {
+              x: monster.state.position.x + (Math.random() - 0.5) * 3,
+              y: monster.state.position.y + (Math.random() - 0.5) * 3,
+            }, monster.roomId);
+            minion.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
+            if (this.isSolo) minion.scaleForSolo();
+            minion.scaleForPlayerCount(this.playerCount);
+            this.monsters.set(minion.state.id, minion);
+            room.monsterIds.push(minion.state.id);
+          }
+        }
+      }
+
+      // Boss phase change detection + dialogue
+      if (monster.state.bossPhase > 0) {
+        const prevPhase = this.bossPhaseTracker.get(monsterId) ?? 0;
+        if (monster.state.bossPhase !== prevPhase) {
+          this.bossPhaseTracker.set(monsterId, monster.state.bossPhase);
+          this.io.to(this.roomCode).emit('game:boss_phase', {
+            monsterId,
+            phase: monster.state.bossPhase,
+          });
+
+          // Boss dialogue per phase
+          const phaseDialogues: Record<string, Record<number, string>> = {
+            boss_demon: {
+              1: 'Acı... her yeri sarıyor...',
+              2: 'Ateş! Daha fazla ateş!',
+              3: 'DURDURUN BENİ!',
+            },
+            boss_spider_queen: {
+              1: 'Ağlarım... her yere yayılacak!',
+            },
+            boss_forge_guardian: {
+              1: 'Ocak kızışıyor!',
+            },
+          };
+
+          const dialogue = phaseDialogues[monster.state.type]?.[monster.state.bossPhase];
+          if (dialogue) {
+            this.io.to(this.roomCode).emit('game:boss_dialogue', {
+              monsterId,
+              bossType: monster.state.type,
+              dialogue,
+              phase: monster.state.bossPhase,
+            });
+          }
         }
       }
     }
@@ -730,8 +962,17 @@ export class GameRoom {
           if (!monster.state.alive) continue;
 
           if (projectile.checkCircleCollision(monster.state.position, monster.getRadius())) {
-            const actualDamage = monster.takeDamage(projectile.state.damage);
-            if (owner) owner.state.totalDamageDealt += actualDamage;
+            // Crit kontrolü
+            let projDmg = projectile.state.damage;
+            if (owner) {
+              const crit = owner.rollCrit();
+              if (crit.isCrit) projDmg = Math.floor(projDmg * crit.multiplier);
+            }
+            const actualDamage = monster.takeDamage(projDmg);
+            if (owner) {
+              owner.state.totalDamageDealt += actualDamage;
+              owner.applyLifesteal(actualDamage);
+            }
             this.io.to(this.roomCode).emit('game:damage', {
               targetId: monsterId,
               damage: actualDamage,
@@ -776,17 +1017,17 @@ export class GameRoom {
           if (!player.state.alive) continue;
 
           if (projectile.checkCircleCollision(player.state.position, player.getRadius())) {
-            const actualDamage = player.takeDamage(projectile.state.damage);
-            this.io.to(this.roomCode).emit('game:damage', {
-              targetId: player.state.id,
-              damage: actualDamage,
-              sourceId: projectile.state.ownerId,
-            });
+            const projResult = player.takeDamage(projectile.state.damage);
+            if (!projResult.dodged && projResult.effectiveDamage > 0) {
+              this.io.to(this.roomCode).emit('game:damage', {
+                targetId: player.state.id,
+                damage: projResult.effectiveDamage,
+                sourceId: projectile.state.ownerId,
+              });
+            }
 
             if (!player.state.alive) {
-              this.io.to(this.roomCode).emit('game:player_died', {
-                playerId: player.state.id,
-              });
+              this.handlePlayerDeath(player);
             }
 
             projectilesToRemove.push(projId);
@@ -876,6 +1117,28 @@ export class GameRoom {
     this.broadcastState();
   }
 
+  private handlePlayerDeath(player: Player): void {
+    this.io.to(this.roomCode).emit('game:player_died', {
+      playerId: player.state.id,
+    });
+    // Co-op ölüm cezası: %20 altın kaybı
+    if (!this.isSolo && player.state.gold > 0) {
+      const goldLoss = Math.max(5, Math.floor(player.state.gold * 0.2));
+      player.state.gold -= goldLoss;
+      // Kaybedilen altını yere düşür
+      const lootItem: LootState = {
+        id: generateLootId(),
+        type: 'gold',
+        position: {
+          x: player.state.position.x + (Math.random() - 0.5),
+          y: player.state.position.y + (Math.random() - 0.5),
+        },
+        value: goldLoss,
+      };
+      this.loot.set(lootItem.id, lootItem);
+    }
+  }
+
   private handleMonsterKilled(monster: Monster, killerId: string): void {
     const stats = MONSTER_STATS[monster.state.type];
 
@@ -891,13 +1154,32 @@ export class GameRoom {
       const xpMultipliers: Record<number, number> = { 1: 1.0, 2: 0.75, 3: 0.6, 4: 0.5 };
       const clampedPlayers = Math.max(1, Math.min(4, this.playerCount));
       const xpScale = xpMultipliers[clampedPlayers] ?? 1.0;
-      const scaledXp = Math.max(1, Math.floor(stats.xp * xpScale));
-      killer.addXp(scaledXp);
+      const eliteXpMult = monster.state.isElite ? 3 : 1;
+      const scaledXp = Math.max(1, Math.floor(stats.xp * xpScale * eliteXpMult));
+      const leveled = killer.addXp(scaledXp);
       killer.state.score += scaledXp;
+
+      if (leveled) {
+        this.io.to(this.roomCode).emit('game:level_up', {
+          playerId: killerId,
+          level: killer.state.level,
+        });
+        // Talent seçeneği gönder
+        const availableTalents = killer.getAvailableTalents();
+        if (availableTalents.length > 0) {
+          this.io.to(this.roomCode).emit('game:talent_choice', {
+            playerId: killerId,
+            talents: availableTalents as unknown as typeof availableTalents,
+          });
+        }
+      }
     }
 
-    // Drop loot
-    this.dropLoot(monster.state.position);
+    // Drop loot — elite'ler 2-3 loot droplar
+    const dropCount = monster.state.isElite ? 2 + Math.floor(Math.random() * 2) : 1;
+    for (let i = 0; i < dropCount; i++) {
+      this.dropLoot(monster.state.position);
+    }
   }
 
   private dropLoot(position: Vec2): void {
@@ -917,7 +1199,11 @@ export class GameRoom {
             x: position.x + (Math.random() - 0.5) * 1.5,
             y: position.y + (Math.random() - 0.5) * 1.5,
           },
-          value: lootInfo.value,
+          value: lootType === 'gold'
+            ? goldValueForFloor(this.currentFloor)
+            : (lootType === 'health_potion' || lootType === 'mana_potion') && this.hasModifier('reduced_healing')
+              ? Math.floor(lootInfo.value * 0.5)
+              : lootInfo.value,
         };
         this.loot.set(lootItem.id, lootItem);
       }
@@ -968,9 +1254,9 @@ export class GameRoom {
     this.io.to(this.roomCode).emit('game:floor_complete', { floor: this.currentFloor - 1 });
 
     // Heal players between floors — recovery scales with difficulty (fewer players = more recovery)
-    const recoveryByPlayers: Record<number, number> = { 1: 0.4, 2: 0.3, 3: 0.25, 4: 0.2 };
+    const recoveryByPlayers: Record<number, number> = { 1: 0.25, 2: 0.2, 3: 0.15, 4: 0.1 };
     const clampedPlayers = Math.max(1, Math.min(4, this.playerCount));
-    const recoveryRate = recoveryByPlayers[clampedPlayers] ?? 0.3;
+    const recoveryRate = recoveryByPlayers[clampedPlayers] ?? 0.2;
     for (const player of this.players.values()) {
       if (player.state.alive) {
         player.state.hp = Math.min(player.state.maxHp, player.state.hp + Math.floor(player.state.maxHp * recoveryRate));
@@ -978,13 +1264,31 @@ export class GameRoom {
       }
     }
 
+    // Dükkan fazı aç (final boss katı hariç)
+    if (this.currentFloor <= this.maxFloors) {
+      this.startShoppingPhase();
+    }
+  }
+
+  private generateNextFloor(): void {
+    // Floor modifier ata (kat 4+)
+    this.currentFloorModifiers = [];
+    if (this.currentFloor >= 4) {
+      const allModIds = Object.keys(FLOOR_MODIFIERS) as Array<keyof typeof FLOOR_MODIFIERS>;
+      const shuffled = allModIds.sort(() => Math.random() - 0.5);
+      const count = this.currentFloor >= 7 ? 2 : 1;
+      for (let i = 0; i < count && i < shuffled.length; i++) {
+        this.currentFloorModifiers.push(FLOOR_MODIFIERS[shuffled[i]]);
+      }
+      this.io.to(this.roomCode).emit('game:floor_modifier', { modifiers: this.currentFloorModifiers });
+    }
+
     // Generate new floor
     this.generateFloor(this.currentFloor);
+    this.setPhase('playing');
 
     // Broadcast updated state
     this.broadcastState();
-
-    // Floor advanced
   }
 
   private checkGameEnd(): void {
@@ -1105,6 +1409,7 @@ export class GameRoom {
       currentRoomId: this.currentRoomId,
       isSolo: this.isSolo,
       soloDeathsRemaining,
+      currentFloorModifiers: this.currentFloorModifiers,
     };
 
     this.io.to(this.roomCode).emit('game:state', state);

@@ -256,7 +256,7 @@ export function GameOverScreen({
               animate={{ opacity: 1 }}
               transition={{ delay: 0.6 }}
             >
-              Mor'Khan'ın laneti kırıldı. Zephara sonunda huzura kavuştu.
+              Karanmir&apos;in laneti kırıldı. Ateş-i Kadim yeniden ılık parladı.
             </motion.div>
             <motion.p
               className="font-body text-[10px] text-zinc-400 text-center max-w-xs lg:text-xs"
@@ -264,7 +264,7 @@ export function GameOverScreen({
               animate={{ opacity: 1 }}
               transition={{ delay: 0.8 }}
             >
-              Yüzyıllık lanet sona erdi. Mor&apos;Khan&apos;ın ruhu özgür, Zephara&apos;nın ışıkları son kez yanıp söndü. Bu hikaye unutulmayacak.
+              Altı yüz yıllık lanet sona erdi. Karanmir&apos;in ruhu özgür. Zephara tam olarak eski haline dönmeyecek ama artık bir mezar değil.
             </motion.p>
           </>
         ) : (
@@ -284,7 +284,7 @@ export function GameOverScreen({
               animate={{ opacity: 1 }}
               transition={{ delay: 1.2 }}
             >
-              Mor'Khan hâlâ bekliyor. Zephara'nın karanlığı galip geldi ama umut tükenmez. Yeniden dön.
+              Karanmir hâlâ bekliyor. Zephara&apos;nın karanlığı galip geldi ama kapıyı bir kez açan, tekrar açabilir.
             </motion.p>
           </>
         )}

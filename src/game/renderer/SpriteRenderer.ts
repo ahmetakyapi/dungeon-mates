@@ -761,6 +761,9 @@ export class SpriteRenderer {
       case 'lava_slime': this.drawSlime(ctx, x, y, frame); break;
       case 'boss_spider_queen': this.drawBossDemon(ctx, x, y, facing, frame); break;
       case 'boss_demon': this.drawBossDemon(ctx, x, y, facing, frame); break;
+      case 'boss_forge_guardian': this.drawBossDemon(ctx, x, y, facing, frame); break;
+      case 'boss_stone_warden': this.drawBossDemon(ctx, x, y, facing, frame); break;
+      case 'boss_flame_knight': this.drawBossDemon(ctx, x, y, facing, frame); break;
     }
   }
 

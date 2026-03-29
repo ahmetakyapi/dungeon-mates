@@ -10,14 +10,14 @@ const PARTICLE_COUNT = 20;
 const FLOOR_LORE: Record<number, { name: string; lore: string; icon: string }> = {
   1: { name: 'Yıkık Kapılar', lore: 'Zephara\'nın çökmüş giriş kapıları. Haşereler her yerde.', icon: '🚪' },
   2: { name: 'Sessiz Sokaklar', lore: 'Bir zamanlar canlı mahalleler. İskeletler hâlâ nöbet tutuyor.', icon: '🏚️' },
-  3: { name: 'Derin Tüneller', lore: 'Madenci tünelleri. Goblinler karanlıkta büyüyor.', icon: '⛏️' },
+  3: { name: 'Demircinin Ocağı', lore: 'Eski dökümhaneler. Demirci Koruyucu hâlâ çekicini sallıyor.', icon: '🔨' },
   4: { name: 'Terkedilmiş Pazar', lore: 'Eski ticaret merkezi. Tezgahlar devrilmiş, gölgeler hareket ediyor.', icon: '🏪' },
-  5: { name: 'Örümcek Kraliçe\'nin İni', lore: 'Devasa ağlar her yeri kaplamış. İn\'in sahibi sizi bekliyor.', icon: '🕷️' },
+  5: { name: 'Dokuyucunun Evi', lore: 'Selvira\'nın karantina hattı. Devasa ağlar her yeri kaplamış.', icon: '🕸️' },
   6: { name: 'Yıkık Kütüphane', lore: 'Zephara\'nın bilgi hazinesi. Kitaplar çürümüş, ruhlar dolaşıyor.', icon: '📚' },
   7: { name: 'Taş Bahçeler', lore: 'Bir zamanlar yeşillik. Şimdi taşlaşmış ağaçlar ve gargoiller.', icon: '🗿' },
   8: { name: 'Lav Nehirleri', lore: 'Zephara\'nın en derin noktası. Magma arasında yol bul.', icon: '🌋' },
   9: { name: 'Ruhlar Tapınağı', lore: 'Rahiplerin lanetli duaları hâlâ yankılanıyor.', icon: '🕯️' },
-  10: { name: 'Taht Salonu', lore: 'Mor\'Khan burada bekliyor. İlk Ateş\'in yozlaşmış ışığı son kez yanıyor.', icon: '👑' },
+  10: { name: 'Taht Salonu', lore: 'Karanmir burada bekliyor. Ateş-i Kadim\'in yozlaşmış ışığı son kez yanıyor.', icon: '👑' },
 } as const;
 
 const FLOOR_QUOTES: Record<number, string> = {

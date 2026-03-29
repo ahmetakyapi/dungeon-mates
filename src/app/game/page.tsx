@@ -18,6 +18,8 @@ import { FloorTransition } from '@/components/game/FloorTransition';
 import { StoryIntro } from '@/components/game/StoryIntro';
 import { BossIntro } from '@/components/game/BossIntro';
 import { ChatBox } from '@/components/game/ChatBox';
+import { TalentSelect } from '@/components/game/TalentSelect';
+import { ShopScreen } from '@/components/game/ShopScreen';
 import { PixelButton } from '@/components/ui/PixelButton';
 import { PixelHero } from '@/components/game/PixelHero';
 import type { PlayerInput, GamePhase } from '../../../shared/types';
@@ -102,6 +104,14 @@ function GamePage() {
     stairsUsedEvents,
     reconnectAttempt,
     retryConnection,
+    talentChoiceEvent,
+    shopOpenEvent,
+    levelUpEvent,
+    floorModifiers,
+    bossDialogue,
+    selectTalent,
+    buyItem,
+    shopDone,
   } = useGameSocket();
 
   const [gameOverStats, setGameOverStats] = useState<{
@@ -784,6 +794,7 @@ function GamePage() {
           monsterKillEvents={monsterKillEvents}
           lootPickupEvents={lootPickupEvents}
           isTouchDevice={isTouchDevice}
+          bossDialogue={bossDialogue}
         />
       )}
 
@@ -924,6 +935,29 @@ function GamePage() {
           />
         )}
       </AnimatePresence>
+
+      {/* Talent seçimi */}
+      {talentChoiceEvent && talentChoiceEvent.playerId === playerId && localPlayer && (
+        <TalentSelect
+          isOpen={true}
+          talents={talentChoiceEvent.talents}
+          playerClass={localPlayer.class}
+          level={localPlayer.level}
+          currentBranch={localPlayer.talentBranch}
+          onSelect={selectTalent}
+        />
+      )}
+
+      {/* Dükkan */}
+      {shopOpenEvent && phase === 'shopping' && (
+        <ShopScreen
+          items={shopOpenEvent.items}
+          playerGold={localPlayer?.gold ?? 0}
+          floor={gameState?.dungeon.currentFloor ?? 1}
+          onBuy={buyItem}
+          onContinue={shopDone}
+        />
+      )}
     </main>
   );
 }

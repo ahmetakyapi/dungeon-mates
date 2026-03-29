@@ -26,24 +26,24 @@ type Particle = {
 };
 
 const STORY_LINES = [
-  'Yüzlerce yıl önce, yerin altında görkemli bir şehir vardı.',
-  'Zephara — duvarları altınla kaplı, sokakları ışıkla dolu.',
-  'Kral Mor\'Khan, halkını korumak için yasak bir ritüel yaptı.',
-  'Ama İlk Ateş karanlığa döndü. Halk canavar oldu. Kral... başka bir şeye.',
-  'Şimdi Zephara bir mezar. Ve sen, yüzyıllar sonra kapısını açan ilk kişisin.',
+  'Yerin yedi kat altında, güneşin ulaşamadığı bir şehir vardı.',
+  'Zephara — Ateş-i Kadim\'in ışığıyla parlayan bir medeniyet.',
+  'Kral Karanmir, sönen ateşi kurtarmak için bedenini yakıt olarak sundu.',
+  'Ritüel başarısız oldu. Ateş yenilendi ama dönüştü. Halk canavar oldu. Kral... başka bir şeye.',
+  'Altı yüz yıl sonra kapılar tekrar açılıyor. Ve sen, ilk adımı atan kişisin.',
 ] as const;
 
 const FLOOR_INTROS: Record<number, { name: string; lore: string }> = {
   1: { name: 'Yıkık Kapılar', lore: 'Zephara\'nın giriş kapıları çoktan çökmüş. Karanlıkta bir şeyler hareket ediyor...' },
   2: { name: 'Sessiz Sokaklar', lore: 'Evler boş, sokaklar sessiz. Ama iskeletler hâlâ nöbet tutuyor.' },
-  3: { name: 'Derin Tüneller', lore: 'Madencilerin çekiç sesleri kesileli çok oldu. Şimdi başka sesler var.' },
+  3: { name: 'Demircinin Ocağı', lore: 'Eski dökümhaneler. Çekiçlerin sesi kesildi ama Demirci Koruyucu hâlâ burada.' },
   4: { name: 'Terkedilmiş Pazar', lore: 'Tezgahlar devrilmiş, altınlar saçılmış. Ama dokunma — gölgeler izliyor.' },
-  5: { name: 'Örümcek Kraliçe\'nin İni', lore: 'Devasa ağlar... Ve ortalarında bekleyen bir şey var.' },
+  5: { name: 'Dokuyucunun Evi', lore: 'Selvira\'nın karantina hattı. Devasa ağlar ve bir fısıltı: "Geçmeyin..."' },
   6: { name: 'Yıkık Kütüphane', lore: 'Zephara\'nın tüm bilgisi buradaydı. Şimdi sadece hayaletler okuyor.' },
   7: { name: 'Taş Bahçeler', lore: 'Bir zamanlar çiçekler açardı. Şimdi her şey taş ve sessizlik.' },
   8: { name: 'Lav Nehirleri', lore: 'Sıcaklık dayanılmaz. Magma arasında bir yol var — tek bir yol.' },
   9: { name: 'Ruhlar Tapınağı', lore: 'Dualar lanet oldu. Rahiplerin ruhları huzur arıyor — ve bulamıyor.' },
-  10: { name: 'Taht Salonu', lore: 'Mor\'Khan burada bekliyor. Hem kral, hem mahkum, hem canavar.' },
+  10: { name: 'Taht Salonu', lore: 'Karanmir burada bekliyor. Altı yüz yıldır her saniyesini hatırlayarak, acı çekerek.' },
 };
 
 function generateParticles(): Particle[] {
