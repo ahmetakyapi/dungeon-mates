@@ -730,9 +730,21 @@ export class SpriteRenderer {
     frame: number,
     flashWhite = false,
     attacking = false,
+    isElite = false,
   ): void {
     const stats = MONSTER_STATS[type];
     const renderSize = Math.floor(TILE_SIZE * stats.size);
+
+    // Elite scale-up: draw 15% larger from center
+    if (isElite && !flashWhite) {
+      const scale = 1.15;
+      const cx = x + renderSize / 2;
+      const cy = y + renderSize / 2;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(scale, scale);
+      ctx.translate(-cx, -cy);
+    }
 
     // Elliptical shadow beneath
     this.drawEntityShadow(ctx, x, y, renderSize, renderSize);
@@ -755,15 +767,24 @@ export class SpriteRenderer {
       case 'spider': this.drawSpider(ctx, x, y, facing, frame); break;
       case 'wraith': this.drawWraith(ctx, x, y, facing, frame); break;
       case 'mushroom': this.drawMushroom(ctx, x, y, facing, frame); break;
-      case 'gargoyle': this.drawSkeleton(ctx, x, y, facing, frame, attacking); break;
-      case 'dark_knight': this.drawGoblin(ctx, x, y, facing, frame, attacking); break;
-      case 'phantom': this.drawWraith(ctx, x, y, facing, frame); break;
-      case 'lava_slime': this.drawSlime(ctx, x, y, frame); break;
-      case 'boss_spider_queen': this.drawBossDemon(ctx, x, y, facing, frame); break;
+      case 'gargoyle': this.drawGargoyle(ctx, x, y, facing, frame); break;
+      case 'dark_knight': this.drawDarkKnight(ctx, x, y, facing, frame, attacking); break;
+      case 'phantom': this.drawPhantom(ctx, x, y, facing, frame); break;
+      case 'lava_slime': this.drawLavaSlime(ctx, x, y, frame); break;
+      case 'boss_spider_queen': this.drawBossSpiderQueen(ctx, x, y, facing, frame); break;
       case 'boss_demon': this.drawBossDemon(ctx, x, y, facing, frame); break;
-      case 'boss_forge_guardian': this.drawBossDemon(ctx, x, y, facing, frame); break;
-      case 'boss_stone_warden': this.drawBossDemon(ctx, x, y, facing, frame); break;
-      case 'boss_flame_knight': this.drawBossDemon(ctx, x, y, facing, frame); break;
+      case 'boss_forge_guardian': this.drawBossForgeGuardian(ctx, x, y, facing, frame); break;
+      case 'boss_stone_warden': this.drawBossStoneWarden(ctx, x, y, facing, frame); break;
+      case 'boss_flame_knight': this.drawBossFlameKnight(ctx, x, y, facing, frame); break;
+    }
+
+    // Elite golden tint overlay
+    if (isElite) {
+      ctx.globalAlpha = 0.12 + Math.sin(frame * 0.3) * 0.05;
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillRect(x + 2, y + 2, renderSize - 4, renderSize - 4);
+      ctx.globalAlpha = 1;
+      ctx.restore();
     }
   }
 
@@ -1420,6 +1441,653 @@ export class SpriteRenderer {
 
     // Outline for boss
     this.drawSpriteOutline(ctx, bx, by);
+  }
+
+  private drawBossSpiderQueen(ctx: CanvasRenderingContext2D, x: number, y: number, _facing: Direction, frame: number): void {
+    // Spider Queen — large purple/black spider with egg sac, web patterns, multiple eyes
+    const bx = x - 4;
+    const by = y - 4;
+    const pulse = Math.sin(frame * 0.2) * 2;
+
+    // Web strands trailing behind
+    ctx.globalAlpha = 0.15;
+    px(ctx, bx + 5, by + 38, 1, 4, '#d1d5db');
+    px(ctx, bx + 15, by + 39, 1, 3, '#d1d5db');
+    px(ctx, bx + 25, by + 38, 1, 4, '#d1d5db');
+    px(ctx, bx + 35, by + 39, 1, 3, '#d1d5db');
+    ctx.globalAlpha = 1;
+
+    // 8 Legs — 4 per side with segment animation
+    const legWave = Math.sin(frame * 0.5);
+    const legWave2 = Math.cos(frame * 0.5);
+    // Left legs (4)
+    for (let i = 0; i < 4; i++) {
+      const ly = by + 12 + i * 5;
+      const wave = (i % 2 === 0 ? legWave : legWave2) * 2;
+      px(ctx, bx + 2 - i, ly + wave, 8, 2, '#581c87');
+      px(ctx, bx + 0 - i, ly + 1 + wave, 3, 1, '#4c1d95');
+      // Leg joint highlight
+      px(ctx, bx + 4, ly + wave, 1, 1, '#7c3aed');
+    }
+    // Right legs (4)
+    for (let i = 0; i < 4; i++) {
+      const ly = by + 12 + i * 5;
+      const wave = (i % 2 === 0 ? legWave2 : legWave) * 2;
+      px(ctx, bx + 30 + i, ly + wave, 8, 2, '#581c87');
+      px(ctx, bx + 37 + i, ly + 1 + wave, 3, 1, '#4c1d95');
+      px(ctx, bx + 35, ly + wave, 1, 1, '#7c3aed');
+    }
+
+    // Abdomen (large egg sac — bulbous, lighter purple with pattern)
+    px(ctx, bx + 10, by + 18 + pulse, 20, 16, '#6b21a8');
+    px(ctx, bx + 12, by + 17 + pulse, 16, 1, '#7c3aed');
+    px(ctx, bx + 12, by + 34 + pulse, 16, 1, '#4c1d95');
+    // Web pattern on abdomen
+    px(ctx, bx + 15, by + 20 + pulse, 1, 12, '#8b5cf6');
+    px(ctx, bx + 20, by + 19 + pulse, 1, 13, '#8b5cf6');
+    px(ctx, bx + 25, by + 20 + pulse, 1, 12, '#8b5cf6');
+    px(ctx, bx + 12, by + 25 + pulse, 16, 1, '#8b5cf6');
+    // Abdomen sheen
+    ctx.globalAlpha = 0.2;
+    px(ctx, bx + 13, by + 19 + pulse, 8, 4, '#c4b5fd');
+    ctx.globalAlpha = 1;
+    // Egg bumps on abdomen
+    const eggGlow = 0.3 + Math.sin(frame * 0.3) * 0.15;
+    ctx.globalAlpha = eggGlow;
+    px(ctx, bx + 14, by + 28 + pulse, 3, 3, '#d8b4fe');
+    px(ctx, bx + 22, by + 27 + pulse, 2, 2, '#d8b4fe');
+    px(ctx, bx + 18, by + 30 + pulse, 2, 2, '#e9d5ff');
+    ctx.globalAlpha = 1;
+
+    // Cephalothorax (front body — darker, smaller)
+    px(ctx, bx + 12, by + 6, 16, 14, '#4c1d95');
+    px(ctx, bx + 14, by + 5, 12, 2, '#581c87');
+    // Armor plates
+    px(ctx, bx + 13, by + 8, 14, 4, '#3b0764');
+    px(ctx, bx + 14, by + 9, 12, 2, '#581c87'); // highlight
+
+    // Multiple eyes (8 eyes — cluster)
+    // Large center pair
+    px(ctx, bx + 16, by + 6, 3, 3, '#1a1a2e');
+    px(ctx, bx + 21, by + 6, 3, 3, '#1a1a2e');
+    const mainEyeColor = frame % 16 < 8 ? '#ef4444' : '#dc2626';
+    px(ctx, bx + 16, by + 6, 2, 2, mainEyeColor);
+    px(ctx, bx + 22, by + 6, 2, 2, mainEyeColor);
+    // Small outer pairs
+    px(ctx, bx + 14, by + 7, 2, 2, '#ef4444');
+    px(ctx, bx + 24, by + 7, 2, 2, '#ef4444');
+    px(ctx, bx + 15, by + 9, 1, 1, '#b91c1c');
+    px(ctx, bx + 24, by + 9, 1, 1, '#b91c1c');
+    // Eye glow
+    ctx.globalAlpha = 0.15;
+    px(ctx, bx + 14, by + 5, 12, 6, '#ef4444');
+    ctx.globalAlpha = 1;
+
+    // Mandibles/fangs (large, dripping venom)
+    px(ctx, bx + 16, by + 12, 2, 4, '#78350f');
+    px(ctx, bx + 22, by + 12, 2, 4, '#78350f');
+    px(ctx, bx + 16, by + 15, 1, 2, '#d1d5db'); // fang tip
+    px(ctx, bx + 23, by + 15, 1, 2, '#d1d5db');
+    // Venom drip
+    const venomDrip = frame % 10;
+    if (venomDrip < 5) {
+      ctx.globalAlpha = 0.6;
+      px(ctx, bx + 16, by + 17 + venomDrip * 0.5, 1, 1, '#22c55e');
+      px(ctx, bx + 23, by + 17 + (venomDrip + 2) * 0.5, 1, 1, '#22c55e');
+      ctx.globalAlpha = 1;
+    }
+
+    // Poison aura
+    ctx.globalAlpha = 0.06 + Math.sin(frame * 0.2) * 0.04;
+    px(ctx, bx + 4, by + 4, 32, 32, '#22c55e');
+    ctx.globalAlpha = 1;
+
+    this.drawSpriteOutline(ctx, bx, by);
+  }
+
+  private drawBossForgeGuardian(ctx: CanvasRenderingContext2D, x: number, y: number, _facing: Direction, frame: number): void {
+    // Forge Guardian — massive iron golem with glowing forge belly, hammer, rivets
+    const bx = x - 4;
+    const by = y - 4;
+    const heavyStep = Math.sin(frame * 0.15) * 1; // slow lumbering
+
+    // Heat shimmer beneath
+    ctx.globalAlpha = 0.12;
+    for (let i = 0; i < 6; i++) {
+      px(ctx, bx + 8 + i * 4, by + 37 + Math.sin(frame * 0.3 + i) * 1, 2, 1, '#f97316');
+    }
+    ctx.globalAlpha = 1;
+
+    // Massive body — iron/dark metal
+    px(ctx, bx + 8, by + 8 + heavyStep, 24, 24, '#374151');
+    px(ctx, bx + 6, by + 10 + heavyStep, 2, 18, '#4b5563'); // left shoulder
+    px(ctx, bx + 32, by + 10 + heavyStep, 2, 18, '#4b5563'); // right shoulder
+    // Metal highlight
+    px(ctx, bx + 10, by + 9 + heavyStep, 20, 2, '#6b7280');
+
+    // Rivet details (dots along plates)
+    const rivetColor = '#9ca3af';
+    px(ctx, bx + 10, by + 12 + heavyStep, 1, 1, rivetColor);
+    px(ctx, bx + 16, by + 12 + heavyStep, 1, 1, rivetColor);
+    px(ctx, bx + 22, by + 12 + heavyStep, 1, 1, rivetColor);
+    px(ctx, bx + 28, by + 12 + heavyStep, 1, 1, rivetColor);
+    px(ctx, bx + 10, by + 20 + heavyStep, 1, 1, rivetColor);
+    px(ctx, bx + 28, by + 20 + heavyStep, 1, 1, rivetColor);
+
+    // Forge belly (glowing furnace window)
+    const forgeGlow = 0.5 + Math.sin(frame * 0.4) * 0.5;
+    const forgeColor = forgeGlow > 0.7 ? '#fbbf24' : '#f97316';
+    px(ctx, bx + 14, by + 16 + heavyStep, 12, 8, '#1a1a2e');
+    px(ctx, bx + 15, by + 17 + heavyStep, 10, 6, forgeColor);
+    px(ctx, bx + 16, by + 18 + heavyStep, 8, 4, '#fef3c7'); // bright center
+    // Forge glow aura
+    ctx.globalAlpha = forgeGlow * 0.2;
+    px(ctx, bx + 12, by + 14 + heavyStep, 16, 12, '#f97316');
+    ctx.globalAlpha = 1;
+    // Forge grate bars
+    px(ctx, bx + 17, by + 16 + heavyStep, 1, 8, '#374151');
+    px(ctx, bx + 20, by + 16 + heavyStep, 1, 8, '#374151');
+    px(ctx, bx + 23, by + 16 + heavyStep, 1, 8, '#374151');
+
+    // Head (anvil-shaped, flat top)
+    px(ctx, bx + 12, by + 2 + heavyStep, 16, 8, '#4b5563');
+    px(ctx, bx + 10, by + 2 + heavyStep, 2, 4, '#374151'); // left horn
+    px(ctx, bx + 28, by + 2 + heavyStep, 2, 4, '#374151'); // right horn
+    px(ctx, bx + 11, by + 1 + heavyStep, 18, 2, '#6b7280'); // top plate
+
+    // Eyes (ember glow)
+    px(ctx, bx + 15, by + 4 + heavyStep, 3, 2, '#1a1a2e');
+    px(ctx, bx + 22, by + 4 + heavyStep, 3, 2, '#1a1a2e');
+    px(ctx, bx + 15, by + 4 + heavyStep, 2, 1, forgeColor);
+    px(ctx, bx + 23, by + 4 + heavyStep, 2, 1, forgeColor);
+
+    // Jaw (metal plate)
+    px(ctx, bx + 14, by + 8 + heavyStep, 12, 2, '#374151');
+
+    // Arms (thick iron)
+    px(ctx, bx + 4, by + 12 + heavyStep, 5, 16, '#4b5563');
+    px(ctx, bx + 5, by + 13 + heavyStep, 3, 6, '#6b7280'); // highlight
+    px(ctx, bx + 31, by + 12 + heavyStep, 5, 16, '#4b5563');
+    px(ctx, bx + 32, by + 13 + heavyStep, 3, 6, '#6b7280');
+
+    // Giant hammer (right hand)
+    px(ctx, bx + 34, by + 10 + heavyStep, 4, 18, '#78350f'); // handle
+    px(ctx, bx + 32, by + 6 + heavyStep, 8, 6, '#6b7280'); // hammer head
+    px(ctx, bx + 33, by + 7 + heavyStep, 6, 4, '#9ca3af'); // head highlight
+    // Hammer glow
+    ctx.globalAlpha = 0.15;
+    px(ctx, bx + 31, by + 5 + heavyStep, 10, 8, forgeColor);
+    ctx.globalAlpha = 1;
+
+    // Legs (thick pillars)
+    px(ctx, bx + 12, by + 32 + heavyStep, 6, 6, '#374151');
+    px(ctx, bx + 22, by + 32 + heavyStep, 6, 6, '#374151');
+    px(ctx, bx + 13, by + 32 + heavyStep, 2, 3, '#4b5563'); // highlight
+
+    this.drawSpriteOutline(ctx, bx, by);
+  }
+
+  private drawBossStoneWarden(ctx: CanvasRenderingContext2D, x: number, y: number, _facing: Direction, frame: number): void {
+    // Stone Warden — ancient stone construct covered in runes, moss, crystal growths
+    const bx = x - 4;
+    const by = y - 4;
+    const sway = Math.sin(frame * 0.12) * 1;
+
+    // Stone body (massive, grey-blue)
+    px(ctx, bx + 8, by + 8 + sway, 24, 26, '#64748b');
+    px(ctx, bx + 10, by + 7 + sway, 20, 2, '#94a3b8'); // shoulder highlight
+    px(ctx, bx + 6, by + 12 + sway, 2, 16, '#64748b'); // left shoulder
+    px(ctx, bx + 32, by + 12 + sway, 2, 16, '#64748b');
+
+    // Stone block texture (large cracks)
+    px(ctx, bx + 16, by + 10 + sway, 1, 22, '#475569');
+    px(ctx, bx + 24, by + 12 + sway, 1, 18, '#475569');
+    px(ctx, bx + 10, by + 20 + sway, 20, 1, '#475569');
+    px(ctx, bx + 10, by + 28 + sway, 20, 1, '#475569');
+
+    // Glowing rune carvings
+    const runeGlow = 0.4 + Math.sin(frame * 0.3) * 0.3;
+    ctx.globalAlpha = runeGlow;
+    // Rune 1: circle on chest
+    px(ctx, bx + 17, by + 14 + sway, 6, 1, '#22d3ee');
+    px(ctx, bx + 16, by + 15 + sway, 1, 4, '#22d3ee');
+    px(ctx, bx + 23, by + 15 + sway, 1, 4, '#22d3ee');
+    px(ctx, bx + 17, by + 19 + sway, 6, 1, '#22d3ee');
+    // Rune 2: lines on shoulders
+    px(ctx, bx + 10, by + 10 + sway, 4, 1, '#06b6d4');
+    px(ctx, bx + 26, by + 10 + sway, 4, 1, '#06b6d4');
+    px(ctx, bx + 11, by + 12 + sway, 2, 1, '#67e8f9');
+    px(ctx, bx + 27, by + 12 + sway, 2, 1, '#67e8f9');
+    ctx.globalAlpha = 1;
+
+    // Moss growths
+    ctx.globalAlpha = 0.5;
+    px(ctx, bx + 8, by + 30 + sway, 4, 3, '#166534');
+    px(ctx, bx + 28, by + 28 + sway, 3, 4, '#15532a');
+    px(ctx, bx + 14, by + 8 + sway, 3, 2, '#166534');
+    ctx.globalAlpha = 1;
+
+    // Crystal growths (protruding cyan crystals)
+    px(ctx, bx + 7, by + 8 + sway, 3, 5, '#06b6d4');
+    px(ctx, bx + 8, by + 6 + sway, 1, 3, '#22d3ee'); // crystal tip
+    px(ctx, bx + 30, by + 10 + sway, 3, 4, '#06b6d4');
+    px(ctx, bx + 31, by + 8 + sway, 1, 3, '#22d3ee');
+    // Crystal glow
+    ctx.globalAlpha = 0.2;
+    px(ctx, bx + 6, by + 6 + sway, 5, 8, '#22d3ee');
+    px(ctx, bx + 29, by + 8 + sway, 5, 7, '#22d3ee');
+    ctx.globalAlpha = 1;
+
+    // Head (carved stone face)
+    px(ctx, bx + 12, by + 1 + sway, 16, 9, '#94a3b8');
+    px(ctx, bx + 14, by + 0 + sway, 12, 2, '#cbd5e1'); // forehead
+    // Carved eye sockets
+    px(ctx, bx + 15, by + 3 + sway, 3, 3, '#1e293b');
+    px(ctx, bx + 22, by + 3 + sway, 3, 3, '#1e293b');
+    // Glowing eyes (ancient blue)
+    const eyePulse = 0.5 + Math.sin(frame * 0.4) * 0.5;
+    px(ctx, bx + 15, by + 3 + sway, 2, 2, eyePulse > 0.6 ? '#22d3ee' : '#0891b2');
+    px(ctx, bx + 23, by + 3 + sway, 2, 2, eyePulse > 0.6 ? '#22d3ee' : '#0891b2');
+    // Carved mouth (horizontal line)
+    px(ctx, bx + 16, by + 7 + sway, 8, 1, '#334155');
+
+    // Arms (stone pillars)
+    px(ctx, bx + 4, by + 14 + sway, 5, 16, '#64748b');
+    px(ctx, bx + 5, by + 15 + sway, 3, 6, '#94a3b8');
+    px(ctx, bx + 31, by + 14 + sway, 5, 16, '#64748b');
+    px(ctx, bx + 32, by + 15 + sway, 3, 6, '#94a3b8');
+    // Stone fists
+    px(ctx, bx + 3, by + 29 + sway, 6, 4, '#475569');
+    px(ctx, bx + 31, by + 29 + sway, 6, 4, '#475569');
+
+    // Legs
+    px(ctx, bx + 12, by + 34, 6, 4, '#475569');
+    px(ctx, bx + 22, by + 34, 6, 4, '#475569');
+
+    // Ground rune circle
+    ctx.globalAlpha = 0.1 + Math.sin(frame * 0.2) * 0.05;
+    px(ctx, bx + 6, by + 36, 28, 2, '#22d3ee');
+    ctx.globalAlpha = 1;
+
+    this.drawSpriteOutline(ctx, bx, by);
+  }
+
+  private drawBossFlameKnight(ctx: CanvasRenderingContext2D, x: number, y: number, facing: Direction, frame: number): void {
+    // Flame Knight — burning armored knight, flaming sword, fire cape, charred armor
+    const bx = x - 4;
+    const by = y - 4;
+    const pulse = Math.sin(frame * 0.25) * 1.5;
+    const facingRight = facing === 'right' || facing === 'down';
+
+    // Fire aura
+    ctx.globalAlpha = 0.08 + Math.sin(frame * 0.3) * 0.04;
+    px(ctx, bx + 2, by + 2, 36, 34, '#f97316');
+    ctx.globalAlpha = 1;
+
+    // Fire cape (flowing flames behind body)
+    const flameWave = Math.sin(frame * 0.5) * 2;
+    px(ctx, bx + 10, by + 10, 20, 20, '#dc2626');
+    px(ctx, bx + 8, by + 12, 2, 16 + flameWave, '#ef4444');
+    px(ctx, bx + 30, by + 12, 2, 16 - flameWave, '#ef4444');
+    // Cape fire tips
+    px(ctx, bx + 9, by + 28 + flameWave, 1, 3, '#f97316');
+    px(ctx, bx + 14, by + 30 + flameWave * 0.5, 1, 2, '#fbbf24');
+    px(ctx, bx + 20, by + 30 - flameWave * 0.5, 1, 3, '#f97316');
+    px(ctx, bx + 26, by + 29 + flameWave, 1, 2, '#fbbf24');
+    px(ctx, bx + 30, by + 28 - flameWave, 1, 3, '#f97316');
+
+    // Charred black armor body
+    px(ctx, bx + 10, by + 8 + pulse, 20, 20, '#1c1917');
+    px(ctx, bx + 12, by + 7 + pulse, 16, 2, '#292524'); // shoulder plates
+    // Armor cracks showing fire beneath
+    const crackGlow = 0.5 + Math.sin(frame * 0.5) * 0.5;
+    px(ctx, bx + 15, by + 12 + pulse, 1, 6, crackGlow > 0.6 ? '#fbbf24' : '#f97316');
+    px(ctx, bx + 24, by + 14 + pulse, 1, 5, crackGlow > 0.6 ? '#fbbf24' : '#f97316');
+    px(ctx, bx + 18, by + 22 + pulse, 4, 1, crackGlow > 0.6 ? '#f97316' : '#dc2626');
+    // Armor highlight
+    px(ctx, bx + 14, by + 9 + pulse, 12, 2, '#44403c');
+
+    // Chest emblem (flaming skull)
+    px(ctx, bx + 17, by + 13 + pulse, 6, 5, '#292524');
+    const skullGlow = 0.4 + Math.sin(frame * 0.4) * 0.3;
+    ctx.globalAlpha = skullGlow;
+    px(ctx, bx + 18, by + 13 + pulse, 4, 3, '#fbbf24');
+    px(ctx, bx + 18, by + 14 + pulse, 1, 1, '#000'); // eye
+    px(ctx, bx + 21, by + 14 + pulse, 1, 1, '#000'); // eye
+    ctx.globalAlpha = 1;
+
+    // Helmet (horned, burning)
+    px(ctx, bx + 13, by + 2 + pulse, 14, 8, '#1c1917');
+    px(ctx, bx + 15, by + 1 + pulse, 10, 2, '#292524');
+    // Burning horns
+    px(ctx, bx + 10, by + 0 + pulse, 3, 5, '#451a03');
+    px(ctx, bx + 27, by + 0 + pulse, 3, 5, '#451a03');
+    // Fire on horn tips
+    px(ctx, bx + 10, by - 2 + pulse, 2, 2, '#f97316');
+    px(ctx, bx + 28, by - 2 + pulse, 2, 2, '#f97316');
+    px(ctx, bx + 11, by - 3 + pulse, 1, 1, '#fbbf24');
+    px(ctx, bx + 28, by - 3 + pulse, 1, 1, '#fbbf24');
+    // Visor (burning eyes)
+    const eyeColor = frame % 16 < 8 ? '#fbbf24' : '#f97316';
+    px(ctx, bx + 16, by + 4 + pulse, 3, 2, '#000');
+    px(ctx, bx + 21, by + 4 + pulse, 3, 2, '#000');
+    px(ctx, bx + 16, by + 4 + pulse, 2, 1, eyeColor);
+    px(ctx, bx + 22, by + 4 + pulse, 2, 1, eyeColor);
+    // Eye flame trails
+    ctx.globalAlpha = 0.4;
+    px(ctx, bx + 15, by + 3 + pulse, 2, 1, eyeColor);
+    px(ctx, bx + 23, by + 3 + pulse, 2, 1, eyeColor);
+    ctx.globalAlpha = 1;
+
+    // Arms
+    px(ctx, bx + 6, by + 12 + pulse, 5, 14, '#1c1917');
+    px(ctx, bx + 7, by + 13 + pulse, 3, 5, '#292524');
+    px(ctx, bx + 29, by + 12 + pulse, 5, 14, '#1c1917');
+    px(ctx, bx + 30, by + 13 + pulse, 3, 5, '#292524');
+
+    // Flaming sword (left or right based on facing)
+    const swordSide = facingRight ? 1 : -1;
+    const sx = facingRight ? bx + 33 : bx + 3;
+    // Blade
+    px(ctx, sx, by + 4 + pulse, 2, 20, '#78350f');
+    px(ctx, sx, by + 2 + pulse, 2, 3, '#dc2626'); // blade top
+    // Flames wrapping blade
+    const fFrame = frame % 6;
+    px(ctx, sx - 1, by + 5 + pulse + fFrame, 1, 3, '#f97316');
+    px(ctx, sx + 2, by + 8 + pulse + (fFrame + 2) % 4, 1, 2, '#fbbf24');
+    px(ctx, sx - 1, by + 12 + pulse + (fFrame + 4) % 5, 1, 2, '#ef4444');
+    px(ctx, sx + 2, by + 15 + pulse + fFrame % 3, 1, 2, '#f97316');
+    // Sword fire glow
+    ctx.globalAlpha = 0.15;
+    px(ctx, sx - 2, by + 2 + pulse, 6, 22, '#f97316');
+    ctx.globalAlpha = 1;
+    // Crossguard
+    px(ctx, sx - 2, by + 22 + pulse, 6, 2, '#92400e');
+
+    // Legs
+    px(ctx, bx + 13, by + 28 + pulse, 5, 6, '#1c1917');
+    px(ctx, bx + 22, by + 28 + pulse, 5, 6, '#1c1917');
+    px(ctx, bx + 14, by + 28 + pulse, 2, 3, '#292524');
+    // Burning footprints
+    ctx.globalAlpha = 0.2;
+    px(ctx, bx + 12, by + 35, 7, 1, '#f97316');
+    px(ctx, bx + 21, by + 35, 7, 1, '#f97316');
+    ctx.globalAlpha = 1;
+
+    this.drawSpriteOutline(ctx, bx, by);
+  }
+
+  // ===== UNIQUE MONSTER VARIANTS =====
+
+  private drawGargoyle(ctx: CanvasRenderingContext2D, x: number, y: number, facing: Direction, frame: number): void {
+    // Stone gargoyle — grey/blue stone body with glowing eyes, crouched pose
+    const wobble = Math.sin(frame * 0.15) * 0.5; // very slow, statue-like movement
+
+    // Stone dust particles falling occasionally
+    if (frame % 12 < 2) {
+      ctx.globalAlpha = 0.3;
+      px(ctx, x + 3 + (frame % 5), y + 14, 1, 1, '#9ca3af');
+      ctx.globalAlpha = 1;
+    }
+
+    // Wings (folded, stone)
+    px(ctx, x + 1, y + 4 + wobble, 3, 8, '#6b7280');
+    px(ctx, x + 0, y + 5 + wobble, 2, 6, '#4b5563');
+    px(ctx, x + 12, y + 4 + wobble, 3, 8, '#6b7280');
+    px(ctx, x + 14, y + 5 + wobble, 2, 6, '#4b5563');
+    // Wing vein cracks
+    px(ctx, x + 1, y + 6 + wobble, 1, 4, '#374151');
+    px(ctx, x + 13, y + 6 + wobble, 1, 4, '#374151');
+
+    // Body (stone grey, crouched and bulky)
+    px(ctx, x + 3, y + 3 + wobble, 10, 10, '#6b7280');
+    px(ctx, x + 4, y + 2 + wobble, 8, 1, '#9ca3af'); // shoulder highlight
+    px(ctx, x + 5, y + 4 + wobble, 6, 6, '#4b5563'); // darker core
+
+    // Stone texture cracks
+    px(ctx, x + 5, y + 5 + wobble, 1, 4, '#374151');
+    px(ctx, x + 8, y + 6 + wobble, 1, 3, '#374151');
+    px(ctx, x + 10, y + 4 + wobble, 1, 5, '#374151');
+    // Moss patches
+    ctx.globalAlpha = 0.4;
+    px(ctx, x + 4, y + 10 + wobble, 2, 2, '#166534');
+    px(ctx, x + 11, y + 11 + wobble, 2, 1, '#15532a');
+    ctx.globalAlpha = 1;
+
+    // Head (horned, angular)
+    px(ctx, x + 5, y + 0 + wobble, 6, 4, '#9ca3af');
+    px(ctx, x + 6, y + 0 + wobble, 4, 3, '#d1d5db'); // lighter face
+    // Horns (short, stone)
+    px(ctx, x + 4, y - 1 + wobble, 2, 2, '#4b5563');
+    px(ctx, x + 10, y - 1 + wobble, 2, 2, '#4b5563');
+    px(ctx, x + 3, y - 2 + wobble, 1, 1, '#374151');
+    px(ctx, x + 12, y - 2 + wobble, 1, 1, '#374151');
+
+    // Glowing yellow eyes
+    const eyeGlow = 0.6 + Math.sin(frame * 0.4) * 0.4;
+    px(ctx, x + 6, y + 1 + wobble, 2, 2, '#1a1a2e');
+    px(ctx, x + 9, y + 1 + wobble, 2, 2, '#1a1a2e');
+    const eyeColor = eyeGlow > 0.8 ? '#fbbf24' : '#f59e0b';
+    px(ctx, x + 6, y + 1 + wobble, 1, 1, eyeColor);
+    px(ctx, x + 10, y + 1 + wobble, 1, 1, eyeColor);
+    // Eye glow aura
+    ctx.globalAlpha = eyeGlow * 0.2;
+    px(ctx, x + 5, y + 0 + wobble, 3, 3, '#fbbf24');
+    px(ctx, x + 8, y + 0 + wobble, 3, 3, '#fbbf24');
+    ctx.globalAlpha = 1;
+
+    // Fanged mouth
+    px(ctx, x + 7, y + 3 + wobble, 3, 1, '#374151');
+    px(ctx, x + 7, y + 3 + wobble, 1, 1, '#d1d5db'); // fang
+    px(ctx, x + 9, y + 3 + wobble, 1, 1, '#d1d5db'); // fang
+
+    // Clawed feet
+    px(ctx, x + 4, y + 13, 3, 2, '#4b5563');
+    px(ctx, x + 9, y + 13, 3, 2, '#4b5563');
+    px(ctx, x + 3, y + 14, 1, 1, '#374151'); // claw
+    px(ctx, x + 7, y + 14, 1, 1, '#374151');
+    px(ctx, x + 12, y + 14, 1, 1, '#374151');
+
+    this.drawSpriteOutline(ctx, x, y);
+  }
+
+  private drawDarkKnight(ctx: CanvasRenderingContext2D, x: number, y: number, facing: Direction, frame: number, attacking = false): void {
+    // Dark Knight — heavily armored black/purple knight with glowing sword
+    const wobble = WALK_OFFSETS[frame % 4];
+    const facingRight = facing === 'right' || facing === 'down';
+
+    // Cape (dark purple, flowing)
+    const capeWave = Math.sin(frame * 0.3) * 1;
+    px(ctx, x + 4, y + 6, 8, 7, '#1e1b4b');
+    px(ctx, x + 3, y + 7, 1, 5 + capeWave, '#312e81');
+    px(ctx, x + 12, y + 7, 1, 5 - capeWave, '#312e81');
+    px(ctx, x + 5, y + 13, 6, 1 + Math.abs(capeWave), '#1e1b4b');
+
+    // Armored body (dark black/grey with purple trim)
+    px(ctx, x + 4, y + 4 + wobble, 8, 8, '#1f2937');
+    px(ctx, x + 5, y + 3 + wobble, 6, 1, '#374151'); // shoulder plate
+    // Purple trim on armor
+    px(ctx, x + 4, y + 4 + wobble, 1, 8, '#4c1d95');
+    px(ctx, x + 11, y + 4 + wobble, 1, 8, '#4c1d95');
+    px(ctx, x + 5, y + 8 + wobble, 6, 1, '#4c1d95'); // belt
+
+    // Chest emblem (dark rune)
+    const runeGlow = 0.3 + Math.sin(frame * 0.5) * 0.2;
+    ctx.globalAlpha = runeGlow;
+    px(ctx, x + 6, y + 5 + wobble, 4, 3, '#7c3aed');
+    px(ctx, x + 7, y + 5 + wobble, 2, 1, '#a78bfa');
+    ctx.globalAlpha = 1;
+
+    // Helmet (dark with T-visor glowing purple)
+    px(ctx, x + 5, y + 0 + wobble, 6, 5, '#111827');
+    px(ctx, x + 4, y + 1 + wobble, 1, 3, '#1f2937'); // side
+    px(ctx, x + 11, y + 1 + wobble, 1, 3, '#1f2937');
+    px(ctx, x + 6, y + 1 + wobble, 4, 1, '#374151'); // top highlight
+    // T-visor glow
+    px(ctx, x + 6, y + 2 + wobble, 4, 1, '#7c3aed');
+    px(ctx, x + 7, y + 3 + wobble, 2, 1, '#7c3aed');
+    // Visor glow aura
+    ctx.globalAlpha = 0.15;
+    px(ctx, x + 5, y + 1 + wobble, 6, 3, '#8b5cf6');
+    ctx.globalAlpha = 1;
+
+    // Legs (armored)
+    px(ctx, x + 4, y + 12 + wobble, 3, 3, '#1f2937');
+    px(ctx, x + 9, y + 12 + wobble, 3, 3, '#1f2937');
+    px(ctx, x + 5, y + 12 + wobble, 1, 2, '#374151'); // leg highlight
+
+    // Sword (glowing dark purple blade)
+    const swordX = facingRight ? x + 12 : x - 1;
+    if (attacking) {
+      // Attack swing — horizontal
+      px(ctx, x + 2, y + 5 + wobble, 12, 1, '#7c3aed');
+      px(ctx, x + 1, y + 5 + wobble, 1, 1, '#a78bfa'); // tip glow
+      // Swing trail
+      ctx.globalAlpha = 0.3;
+      px(ctx, x + 2, y + 4 + wobble, 12, 1, '#8b5cf6');
+      px(ctx, x + 2, y + 6 + wobble, 12, 1, '#8b5cf6');
+      ctx.globalAlpha = 1;
+    } else {
+      // Sword at side
+      px(ctx, swordX, y + 3 + wobble, 1, 9, '#4c1d95');
+      px(ctx, swordX, y + 3 + wobble, 1, 1, '#a78bfa'); // pommel
+      px(ctx, swordX, y + 2 + wobble, 1, 1, '#c4b5fd'); // tip glow
+      // Blade glow
+      ctx.globalAlpha = 0.2;
+      px(ctx, swordX - 1, y + 3 + wobble, 3, 8, '#8b5cf6');
+      ctx.globalAlpha = 1;
+    }
+
+    this.drawSpriteOutline(ctx, x, y);
+  }
+
+  private drawPhantom(ctx: CanvasRenderingContext2D, x: number, y: number, facing: Direction, frame: number): void {
+    // Phantom — transparent ghostly figure, cyan/white, phasing in and out
+    const floatY = Math.sin(frame * 0.25) * 2;
+    const phaseAlpha = 0.5 + Math.sin(frame * 0.15) * 0.2; // 0.3 to 0.7
+
+    ctx.globalAlpha = phaseAlpha;
+
+    // Ghostly trail (fading copies behind)
+    ctx.globalAlpha = phaseAlpha * 0.15;
+    px(ctx, x + 3, y + 3 + floatY + 2, 10, 10, '#67e8f9');
+    ctx.globalAlpha = phaseAlpha;
+
+    // Ethereal body (wispy, tapers at bottom)
+    px(ctx, x + 4, y + 2 + floatY, 8, 8, '#cffafe');
+    px(ctx, x + 5, y + 1 + floatY, 6, 1, '#e0f2fe');
+    // Tapered bottom (wispy tendrils)
+    px(ctx, x + 4, y + 10 + floatY, 2, 2, '#a5f3fc');
+    px(ctx, x + 7, y + 10 + floatY, 1, 3, '#67e8f9');
+    px(ctx, x + 10, y + 10 + floatY, 2, 2, '#a5f3fc');
+    px(ctx, x + 5, y + 12 + floatY, 1, 2, '#67e8f9');
+    px(ctx, x + 9, y + 11 + floatY, 1, 2, '#67e8f9');
+
+    // Inner glow core
+    ctx.globalAlpha = phaseAlpha * 0.4;
+    px(ctx, x + 6, y + 4 + floatY, 4, 4, '#ffffff');
+    ctx.globalAlpha = phaseAlpha;
+
+    // Dark hollow eyes (large, menacing)
+    px(ctx, x + 5, y + 3 + floatY, 3, 2, '#0f172a');
+    px(ctx, x + 9, y + 3 + floatY, 3, 2, '#0f172a');
+    // Eye inner glow (cold cyan)
+    const eyePulse = 0.5 + Math.sin(frame * 0.6) * 0.5;
+    const eyeC = eyePulse > 0.7 ? '#22d3ee' : '#06b6d4';
+    px(ctx, x + 6, y + 3 + floatY, 1, 1, eyeC);
+    px(ctx, x + 10, y + 3 + floatY, 1, 1, eyeC);
+
+    // Wailing mouth
+    px(ctx, x + 7, y + 6 + floatY, 2, 2, '#0c4a6e');
+    px(ctx, x + 7, y + 7 + floatY, 2, 1, '#0f172a');
+
+    // Floating soul particles around
+    ctx.globalAlpha = phaseAlpha * 0.5;
+    const pX1 = x + 2 + Math.sin(frame * 0.3) * 3;
+    const pY1 = y + 4 + Math.cos(frame * 0.4) * 2;
+    px(ctx, pX1, pY1 + floatY, 1, 1, '#67e8f9');
+    const pX2 = x + 12 + Math.cos(frame * 0.35) * 2;
+    const pY2 = y + 6 + Math.sin(frame * 0.25) * 3;
+    px(ctx, pX2, pY2 + floatY, 1, 1, '#a5f3fc');
+
+    ctx.globalAlpha = 1;
+    this.drawSpriteOutline(ctx, x, y);
+  }
+
+  private drawLavaSlime(ctx: CanvasRenderingContext2D, x: number, y: number, frame: number): void {
+    // Lava Slime — molten rock body with orange/red magma, ember particles, crust
+
+    // Squash/stretch bounce
+    const bouncePhase = (frame % 8) / 8;
+    const squash = Math.sin(bouncePhase * Math.PI * 2);
+    const baseW = 12;
+    const baseH = 10;
+    const w = Math.floor(baseW + squash * 3);
+    const h = Math.floor(baseH - squash * 3);
+    const bx = x + 8 - Math.floor(w / 2);
+    const by = y + 14 - h;
+
+    // Heat distortion beneath
+    ctx.globalAlpha = 0.2;
+    for (let i = 0; i < 4; i++) {
+      px(ctx, bx + 1 + i * 3, y + 15 + Math.sin(frame * 0.5 + i) * 0.5, 2, 1, '#f97316');
+    }
+    ctx.globalAlpha = 1;
+
+    // Lava trail
+    ctx.globalAlpha = 0.3;
+    px(ctx, bx + 1, y + 14, w - 2, 1, '#dc2626');
+    px(ctx, bx + 2, y + 15, w - 4, 1, '#991b1b');
+    ctx.globalAlpha = 1;
+
+    // Dark rock crust outer shell
+    px(ctx, bx, by + 1, w, h - 1, '#451a03');
+    px(ctx, bx + 1, by, w - 2, 1, '#451a03');
+    px(ctx, bx + 1, by + h, w - 2, 1, '#451a03');
+
+    // Molten magma showing through cracks
+    const magmaGlow = 0.6 + Math.sin(frame * 0.4) * 0.4;
+    const magmaColor = magmaGlow > 0.8 ? '#fbbf24' : '#f97316';
+    // Large magma crack pattern
+    px(ctx, bx + 2, by + 2, w - 4, h - 4, '#b91c1c'); // inner magma
+    px(ctx, bx + 3, by + 3, w - 6, h - 6, '#ef4444'); // brighter core
+
+    // Rock crust patches over magma
+    px(ctx, bx + 2, by + 1, 3, 2, '#78350f');
+    px(ctx, bx + w - 5, by + 2, 3, 3, '#78350f');
+    px(ctx, bx + 3, by + h - 3, 4, 2, '#78350f');
+    px(ctx, bx + w - 3, by + h - 2, 2, 2, '#5c3310');
+
+    // Glowing cracks between crust
+    px(ctx, bx + 4, by + 2, 1, 3, magmaColor);
+    px(ctx, bx + w - 4, by + 4, 1, 2, magmaColor);
+    px(ctx, bx + 3, by + h - 2, 3, 1, magmaColor);
+    // Glow aura on cracks
+    ctx.globalAlpha = magmaGlow * 0.3;
+    px(ctx, bx + 3, by + 1, 3, 5, '#fbbf24');
+    ctx.globalAlpha = 1;
+
+    // Angry glowing eyes
+    const eyeY = by + Math.floor(h * 0.3);
+    px(ctx, bx + Math.floor(w * 0.25), eyeY, 2, 2, '#fbbf24');
+    px(ctx, bx + Math.floor(w * 0.6), eyeY, 2, 2, '#fbbf24');
+    px(ctx, bx + Math.floor(w * 0.25) + 1, eyeY, 1, 1, '#ffffff'); // hot center
+    px(ctx, bx + Math.floor(w * 0.6) + 1, eyeY, 1, 1, '#ffffff');
+
+    // Ember particles rising
+    ctx.globalAlpha = 0.6;
+    const e1x = bx + 2 + Math.sin(frame * 0.5) * 3;
+    const e1y = by - 1 - (frame % 5);
+    px(ctx, e1x, e1y, 1, 1, '#fbbf24');
+    const e2x = bx + w - 3 + Math.cos(frame * 0.4) * 2;
+    const e2y = by - 2 - ((frame + 3) % 4);
+    px(ctx, e2x, e2y, 1, 1, '#f97316');
+    ctx.globalAlpha = 0.3;
+    const e3x = bx + Math.floor(w / 2) + Math.sin(frame * 0.3 + 1) * 2;
+    px(ctx, e3x, by - 3 - (frame % 3), 1, 1, '#ef4444');
+    ctx.globalAlpha = 1;
+
+    this.drawSpriteOutline(ctx, x, y);
   }
 
   // ===== NEW MONSTER SPRITES =====

@@ -127,8 +127,6 @@ function pickWeightedMonster(pool: WeightedMonster[]): MonsterType {
 
 // --- Game constants ---
 const RECONNECT_TIMEOUT_MS = 30_000;
-const BOSS_BASE_HP = 300;
-const BOSS_HP_SCALE_PER_PLAYER = 0.5;
 const ROOM_AREA_PER_MONSTER = 14;
 const MAX_MONSTERS_PER_ROOM = 14;
 const MIN_MONSTERS_PER_ROOM = 4;
@@ -413,6 +411,7 @@ export class GameRoom {
     const item = SHOP_ITEMS.find(i => i.id === itemId);
     if (!item) return;
     if (item.floorRequirement && this.currentFloor < item.floorRequirement) return;
+    if (item.levelRequirement && player.state.level < item.levelRequirement) return;
     const success = player.buyShopItem(item.effect, item.cost);
     if (success) {
       this.io.to(this.roomCode).emit('game:item_purchased', {
@@ -436,8 +435,9 @@ export class GameRoom {
     this.phase = 'shopping';
     this.shopReadyPlayers.clear();
     const currentFloor = this.currentFloor;
+    // Send all items up to this floor — client filters by player level
     const availableItems = SHOP_ITEMS.filter(
-      item => !item.floorRequirement || currentFloor >= item.floorRequirement
+      item => (!item.floorRequirement || currentFloor >= item.floorRequirement)
     );
     const playerGold: Record<string, number> = {};
     for (const [id, player] of this.players) {
@@ -533,11 +533,7 @@ export class GameRoom {
           ? 'boss_demon'
           : (bossTypeMap[this.currentFloor] ?? 'boss_spider_queen');
         const boss = new Monster(bossType, { x: room.centerX, y: room.centerY }, room.id);
-        // Override boss HP based on player count: 300 * (1 + (playerCount - 1) * 0.5)
-        const bossHpScale = 1 + (clampedPlayers - 1) * BOSS_HP_SCALE_PER_PLAYER;
-        const bossBaseHp = Math.floor(BOSS_BASE_HP * bossHpScale);
-        boss.state.maxHp = bossBaseHp;
-        boss.state.hp = bossBaseHp;
+        // Boss uses its own MONSTER_STATS HP, then scale for floor + players
         boss.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
         if (this.isSolo) boss.scaleForSolo();
         boss.scaleForPlayerCount(clampedPlayers);
@@ -1087,8 +1083,8 @@ export class GameRoom {
 
             this.io.to(this.roomCode).emit('game:chest_opened', { x: tx, y: ty });
 
-            // 2-4 loot düşür
-            const lootCount = 2 + Math.floor(Math.random() * 3);
+            // 1-2 loot düşür (sandıklar nadir, ödülü iyi)
+            const lootCount = 1 + Math.floor(Math.random() * 2);
             for (let i = 0; i < lootCount; i++) {
               this.dropLoot({ x: tx + 0.5, y: ty + 0.5 });
             }
@@ -1175,8 +1171,8 @@ export class GameRoom {
       }
     }
 
-    // Drop loot — elite'ler 2-3 loot droplar
-    const dropCount = monster.state.isElite ? 2 + Math.floor(Math.random() * 2) : 1;
+    // Drop loot — elite'ler 1-2 loot droplar, normal canavarlar 1
+    const dropCount = monster.state.isElite ? 1 + Math.floor(Math.random() * 2) : 1;
     for (let i = 0; i < dropCount; i++) {
       this.dropLoot(monster.state.position);
     }
@@ -1184,10 +1180,10 @@ export class GameRoom {
 
   private dropLoot(position: Vec2): void {
     const lootTypes: LootType[] = ['health_potion', 'mana_potion', 'damage_boost', 'speed_boost', 'gold'];
-    // Solo mode: 50% increased loot drop rates; multiplayer: scale up to compensate split
+    // Solo mode: slight boost; multiplayer: small scale up to compensate split
     const dropMultiplier = this.isSolo
-      ? 1.5
-      : 1 + (this.playerCount - 1) * 0.2; // 2p=1.2, 3p=1.4, 4p=1.6
+      ? 1.15
+      : 1 + (this.playerCount - 1) * 0.15; // 2p=1.15, 3p=1.3, 4p=1.45
 
     for (const lootType of lootTypes) {
       const lootInfo = LOOT_TABLE[lootType];

@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import type { ShopItem } from '../../../shared/types';
 
 type ShopScreenProps = {
   items: ShopItem[];
   playerGold: number;
+  playerLevel: number;
   floor: number;
   onBuy: (itemId: string) => void;
   onContinue: () => void;
@@ -25,7 +26,17 @@ function getMerchantLine(floor: number): string {
   return MERCHANT_LINES.late;
 }
 
-export function ShopScreen({ items, playerGold, floor, onBuy, onContinue }: ShopScreenProps) {
+// Tier bilgisi
+function getItemTier(item: ShopItem): { label: string; color: string } {
+  const lvl = item.levelRequirement ?? 0;
+  if (lvl >= 9) return { label: 'Efsane', color: '#f59e0b' };
+  if (lvl >= 7) return { label: 'Uzman', color: '#a855f7' };
+  if (lvl >= 5) return { label: 'İleri', color: '#3b82f6' };
+  if (lvl >= 3) return { label: 'Orta', color: '#10b981' };
+  return { label: 'Temel', color: '#71717a' };
+}
+
+export function ShopScreen({ items, playerGold, playerLevel, floor, onBuy, onContinue }: ShopScreenProps) {
   const [gold, setGold] = useState(playerGold);
   const [purchasedIds, setPurchasedIds] = useState<Set<string>>(new Set());
   const [timer, setTimer] = useState(30);
@@ -51,12 +62,13 @@ export function ShopScreen({ items, playerGold, floor, onBuy, onContinue }: Shop
   const handleBuy = useCallback((item: ShopItem) => {
     if (gold < item.cost) return;
     if (item.type === 'upgrade' && purchasedIds.has(item.id)) return;
+    if (item.levelRequirement && playerLevel < item.levelRequirement) return;
     onBuy(item.id);
     setGold(prev => prev - item.cost);
     if (item.type === 'upgrade') {
       setPurchasedIds(prev => new Set(prev).add(item.id));
     }
-  }, [gold, purchasedIds, onBuy]);
+  }, [gold, purchasedIds, onBuy, playerLevel]);
 
   const consumables = items.filter(i => i.type === 'consumable');
   const upgrades = items.filter(i => i.type === 'upgrade');
@@ -82,11 +94,16 @@ export function ShopScreen({ items, playerGold, floor, onBuy, onContinue }: Shop
           </p>
         </div>
 
-        {/* Altın ve Zamanlayıcı */}
+        {/* Altın, Seviye ve Zamanlayıcı */}
         <div className="flex items-center justify-between mb-4 px-2">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-yellow-900/30 border border-yellow-600/30">
-            <span className="text-yellow-400 font-bold">{gold}</span>
-            <span className="text-yellow-600 text-sm">altın</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-yellow-900/30 border border-yellow-600/30">
+              <span className="text-yellow-400 font-bold">{gold}</span>
+              <span className="text-yellow-600 text-sm">altın</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-900/30 border border-violet-600/30">
+              <span className="text-violet-400 font-bold text-sm">Lv.{playerLevel}</span>
+            </div>
           </div>
           <div className={`px-3 py-1.5 rounded-lg font-mono text-sm ${timer <= 10 ? 'bg-red-900/30 text-red-400 animate-pulse' : 'bg-zinc-800 text-zinc-400'}`}>
             {timer}s
@@ -104,6 +121,8 @@ export function ShopScreen({ items, playerGold, floor, onBuy, onContinue }: Shop
                   item={item}
                   canAfford={gold >= item.cost}
                   purchased={false}
+                  levelLocked={!!item.levelRequirement && playerLevel < item.levelRequirement}
+                  playerLevel={playerLevel}
                   onBuy={() => handleBuy(item)}
                 />
               ))}
@@ -122,6 +141,8 @@ export function ShopScreen({ items, playerGold, floor, onBuy, onContinue }: Shop
                   item={item}
                   canAfford={gold >= item.cost}
                   purchased={purchasedIds.has(item.id)}
+                  levelLocked={!!item.levelRequirement && playerLevel < item.levelRequirement}
+                  playerLevel={playerLevel}
                   onBuy={() => handleBuy(item)}
                 />
               ))}
@@ -147,40 +168,65 @@ function ShopItemCard({
   item,
   canAfford,
   purchased,
+  levelLocked,
+  playerLevel,
   onBuy,
 }: {
   item: ShopItem;
   canAfford: boolean;
   purchased: boolean;
+  levelLocked: boolean;
+  playerLevel: number;
   onBuy: () => void;
 }) {
-  const disabled = !canAfford || purchased;
+  const disabled = !canAfford || purchased || levelLocked;
+  const tier = getItemTier(item);
 
   return (
     <button
       onClick={onBuy}
       disabled={disabled}
       className={`
-        p-3 rounded-lg border text-left transition-all
-        ${purchased
-          ? 'bg-zinc-800/50 border-zinc-700/30 opacity-50'
-          : canAfford
-            ? 'bg-zinc-800/80 border-zinc-600/40 hover:border-yellow-500/50 hover:bg-zinc-700/60'
-            : 'bg-zinc-900/50 border-zinc-800/30 opacity-60'
+        p-3 rounded-lg border text-left transition-all relative
+        ${levelLocked
+          ? 'bg-zinc-900/60 border-zinc-800/40 opacity-40'
+          : purchased
+            ? 'bg-zinc-800/50 border-zinc-700/30 opacity-50'
+            : canAfford
+              ? 'bg-zinc-800/80 border-zinc-600/40 hover:border-yellow-500/50 hover:bg-zinc-700/60'
+              : 'bg-zinc-900/50 border-zinc-800/30 opacity-60'
         }
         disabled:cursor-not-allowed
       `}
     >
+      {/* Tier badge */}
+      {item.levelRequirement && (
+        <div
+          className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold border"
+          style={{
+            backgroundColor: `${tier.color}20`,
+            borderColor: `${tier.color}50`,
+            color: tier.color,
+          }}
+        >
+          {tier.label}
+        </div>
+      )}
       <div className="flex items-start gap-2">
         <span className="text-xl">{item.emoji}</span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
             <h4 className="text-white text-sm font-medium truncate">{item.name}</h4>
-            <span className={`text-xs font-bold ml-2 ${canAfford ? 'text-yellow-400' : 'text-red-400'}`}>
+            <span className={`text-xs font-bold ml-2 ${canAfford && !levelLocked ? 'text-yellow-400' : 'text-red-400'}`}>
               {item.cost}g
             </span>
           </div>
           <p className="text-zinc-400 text-xs mt-0.5">{item.description}</p>
+          {levelLocked && item.levelRequirement && (
+            <span className="text-red-400 text-[10px] font-medium mt-1 inline-block">
+              Seviye {item.levelRequirement} gerekli (şu an: {playerLevel})
+            </span>
+          )}
           {purchased && (
             <span className="text-emerald-400 text-[10px] font-medium mt-1 inline-block">Satın alındı</span>
           )}

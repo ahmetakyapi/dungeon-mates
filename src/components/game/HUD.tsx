@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { PlayerState, GameState, DungeonRoom, PlayerClass, MonsterState, TileType } from '../../../shared/types';
+import type { PlayerState, GameState, DungeonRoom, PlayerClass, MonsterState, TileType, FloorModifier } from '../../../shared/types';
 import { CLASS_STATS, DIFFICULTY_INFO, xpForLevel, totalXpForLevel } from '../../../shared/types';
 import { KillFeed, createKillFeedEntry } from './KillFeed';
 import type { KillFeedEntry } from './KillFeed';
@@ -10,6 +10,23 @@ import { PlayerHoverCard } from './PlayerHoverCard';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 const TOAST_DURATION = 3000;
+
+const MODIFIER_EMOJI: Record<string, string> = {
+  reduced_healing: '💔',
+  darkness: '🌑',
+  haste_monsters: '⚡',
+  fragile: '🩸',
+  drought: '🏜️',
+  burning_ground: '🔥',
+};
+const MODIFIER_COLOR: Record<string, string> = {
+  reduced_healing: '#f87171',
+  darkness: '#a78bfa',
+  haste_monsters: '#facc15',
+  fragile: '#fb923c',
+  drought: '#60a5fa',
+  burning_ground: '#ef4444',
+};
 const MAX_TOASTS = 4;
 const COMBO_WINDOW_MS = 3000;
 
@@ -126,7 +143,7 @@ function HPBar({
   return (
     <div className={`relative ${isLow ? 'low-hp-pulse' : ''}`}>
       <div
-        className={`relative h-3.5 overflow-hidden rounded-sm border border-zinc-700/80 bg-zinc-900 sm:h-4 lg:h-4 2xl:h-5 ${
+        className={`relative h-4 overflow-hidden rounded-sm border border-zinc-700/80 bg-zinc-900 sm:h-4 lg:h-4 2xl:h-5 ${
           isFlashing ? 'hp-flash' : ''
         }`}
       >
@@ -139,7 +156,7 @@ function HPBar({
         {/* Shine overlay */}
         <div className="absolute inset-0 rounded-sm bg-gradient-to-b from-white/10 to-transparent" style={{ height: '50%' }} />
         {showNumbers && (
-          <span className="absolute inset-0 flex items-center justify-center font-pixel text-[6px] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">
+          <span className="absolute inset-0 flex items-center justify-center font-pixel text-[7px] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">
             {Math.ceil(value)}/{max} HP
           </span>
         )}
@@ -162,7 +179,7 @@ function ManaBar({
   const percentage = Math.max(0, Math.min((value / max) * 100, 100));
 
   return (
-    <div className="relative h-3 overflow-hidden rounded-sm border border-zinc-700/80 bg-zinc-900 sm:h-3.5 lg:h-4 2xl:h-5">
+    <div className="relative h-3.5 overflow-hidden rounded-sm border border-zinc-700/80 bg-zinc-900 sm:h-3.5 lg:h-4 2xl:h-5">
       <motion.div
         className="absolute inset-y-0 left-0 rounded-sm"
         style={{ background: 'linear-gradient(90deg, #2563eb, #3b82f6, #60a5fa)' }}
@@ -179,7 +196,7 @@ function ManaBar({
         />
       )}
       {showNumbers && (
-        <span className="absolute inset-0 flex items-center justify-center font-pixel text-[5px] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">
+        <span className="absolute inset-0 flex items-center justify-center font-pixel text-[6px] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">
           {Math.ceil(value)}/{max} MP
         </span>
       )}
@@ -618,7 +635,7 @@ function Minimap({
   const sizeByTier = [120, 130, 150, 170, 190] as const;
   const expandedSizeByTier = [180, 220, 250, 280, 310] as const;
   const size = expanded ? expandedSizeByTier[screenTier] : sizeByTier[screenTier];
-  const mobileSize = expanded ? 180 : 90;
+  const mobileSize = expanded ? 200 : 105;
 
   const toggleExpand = useCallback(() => {
     setExpanded((prev) => !prev);
@@ -685,10 +702,10 @@ function Minimap({
   return (
     <PixelFrame className="cursor-pointer p-1.5 sm:p-2">
       <div className="mb-1 flex items-center justify-between" onClick={toggleExpand}>
-        <span className="font-pixel text-[6px] text-zinc-500 sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">
+        <span className="font-pixel text-[7px] text-zinc-500 sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">
           Harita {expanded ? '' : `(${currentFloor}/${maxFloors})`}
         </span>
-        <span className="font-pixel text-[5px] text-zinc-600 sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">
+        <span className="font-pixel text-[6px] text-zinc-600 sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">
           {expanded ? '−' : '+'}
         </span>
       </div>
@@ -875,25 +892,25 @@ function SprintIndicator() {
   if (isMobile) return null;
 
   return (
-    <PixelFrame className="flex items-center gap-1.5 px-2 py-1.5 sm:px-3 sm:py-2">
+    <PixelFrame className="flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5">
       <motion.div
-        className="h-2.5 w-2.5 rounded-full sm:h-3 sm:w-3 lg:h-3.5 lg:w-3.5 2xl:h-4 2xl:w-4"
+        className="h-3 w-3 rounded-full sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 2xl:h-5 2xl:w-5"
         animate={{
           backgroundColor: isSprinting ? '#f59e0b' : '#3f3f46',
           boxShadow: isSprinting
-            ? '0 0 8px rgba(245, 158, 11, 0.6)'
+            ? '0 0 10px rgba(245, 158, 11, 0.7)'
             : '0 0 0px transparent',
         }}
         transition={{ duration: 0.15 }}
       />
       <div className="flex flex-col">
         <span
-          className="font-pixel text-[6px] sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]"
+          className="font-pixel text-[8px] sm:text-[9px] lg:text-[10px] xl:text-[11px] 2xl:text-[13px]"
           style={{ color: isSprinting ? '#f59e0b' : '#71717a' }}
         >
-          {isSprinting ? 'Sprint' : 'Yürü'}
+          {isSprinting ? '💨 Sprint' : 'Yürü'}
         </span>
-        <span className="font-pixel text-[5px] text-zinc-600 sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">Shift</span>
+        <span className="font-pixel text-[6px] text-zinc-600 sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">[Shift]</span>
       </div>
     </PixelFrame>
   );
@@ -918,18 +935,20 @@ function ActionInfo({
   const circumference = 2 * Math.PI * radius;
   const offset = circumference * (1 - attackCooldownPct);
 
+  const isReady = attackCooldownPct >= 1;
+
   return (
-    <PixelFrame className="flex flex-col items-center gap-1.5 p-2 sm:p-3">
+    <PixelFrame className="flex flex-col items-center gap-1.5 p-2.5 sm:p-3">
       {/* Circular cooldown */}
       <div className="relative flex items-center justify-center">
-        <svg viewBox="0 0 40 40" className="h-10 w-10 rotate-[-90deg] lg:h-12 lg:w-12 2xl:h-14 2xl:w-14">
+        <svg viewBox="0 0 40 40" className="h-12 w-12 rotate-[-90deg] lg:h-14 lg:w-14 2xl:h-16 2xl:w-16">
           <circle cx={20} cy={20} r={radius} fill="none" stroke="#1f2937" strokeWidth={3} />
           <circle
             cx={20}
             cy={20}
             r={radius}
             fill="none"
-            stroke="#8b5cf6"
+            stroke={isReady ? '#8b5cf6' : '#4c1d95'}
             strokeWidth={3}
             strokeDasharray={circumference}
             strokeDashoffset={offset}
@@ -937,11 +956,11 @@ function ActionInfo({
             style={{ transition: 'stroke-dashoffset 0.1s linear' }}
           />
         </svg>
-        <span className="absolute font-pixel text-[6px] text-zinc-300 lg:text-[7px] 2xl:text-[9px]">{ACTION_ICONS[playerClass ?? 'warrior']}</span>
+        <span className="absolute text-sm lg:text-base 2xl:text-lg">{ACTION_ICONS[playerClass ?? 'warrior']}</span>
       </div>
       <div className="flex flex-col items-center gap-0.5">
-        <span className="font-pixel text-[5px] text-zinc-500 sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">Saldırı</span>
-        <span className="hidden font-pixel text-[5px] text-zinc-600 sm:block sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">Space</span>
+        <span className="font-pixel text-[7px] text-zinc-400 sm:text-[8px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">Saldırı</span>
+        <span className="hidden font-pixel text-[6px] text-zinc-600 sm:block sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">[Space]</span>
       </div>
     </PixelFrame>
   );
@@ -975,10 +994,10 @@ function AbilityInfo({
       animate={isReady ? { scale: [1, 1.08, 1] } : { scale: 1 }}
       transition={isReady ? { duration: 1.2, repeat: Infinity, ease: 'easeInOut' } : {}}
     >
-      <PixelFrame className="flex flex-col items-center gap-1.5 p-2 sm:p-3">
+      <PixelFrame className={`flex flex-col items-center gap-1.5 p-2.5 sm:p-3 ${isReady ? 'ring-1 ring-emerald-500/40' : ''}`}>
         {/* Circular cooldown */}
         <div className="relative flex items-center justify-center">
-          <svg viewBox="0 0 40 40" className="h-10 w-10 rotate-[-90deg] lg:h-12 lg:w-12 2xl:h-14 2xl:w-14">
+          <svg viewBox="0 0 40 40" className="h-12 w-12 rotate-[-90deg] lg:h-14 lg:w-14 2xl:h-16 2xl:w-16">
             <circle cx={20} cy={20} r={radius} fill="none" stroke="#1f2937" strokeWidth={3} />
             <circle
               cx={20}
@@ -986,32 +1005,32 @@ function AbilityInfo({
               r={radius}
               fill="none"
               stroke={isReady ? '#10b981' : '#f59e0b'}
-              strokeWidth={3}
+              strokeWidth={3.5}
               strokeDasharray={circumference}
               strokeDashoffset={offset}
               strokeLinecap="round"
               style={{ transition: 'stroke-dashoffset 0.1s linear' }}
             />
           </svg>
-          <span className="absolute font-pixel text-[6px] text-zinc-300 lg:text-[7px] 2xl:text-[9px]">{meta.icon}</span>
+          <span className="absolute text-sm lg:text-base 2xl:text-lg">{meta.icon}</span>
           {/* Ready glow */}
           {isReady && (
             <motion.div
               className="absolute inset-0 rounded-full"
-              style={{ boxShadow: '0 0 12px rgba(16, 185, 129, 0.5)' }}
-              animate={{ opacity: [0.4, 0.8, 0.4] }}
+              style={{ boxShadow: '0 0 16px rgba(16, 185, 129, 0.6)' }}
+              animate={{ opacity: [0.4, 0.9, 0.4] }}
               transition={{ duration: 1.2, repeat: Infinity }}
             />
           )}
         </div>
         <div className="flex flex-col items-center gap-0.5">
           <span
-            className="font-pixel text-[5px] sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]"
+            className="font-pixel text-[7px] sm:text-[8px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px]"
             style={{ color: isReady ? '#10b981' : '#71717a' }}
           >
             {isReady ? 'Hazir!' : meta.label}
           </span>
-          <span className="hidden font-pixel text-[5px] text-zinc-600 sm:block sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">E</span>
+          <span className="hidden font-pixel text-[6px] text-zinc-600 sm:block sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">[E]</span>
         </div>
       </PixelFrame>
     </motion.div>
@@ -1073,16 +1092,16 @@ function FloorInfo({
       </div>
       {/* Room + monsters info */}
       <div className="flex items-center gap-2">
-        <span className="font-pixel text-[6px] text-zinc-400 sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">
+        <span className="font-pixel text-[7px] text-zinc-400 sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">
           Oda {currentRoom + 1}/{totalRooms}
         </span>
         {monstersInRoom > 0 && (
-          <span className="font-pixel text-[6px] text-dm-health sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">
+          <span className="font-pixel text-[7px] text-dm-health sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">
             — {monstersInRoom} canavar kaldi
           </span>
         )}
         {monstersInRoom === 0 && !isBossPhase && (
-          <span className="font-pixel text-[6px] text-emerald-400 sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">
+          <span className="font-pixel text-[7px] text-emerald-400 sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">
             — Temiz
           </span>
         )}
@@ -1114,9 +1133,10 @@ type HUDProps = {
   lootPickupEvents?: Array<{ playerId: string; lootType: string; value: number }>;
   isTouchDevice?: boolean;
   bossDialogue?: { bossType: string; dialogue: string; phase: number } | null;
+  floorModifiers?: FloorModifier[];
 };
 
-export function HUD({ player, gameState, fps, attackCooldownPct = 1, abilityCooldownPct = 0, abilityActive = false, playerClass, monsterKillEvents, lootPickupEvents, isTouchDevice = false, bossDialogue }: HUDProps) {
+export function HUD({ player, gameState, fps, attackCooldownPct = 1, abilityCooldownPct = 0, abilityActive = false, playerClass, monsterKillEvents, lootPickupEvents, isTouchDevice = false, bossDialogue, floorModifiers = [] }: HUDProps) {
   const { toasts, addToast } = useToasts();
   const [killFeedEntries, setKillFeedEntries] = useState<KillFeedEntry[]>([]);
   const [hpFlash, setHpFlash] = useState(false);
@@ -1355,12 +1375,36 @@ export function HUD({ player, gameState, fps, attackCooldownPct = 1, abilityCool
             monstersInRoom={monstersInCurrentRoom}
             playerCount={playerCount}
           />
+          {/* Active floor modifiers */}
+          {floorModifiers.length > 0 && (
+            <div className="mt-1.5 flex items-center justify-center gap-1.5">
+              {floorModifiers.map((mod) => (
+                <div
+                  key={mod.id}
+                  className="flex items-center gap-1 rounded-md px-1.5 py-0.5 border"
+                  style={{
+                    backgroundColor: `${MODIFIER_COLOR[mod.id] ?? '#f87171'}15`,
+                    borderColor: `${MODIFIER_COLOR[mod.id] ?? '#f87171'}40`,
+                  }}
+                  title={mod.description}
+                >
+                  <span className="text-[10px]">{MODIFIER_EMOJI[mod.id] ?? '⚠️'}</span>
+                  <span
+                    className="font-pixel text-[7px] sm:text-[8px]"
+                    style={{ color: MODIFIER_COLOR[mod.id] ?? '#f87171' }}
+                  >
+                    {mod.name}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {/* Top-Left: Player Stats (compact on mobile) */}
       <div className="absolute left-2 top-2 sm:left-4 sm:top-4">
-        <PixelFrame className={`p-2 sm:p-3 lg:p-3 2xl:p-4 ${isTouchDevice ? 'w-36' : 'w-44 sm:w-56 lg:w-60 xl:w-64 2xl:w-72'}`}>
+        <PixelFrame className={`p-2 sm:p-3 lg:p-3 2xl:p-4 ${isTouchDevice ? 'w-40' : 'w-44 sm:w-56 lg:w-60 xl:w-64 2xl:w-72'}`}>
           {/* Player header */}
           <div className="mb-1.5 flex items-center gap-1.5">
             <span className="text-sm">{classInfo.emoji}</span>
@@ -1453,14 +1497,23 @@ export function HUD({ player, gameState, fps, attackCooldownPct = 1, abilityCool
       {/* Top-Right: Solo Lives OR Gold/Score */}
       <div className="absolute right-2 top-2 sm:right-4 sm:top-4">
         {gameState.isSolo ? (
-          <PixelFrame className="flex items-center gap-2 px-3 py-2">
-            <span className="font-pixel text-[8px] text-zinc-400 sm:text-[9px] lg:text-[10px]">Can:</span>
-            <span className="font-pixel text-[9px] text-dm-health sm:text-[10px] lg:text-[11px]">
-              {gameState.soloDeathsRemaining}/3
-            </span>
-            <span className="mx-1 text-[6px] text-zinc-600">|</span>
+          <PixelFrame className="flex items-center gap-2.5 px-3 py-2">
+            <div className="flex items-center gap-0.5">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <span
+                  key={i}
+                  className={`text-sm transition-opacity duration-300 ${
+                    i < gameState.soloDeathsRemaining ? 'opacity-100' : 'opacity-25 grayscale'
+                  }`}
+                  style={{ filter: i < gameState.soloDeathsRemaining ? 'none' : 'grayscale(1)' }}
+                >
+                  {i < gameState.soloDeathsRemaining ? '❤️' : '🖤'}
+                </span>
+              ))}
+            </div>
+            <span className="text-[6px] text-zinc-600">|</span>
             <span className="text-xs">🪙</span>
-            <span className="font-pixel text-[8px] text-dm-gold sm:text-[9px] lg:text-[10px]">
+            <span className="font-pixel text-[9px] text-dm-gold sm:text-[10px] lg:text-[11px]">
               {player.gold}
             </span>
           </PixelFrame>
@@ -1480,9 +1533,23 @@ export function HUD({ player, gameState, fps, attackCooldownPct = 1, abilityCool
         )}
       </div>
 
-      {/* Bottom-Left: Minimap (hidden on touch/mobile — joystick occupies this area) */}
-      {!isTouchDevice && (
+      {/* Minimap: bottom-left on desktop, top-right corner on mobile (below gold/score) */}
+      {!isTouchDevice ? (
         <div className="absolute bottom-2 left-2 sm:bottom-4 sm:left-4">
+          <Minimap
+            rooms={gameState.dungeon.rooms}
+            currentRoomId={gameState.currentRoomId}
+            players={gameState.players}
+            monsters={gameState.monsters}
+            loot={gameState.loot}
+            localPlayerId={player.id}
+            tiles={gameState.dungeon.tiles}
+            currentFloor={gameState.dungeon.currentFloor}
+            maxFloors={5}
+          />
+        </div>
+      ) : (
+        <div className="absolute right-2 top-16" style={{ opacity: 0.85 }}>
           <Minimap
             rooms={gameState.dungeon.rooms}
             currentRoomId={gameState.currentRoomId}

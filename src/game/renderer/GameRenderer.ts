@@ -14,13 +14,13 @@ import { ParticleSystem } from './ParticleSystem';
 // Logical render resolution
 const LOGICAL_WIDTH_DESKTOP = 480;
 const LOGICAL_HEIGHT_DESKTOP = 270;
-const LOGICAL_WIDTH_MOBILE = 320;
+const LOGICAL_WIDTH_MOBILE = 360;
 const LOGICAL_HEIGHT_MOBILE = 240;
 
 // Quality presets
 const QUALITY_PRESETS = {
   low: { particles: false, fogSimple: true, fpsCap: 15, particleMax: 0, effects: false },
-  medium: { particles: true, fogSimple: false, fpsCap: 30, particleMax: 64, effects: true },
+  medium: { particles: true, fogSimple: false, fpsCap: 45, particleMax: 96, effects: true },
   high: { particles: true, fogSimple: false, fpsCap: 60, particleMax: 256, effects: true },
 } as const;
 
@@ -40,8 +40,8 @@ type DamageNumber = {
   scale: number;
 };
 
-const DAMAGE_NUMBER_DURATION = 1.2;
-const MAX_DAMAGE_NUMBERS = 32;
+const DAMAGE_NUMBER_DURATION = 0.9;
+const MAX_DAMAGE_NUMBERS = 16;
 
 // Fog of war tile cache
 type FogState = 0 | 1 | 2; // 0 = hidden, 1 = explored, 2 = visible
@@ -179,7 +179,7 @@ export class GameRenderer {
     // Auto-detect quality on mobile + set default zoom
     if (this.isMobile) {
       this.quality = 'medium';
-      this.camera.setZoom(1.05);
+      this.camera.setZoom(1.15); // Closer zoom for better visibility on small screens
     }
 
     // Pre-create fog gradient canvas
@@ -212,6 +212,10 @@ export class GameRenderer {
       this.damageNumbers.shift();
     }
 
+    // Always round to integer for clean display
+    const rounded = Math.round(amount);
+    if (rounded === 0) return;
+
     let resolvedKind: DamageNumberKind = kind ?? (isHealing ? 'heal' : 'damage');
     let color: string;
     let text: string;
@@ -220,21 +224,21 @@ export class GameRenderer {
     switch (resolvedKind) {
       case 'heal':
         color = '#4ade80';
-        text = `+${amount}`;
+        text = `+${rounded}`;
         break;
       case 'gold':
         color = '#fbbf24';
-        text = `+${amount}g`;
+        text = `+${rounded}g`;
         break;
       case 'critical':
         color = '#ff6b6b';
-        text = `${amount}!`;
+        text = `${rounded}!`;
         scale = 1.5;
         break;
       case 'damage':
       default:
         color = '#ef4444';
-        text = `${amount}`;
+        text = `${rounded}`;
         resolvedKind = 'damage';
         break;
     }
@@ -1229,9 +1233,29 @@ export class GameRenderer {
       if (!this.camera.isVisible(wx, wy, TILE_SIZE, TILE_SIZE)) continue;
       this.sprites.drawLoot(ctx, wx - camX, wy - camY, loot.type, this.animFrame);
 
+      // Floating label above loot for clarity
+      const lootInfo = LOOT_TABLE[loot.type];
+      if (lootInfo) {
+        const labelX = Math.floor(wx - camX + TILE_SIZE / 2);
+        const labelY = Math.floor(wy - camY - 4);
+        const bobY = Math.sin(this.animFrame * 0.15 + i * 1.5) * 1.5;
+
+        ctx.save();
+        ctx.font = 'bold 4px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        // Shadow for readability
+        ctx.fillStyle = '#000000';
+        ctx.fillText(lootInfo.label, labelX + 0.5, labelY + bobY + 0.5);
+        // Colored label
+        ctx.fillStyle = lootInfo.color;
+        ctx.fillText(lootInfo.label, labelX, labelY + bobY);
+        ctx.restore();
+      }
+
       // Loot glow particle (throttled: 1 per loot every 4 anim frames)
       if (preset.particles && this.animFrame % 4 === i % 4) {
-        const lootColor = LOOT_TABLE[loot.type]?.color ?? '#fbbf24';
+        const lootColor = lootInfo?.color ?? '#fbbf24';
         this.particles.emitLootGlow(wx + TILE_SIZE / 2, wy, lootColor);
       }
     }
@@ -1301,7 +1325,7 @@ export class GameRenderer {
         ctx.restore();
       }
 
-      this.sprites.drawMonster(ctx, sx, sy, monster.type, monster.facing, this.animFrame, flashWhite, isAttacking);
+      this.sprites.drawMonster(ctx, sx, sy, monster.type, monster.facing, this.animFrame, flashWhite, isAttacking, monster.isElite);
 
       // Elite crown indicator above sprite
       if (monster.isElite && !flashWhite) {

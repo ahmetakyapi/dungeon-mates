@@ -124,23 +124,23 @@ export const MONSTER_STATS: Record<MonsterType, {
   color: string;
   size: number;
 }> = {
-  skeleton: { hp: 45, attack: 15, defense: 3, speed: 1.6, xp: 10, color: '#d1d5db', size: 1 },
-  slime: { hp: 30, attack: 7, defense: 1, speed: 0.9, xp: 5, color: '#4ade80', size: 0.8 },
-  bat: { hp: 22, attack: 8, defense: 0, speed: 2.5, xp: 7, color: '#a78bfa', size: 0.6 },
-  goblin: { hp: 55, attack: 17, defense: 5, speed: 1.9, xp: 15, color: '#84cc16', size: 0.9 },
-  rat: { hp: 18, attack: 6, defense: 0, speed: 2.2, xp: 3, color: '#78716c', size: 0.5 },
-  spider: { hp: 35, attack: 13, defense: 3, speed: 1.1, xp: 8, color: '#581c87', size: 0.8 },
-  wraith: { hp: 50, attack: 22, defense: 2, speed: 2.2, xp: 15, color: '#a5f3fc', size: 1.0 },
-  mushroom: { hp: 60, attack: 15, defense: 8, speed: 0.7, xp: 12, color: '#f472b6', size: 0.9 },
-  gargoyle: { hp: 75, attack: 20, defense: 10, speed: 1.5, xp: 20, color: '#6b7280', size: 1.2 },
-  dark_knight: { hp: 110, attack: 28, defense: 14, speed: 1.7, xp: 30, color: '#1e293b', size: 1.3 },
-  phantom: { hp: 55, attack: 25, defense: 3, speed: 2.5, xp: 25, color: '#c4b5fd', size: 1.0 },
-  lava_slime: { hp: 65, attack: 18, defense: 8, speed: 1.1, xp: 18, color: '#f97316', size: 1.0 },
-  boss_spider_queen: { hp: 350, attack: 28, defense: 10, speed: 1.3, xp: 80, color: '#7c3aed', size: 2.2 },
-  boss_demon: { hp: 500, attack: 35, defense: 15, speed: 1.5, xp: 100, color: '#dc2626', size: 2.5 },
-  boss_forge_guardian: { hp: 200, attack: 20, defense: 8, speed: 1.0, xp: 50, color: '#f97316', size: 1.8 },
-  boss_stone_warden: { hp: 280, attack: 18, defense: 15, speed: 0.8, xp: 60, color: '#6b7280', size: 2.0 },
-  boss_flame_knight: { hp: 320, attack: 30, defense: 10, speed: 2.0, xp: 70, color: '#b91c1c', size: 1.6 },
+  skeleton: { hp: 65, attack: 18, defense: 5, speed: 1.7, xp: 10, color: '#d1d5db', size: 1 },
+  slime: { hp: 45, attack: 10, defense: 2, speed: 1.0, xp: 5, color: '#4ade80', size: 0.8 },
+  bat: { hp: 35, attack: 12, defense: 1, speed: 2.8, xp: 7, color: '#a78bfa', size: 0.6 },
+  goblin: { hp: 80, attack: 22, defense: 7, speed: 2.0, xp: 15, color: '#84cc16', size: 0.9 },
+  rat: { hp: 28, attack: 9, defense: 1, speed: 2.4, xp: 3, color: '#78716c', size: 0.5 },
+  spider: { hp: 55, attack: 16, defense: 5, speed: 1.2, xp: 8, color: '#581c87', size: 0.8 },
+  wraith: { hp: 75, attack: 28, defense: 4, speed: 2.4, xp: 15, color: '#a5f3fc', size: 1.0 },
+  mushroom: { hp: 90, attack: 20, defense: 12, speed: 0.8, xp: 12, color: '#f472b6', size: 0.9 },
+  gargoyle: { hp: 110, attack: 26, defense: 14, speed: 1.6, xp: 20, color: '#6b7280', size: 1.2 },
+  dark_knight: { hp: 160, attack: 35, defense: 18, speed: 1.8, xp: 30, color: '#1e293b', size: 1.3 },
+  phantom: { hp: 85, attack: 32, defense: 5, speed: 2.7, xp: 25, color: '#c4b5fd', size: 1.0 },
+  lava_slime: { hp: 95, attack: 24, defense: 10, speed: 1.2, xp: 18, color: '#f97316', size: 1.0 },
+  boss_forge_guardian: { hp: 1200, attack: 45, defense: 18, speed: 1.2, xp: 100, color: '#f97316', size: 1.8 },
+  boss_spider_queen: { hp: 2000, attack: 55, defense: 18, speed: 1.5, xp: 150, color: '#7c3aed', size: 2.2 },
+  boss_stone_warden: { hp: 1600, attack: 40, defense: 30, speed: 1.0, xp: 120, color: '#6b7280', size: 2.0 },
+  boss_flame_knight: { hp: 1800, attack: 65, defense: 16, speed: 2.4, xp: 140, color: '#b91c1c', size: 1.6 },
+  boss_demon: { hp: 3500, attack: 80, defense: 25, speed: 1.8, xp: 300, color: '#dc2626', size: 2.5 },
 } as const;
 
 // --- Talent Sistemi ---
@@ -365,6 +365,7 @@ export type ShopItem = {
   type: ShopItemType;
   emoji: string;
   floorRequirement?: number;
+  levelRequirement?: number;
   effect: {
     hp?: number;
     mana?: number;
@@ -377,18 +378,37 @@ export type ShopItem = {
 };
 
 export const SHOP_ITEMS: ShopItem[] = [
+  // === Tier 1: Temel (Level 1+) ===
   // Tüketimlikler
-  { id: 'large_health', name: 'Büyük Can İksiri', description: '+60 HP', cost: 30, type: 'consumable', emoji: '❤️', effect: { hp: 60 } },
-  { id: 'large_mana', name: 'Büyük Mana İksiri', description: '+50 Mana', cost: 25, type: 'consumable', emoji: '💙', effect: { mana: 50 } },
-  // Kalıcı yükseltmeler
-  { id: 'reinforced_armor', name: 'Güçlendirilmiş Zırh', description: '+5 kalıcı savunma', cost: 60, type: 'upgrade', emoji: '🛡️', effect: { defense: 5 } },
-  { id: 'sharpened_blade', name: 'Bilenen Kılıç', description: '+3 kalıcı saldırı', cost: 50, type: 'upgrade', emoji: '⚔️', effect: { attack: 3 } },
-  { id: 'vitality_charm', name: 'Yaşam Tılsımı', description: '+20 kalıcı max HP', cost: 70, type: 'upgrade', emoji: '💚', effect: { maxHp: 20 } },
-  { id: 'mana_crystal', name: 'Mana Kristali', description: '+15 kalıcı max mana', cost: 55, type: 'upgrade', emoji: '🔮', effect: { maxMana: 15 } },
-  { id: 'swift_boots', name: 'Çevik Çizmeler', description: '+0.2 kalıcı hız', cost: 65, type: 'upgrade', emoji: '👢', effect: { speed: 0.2 } },
-  // Geç kat özel eşyalar
-  { id: 'fire_resist', name: 'Ateş Direnci', description: '+8 savunma, +15 max HP', cost: 100, type: 'upgrade', emoji: '🔥', floorRequirement: 7, effect: { defense: 8, maxHp: 15 } },
-  { id: 'shadow_cloak', name: 'Gölge Pelerini', description: '+5 saldırı, +10 savunma', cost: 120, type: 'upgrade', emoji: '🌑', floorRequirement: 6, effect: { attack: 5, defense: 10 } },
+  { id: 'small_health', name: 'Küçük Can İksiri', description: '+30 HP', cost: 20, type: 'consumable', emoji: '🩹', effect: { hp: 30 } },
+  { id: 'small_mana', name: 'Küçük Mana İksiri', description: '+20 Mana', cost: 15, type: 'consumable', emoji: '💧', effect: { mana: 20 } },
+  // Temel yükseltmeler
+  { id: 'leather_patch', name: 'Deri Yama', description: '+3 kalıcı savunma', cost: 45, type: 'upgrade', emoji: '🧥', effect: { defense: 3 } },
+  { id: 'whetstone', name: 'Bileme Taşı', description: '+2 kalıcı saldırı', cost: 40, type: 'upgrade', emoji: '🪨', effect: { attack: 2 } },
+
+  // === Tier 2: Orta (Level 3+) ===
+  { id: 'large_health', name: 'Büyük Can İksiri', description: '+60 HP', cost: 50, type: 'consumable', emoji: '❤️', levelRequirement: 3, effect: { hp: 60 } },
+  { id: 'large_mana', name: 'Büyük Mana İksiri', description: '+50 Mana', cost: 40, type: 'consumable', emoji: '💙', levelRequirement: 3, effect: { mana: 50 } },
+  { id: 'reinforced_armor', name: 'Güçlendirilmiş Zırh', description: '+5 kalıcı savunma', cost: 90, type: 'upgrade', emoji: '🛡️', levelRequirement: 3, effect: { defense: 5 } },
+  { id: 'sharpened_blade', name: 'Bilenen Kılıç', description: '+3 kalıcı saldırı', cost: 80, type: 'upgrade', emoji: '⚔️', levelRequirement: 3, effect: { attack: 3 } },
+  { id: 'vitality_charm', name: 'Yaşam Tılsımı', description: '+15 kalıcı max HP', cost: 100, type: 'upgrade', emoji: '💚', levelRequirement: 3, effect: { maxHp: 15 } },
+
+  // === Tier 3: İleri (Level 5+) ===
+  { id: 'mana_crystal', name: 'Mana Kristali', description: '+20 kalıcı max mana', cost: 120, type: 'upgrade', emoji: '🔮', levelRequirement: 5, effect: { maxMana: 20 } },
+  { id: 'swift_boots', name: 'Çevik Çizmeler', description: '+0.15 kalıcı hız', cost: 130, type: 'upgrade', emoji: '👢', levelRequirement: 5, effect: { speed: 0.15 } },
+  { id: 'iron_shield', name: 'Demir Kalkan', description: '+8 savunma, +10 max HP', cost: 150, type: 'upgrade', emoji: '🔰', levelRequirement: 5, effect: { defense: 8, maxHp: 10 } },
+  { id: 'battle_axe', name: 'Savaş Baltası', description: '+5 saldırı', cost: 160, type: 'upgrade', emoji: '🪓', levelRequirement: 5, effect: { attack: 5 } },
+
+  // === Tier 4: Uzman (Level 7+) ===
+  { id: 'fire_resist', name: 'Ateş Direnci', description: '+10 savunma, +20 max HP', cost: 220, type: 'upgrade', emoji: '🔥', levelRequirement: 7, floorRequirement: 6, effect: { defense: 10, maxHp: 20 } },
+  { id: 'shadow_cloak', name: 'Gölge Pelerini', description: '+6 saldırı, +12 savunma', cost: 250, type: 'upgrade', emoji: '🌑', levelRequirement: 7, floorRequirement: 6, effect: { attack: 6, defense: 12 } },
+  { id: 'arcane_tome', name: 'Kadim Büyü Kitabı', description: '+30 max mana, +4 saldırı', cost: 230, type: 'upgrade', emoji: '📖', levelRequirement: 7, effect: { maxMana: 30, attack: 4 } },
+  { id: 'vampiric_ring', name: 'Vampirik Yüzük', description: '+7 saldırı, +25 max HP', cost: 280, type: 'upgrade', emoji: '💍', levelRequirement: 7, effect: { attack: 7, maxHp: 25 } },
+
+  // === Tier 5: Efsane (Level 9+) ===
+  { id: 'dragon_plate', name: 'Ejder Zırhı', description: '+18 savunma, +40 max HP', cost: 400, type: 'upgrade', emoji: '🐉', levelRequirement: 9, floorRequirement: 8, effect: { defense: 18, maxHp: 40 } },
+  { id: 'soul_blade', name: 'Ruh Kılıcı', description: '+12 saldırı, +0.1 hız', cost: 450, type: 'upgrade', emoji: '🗡️', levelRequirement: 9, floorRequirement: 8, effect: { attack: 12, speed: 0.1 } },
+  { id: 'phoenix_elixir', name: 'Anka İksiri', description: 'Tam can ve mana', cost: 300, type: 'consumable', emoji: '🦅', levelRequirement: 9, effect: { hp: 999, mana: 999 } },
 ] as const;
 
 export type GameState = {
@@ -480,11 +500,11 @@ export type AbilityResult =
 
 // Loot tablosu
 export const LOOT_TABLE: Record<LootType, { chance: number; value: number; label: string; color: string }> = {
-  health_potion: { chance: 0.25, value: 25, label: 'Can İksiri', color: '#ef4444' },
-  mana_potion: { chance: 0.18, value: 20, label: 'Mana İksiri', color: '#3b82f6' },
-  damage_boost: { chance: 0.05, value: 5, label: 'Güç Artışı', color: '#f59e0b' },
-  speed_boost: { chance: 0.07, value: 0.3, label: 'Hız Artışı', color: '#06b6d4' },
-  gold: { chance: 0.35, value: 10, label: 'Altın', color: '#eab308' },
+  health_potion: { chance: 0.14, value: 20, label: 'Can İksiri', color: '#ef4444' },
+  mana_potion: { chance: 0.10, value: 15, label: 'Mana İksiri', color: '#3b82f6' },
+  damage_boost: { chance: 0.03, value: 4, label: 'Güç Artışı', color: '#f59e0b' },
+  speed_boost: { chance: 0.04, value: 0.2, label: 'Hız Artışı', color: '#06b6d4' },
+  gold: { chance: 0.22, value: 8, label: 'Altın', color: '#eab308' },
 } as const;
 // Gold değeri kat bazlı: 5 + floor * 2
 export function goldValueForFloor(floor: number): number {

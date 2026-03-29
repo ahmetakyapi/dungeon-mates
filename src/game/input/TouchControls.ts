@@ -8,18 +8,22 @@
 import type { PlayerInput } from '../../../shared/types';
 
 // --- Constants ---
-const JOYSTICK_OUTER_RADIUS = 58;
-const JOYSTICK_INNER_RADIUS = 26;
-const JOYSTICK_DEADZONE = 0.15;
-const JOYSTICK_EASE = 0.3;
+const JOYSTICK_OUTER_RADIUS = 66;
+const JOYSTICK_INNER_RADIUS = 30;
+const JOYSTICK_DEADZONE = 0.12;
+const JOYSTICK_EASE = 0.5; // Faster response for snappy movement
 
-const ATTACK_BTN_RADIUS = 40;
-const SKILL_BTN_RADIUS = 32;
-const INTERACT_BTN_RADIUS = 26;
-const BUTTON_HIT_EXTRA = 20; // Fat finger tolerance
+const ATTACK_BTN_RADIUS = 50;
+const SKILL_BTN_RADIUS = 40;
+const INTERACT_BTN_RADIUS = 32;
+const BUTTON_HIT_EXTRA = 28; // Generous fat finger tolerance
 
 const HAPTIC_DURATION = 12;
 const HAPTIC_STRONG = 25; // Stronger haptic for attack
+
+// Auto-attack: hold attack button to repeat
+const AUTO_ATTACK_INTERVAL_MS = 280;
+const AUTO_ATTACK_INITIAL_DELAY_MS = 350;
 
 // --- Colors (premium glass theme) ---
 const COLOR_BG_DARK = 'rgba(4,7,13,0.45)';
@@ -79,6 +83,10 @@ export class TouchControls {
   private attackPressAnim = 0;
   private skillPressAnim = 0;
   private interactPressAnim = 0;
+
+  // Auto-attack state
+  private autoAttackTimer = 0;
+  private autoAttackInitial = true;
 
   // Interact button visibility
   private _interactVisible = false;
@@ -189,11 +197,26 @@ export class TouchControls {
 
   /** Update smoothing + animations — call once per frame */
   update(dt: number): void {
-    // Smooth joystick
+    // Smooth joystick (fast lerp for responsive feel)
     this.smoothDx += (this.rawDx - this.smoothDx) * JOYSTICK_EASE;
     this.smoothDy += (this.rawDy - this.smoothDy) * JOYSTICK_EASE;
     if (Math.abs(this.smoothDx) < 0.01) this.smoothDx = 0;
     if (Math.abs(this.smoothDy) < 0.01) this.smoothDy = 0;
+
+    // Auto-attack: when attack button is held, fire repeatedly
+    if (this.state.attackId !== null) {
+      this.autoAttackTimer += dt * 1000;
+      const threshold = this.autoAttackInitial ? AUTO_ATTACK_INITIAL_DELAY_MS : AUTO_ATTACK_INTERVAL_MS;
+      if (this.autoAttackTimer >= threshold) {
+        this.attackPressed = true;
+        this.autoAttackTimer = 0;
+        this.autoAttackInitial = false;
+        this.haptic(HAPTIC_DURATION);
+      }
+    } else {
+      this.autoAttackTimer = 0;
+      this.autoAttackInitial = true;
+    }
 
     // Button press animations
     const pressTarget = (id: number | null) => (id !== null ? 1 : 0);
@@ -284,8 +307,8 @@ export class TouchControls {
         continue;
       }
 
-      // Left half: floating joystick
-      if (x < this.canvasWidth * 0.55 && this.state.joystickId === null) {
+      // Left 60%: floating joystick zone (generous for thumb reach)
+      if (x < this.canvasWidth * 0.6 && this.state.joystickId === null) {
         this.state.joystickId = t.identifier;
         this.state.joystickOrigin = { x, y };
         this.state.joystickThumb = { x, y };
@@ -478,10 +501,10 @@ export class TouchControls {
   private drawMiniHpBar(ctx: CanvasRenderingContext2D): void {
     const bx = this.joystickBaseX;
     const by = this.joystickBaseY;
-    const barW = JOYSTICK_OUTER_RADIUS * 2 - 8;
-    const barH = 6;
+    const barW = JOYSTICK_OUTER_RADIUS * 2 + 8;
+    const barH = 8;
     const barX = bx - barW / 2;
-    const barY = by + JOYSTICK_OUTER_RADIUS + 12;
+    const barY = by + JOYSTICK_OUTER_RADIUS + 10;
 
     const hpPct = this._playerMaxHp > 0
       ? Math.max(0, Math.min(1, this._playerHp / this._playerMaxHp))
@@ -516,6 +539,15 @@ export class TouchControls {
     ctx.lineWidth = 1;
     ctx.stroke();
 
+    // HP text overlay
+    if (this._playerMaxHp > 0) {
+      ctx.font = 'bold 8px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.fillText(`${Math.ceil(this._playerHp)}/${this._playerMaxHp}`, barX + barW / 2, barY + barH / 2 + 0.5);
+    }
+
     // Low HP pulse
     if (hpPct > 0 && hpPct < 0.25) {
       const pulse = Math.sin(this.readyPulseTimer * 2) * 0.3 + 0.3;
@@ -543,17 +575,17 @@ export class TouchControls {
       this.drawCooldownArc(ctx, x, y, r, this._attackCooldown);
     }
 
-    // Icon
-    ctx.font = `${24}px serif`;
+    // Icon — large and clear
+    ctx.font = `${30}px serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('⚔️', x, y);
 
     // Label
-    ctx.font = '9px sans-serif';
+    ctx.font = 'bold 11px sans-serif';
     ctx.textBaseline = 'top';
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.fillText('Saldır', x, y + r + 8);
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillText('Saldır', x, y + r + 6);
   }
 
   private drawSkillButton(ctx: CanvasRenderingContext2D): void {
@@ -580,17 +612,17 @@ export class TouchControls {
       ctx.stroke();
     }
 
-    // Icon
-    ctx.font = `${20}px serif`;
+    // Icon — large and clear
+    ctx.font = `${26}px serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('✨', x, y);
 
     // Label
-    ctx.font = '9px sans-serif';
+    ctx.font = 'bold 11px sans-serif';
     ctx.textBaseline = 'top';
-    ctx.fillStyle = isReady ? `${COLOR_GREEN}0.6)` : 'rgba(255,255,255,0.4)';
-    ctx.fillText(isReady ? 'Hazır!' : 'Yetenek', x, y + r + 8);
+    ctx.fillStyle = isReady ? `${COLOR_GREEN}0.7)` : 'rgba(255,255,255,0.5)';
+    ctx.fillText(isReady ? 'Hazır!' : 'Yetenek', x, y + r + 6);
   }
 
   private drawInteractButton(ctx: CanvasRenderingContext2D): void {
@@ -610,16 +642,16 @@ export class TouchControls {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Icon
-    ctx.font = `${16}px serif`;
+    // Icon — larger for visibility
+    ctx.font = `${22}px serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('🔑', x, y);
 
     // Label
-    ctx.font = '8px sans-serif';
+    ctx.font = 'bold 10px sans-serif';
     ctx.textBaseline = 'top';
-    ctx.fillStyle = `${COLOR_BLUE}0.6)`;
+    ctx.fillStyle = `${COLOR_BLUE}0.7)`;
     ctx.fillText('Etkileşim', x, y + r + 6);
   }
 
@@ -697,13 +729,13 @@ export class TouchControls {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Cooldown percentage text
+    // Cooldown percentage text — large for visibility
     const pct = Math.ceil(cooldown * 100);
-    ctx.font = 'bold 10px sans-serif';
+    ctx.font = 'bold 13px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.fillText(`${pct}%`, x, y + radius * 0.25);
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillText(`${pct}%`, x, y + radius * 0.2);
 
     ctx.restore();
   }
@@ -763,30 +795,31 @@ export class TouchControls {
 
     this.isLandscape = this.canvasWidth > this.canvasHeight && this.canvasHeight < 500;
 
-    // Safe area offsets (approximate, CSS env() not directly accessible)
-    const safeBottom = this.isLandscape ? 16 : 28;
-    const safeRight = this.isLandscape ? 28 : 20;
-    const safeLeft = 20;
+    // Safe area offsets
+    const safeBottom = this.isLandscape ? 12 : 24;
+    const safeRight = this.isLandscape ? 24 : 16;
+    const safeLeft = 16;
 
-    // Button positions (bottom-right cluster)
-    const bottomPad = safeBottom + 32;
-    const rightPad = safeRight + 16;
+    // Bottom padding — keep controls well above screen edge for comfortable thumb reach
+    const bottomPad = safeBottom + 28;
+    const rightPad = safeRight + 12;
 
-    // Attack button: large, bottom-right
+    // Attack button: large, bottom-right — primary action, most accessible thumb position
     this.attackBtnX = this.canvasWidth - ATTACK_BTN_RADIUS - rightPad;
     this.attackBtnY = this.canvasHeight - ATTACK_BTN_RADIUS - bottomPad;
 
-    // Skill button: arc layout, upper-left of attack
-    this.skillBtnX = this.attackBtnX - ATTACK_BTN_RADIUS - SKILL_BTN_RADIUS + 2;
-    this.skillBtnY = this.attackBtnY - ATTACK_BTN_RADIUS - SKILL_BTN_RADIUS - 6;
+    // Skill button: arc layout, above and left of attack — easy thumb arc reach
+    const btnGap = 16; // Space between button edges
+    this.skillBtnX = this.attackBtnX - ATTACK_BTN_RADIUS - SKILL_BTN_RADIUS - btnGap + 8;
+    this.skillBtnY = this.attackBtnY - ATTACK_BTN_RADIUS - SKILL_BTN_RADIUS - btnGap + 8;
 
-    // Interact button: left of attack
-    this.interactBtnX = this.attackBtnX - ATTACK_BTN_RADIUS - INTERACT_BTN_RADIUS - 14;
-    this.interactBtnY = this.attackBtnY + 6;
+    // Interact button: left of attack — visible when near interactable
+    this.interactBtnX = this.attackBtnX - ATTACK_BTN_RADIUS - INTERACT_BTN_RADIUS - btnGap - 4;
+    this.interactBtnY = this.attackBtnY + 4;
 
-    // Joystick base: bottom-left
-    this.joystickBaseX = safeLeft + JOYSTICK_OUTER_RADIUS + 28;
-    this.joystickBaseY = this.canvasHeight - bottomPad - JOYSTICK_OUTER_RADIUS - 10;
+    // Joystick base: bottom-left — centered in left thumb zone
+    this.joystickBaseX = safeLeft + JOYSTICK_OUTER_RADIUS + 22;
+    this.joystickBaseY = this.canvasHeight - bottomPad - JOYSTICK_OUTER_RADIUS - 6;
   }
 
   private resetState(): void {

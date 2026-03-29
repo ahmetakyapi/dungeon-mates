@@ -167,8 +167,10 @@ export class Monster {
   }
 
   scaleForSolo(): void {
-    // Solo mode: reduce HP by 30%
-    const soloHp = Math.floor(this.state.maxHp * 0.7);
+    // Solo mode: bosses keep 85% HP, regular monsters 70%
+    const isBoss = this.monsterType.startsWith('boss_');
+    const soloScale = isBoss ? 0.85 : 0.7;
+    const soloHp = Math.floor(this.state.maxHp * soloScale);
     this.state.maxHp = soloHp;
     this.state.hp = soloHp;
   }

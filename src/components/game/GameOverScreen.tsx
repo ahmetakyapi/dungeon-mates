@@ -189,12 +189,13 @@ export function GameOverScreen({
   const statRows = useMemo(() => {
     const rows: Array<{ label: string; value: string | number; icon: string }> = [
       { label: 'Canavarlar Öldürüldü', value: stats.monstersKilled, icon: '💀' },
-      { label: 'Toplam Hasar', value: stats.damageDealt, icon: '⚔️' },
+      { label: 'Toplam Hasar', value: Math.round(stats.damageDealt), icon: '⚔️' },
       { label: 'Altın Toplandı', value: stats.goldCollected, icon: '🪙' },
       { label: 'Ulaşılan Kat', value: stats.floorsCleared, icon: '🏰' },
       { label: 'Süre', value: formatTime(stats.timePlayed), icon: '⏱️' },
       { label: 'Seviye', value: stats.level, icon: '⭐' },
       { label: 'Toplam XP', value: totalXP, icon: '✨' },
+      { label: 'Ölüm Sayısı', value: stats.deaths, icon: '☠️' },
     ];
     if (isSolo) {
       rows.push({ label: 'Kalan Can', value: `${soloDeathsRemaining}/3`, icon: '❤️' });
@@ -387,9 +388,9 @@ export function GameOverScreen({
             <div className="flex flex-col gap-2">
               {/* Most damage */}
               {(() => {
-                const sorted = [...stats.partyStats].sort((a, b) => b.damage - a.damage);
-                const topDamage = sorted[0];
+                const topDamage = [...stats.partyStats].sort((a, b) => b.damage - a.damage)[0];
                 const topKills = [...stats.partyStats].sort((a, b) => b.kills - a.kills)[0];
+                const topGold = [...stats.partyStats].sort((a, b) => b.gold - a.gold)[0];
                 return (
                   <>
                     <div className="flex items-center justify-between">
@@ -397,7 +398,7 @@ export function GameOverScreen({
                         En çok hasar
                       </span>
                       <span className="font-pixel text-[8px] text-dm-gold lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">
-                        {topDamage.name} ({topDamage.damage})
+                        {topDamage.name} ({Math.round(topDamage.damage)})
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -406,6 +407,14 @@ export function GameOverScreen({
                       </span>
                       <span className="font-pixel text-[8px] text-dm-gold lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">
                         {topKills.name} ({topKills.kills})
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-pixel text-[7px] text-zinc-400 lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
+                        En çok altın
+                      </span>
+                      <span className="font-pixel text-[8px] text-dm-gold lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">
+                        {topGold.name} ({topGold.gold})
                       </span>
                     </div>
                   </>

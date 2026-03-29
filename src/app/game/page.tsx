@@ -806,6 +806,7 @@ function GamePage() {
           lootPickupEvents={lootPickupEvents}
           isTouchDevice={isTouchDevice}
           bossDialogue={bossDialogue}
+          floorModifiers={floorModifiers}
         />
       )}
 
@@ -969,6 +970,7 @@ function GamePage() {
         <ShopScreen
           items={shopOpenEvent.items}
           playerGold={localPlayer?.gold ?? 0}
+          playerLevel={localPlayer?.level ?? 1}
           floor={gameState?.dungeon.currentFloor ?? 1}
           onBuy={buyItem}
           onContinue={shopDone}

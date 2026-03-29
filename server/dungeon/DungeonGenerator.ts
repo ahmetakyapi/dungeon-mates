@@ -40,22 +40,22 @@ const DUNGEON_SIZE_BY_PLAYERS: Record<number, { size: number; roomMin: number; r
 
 export const MONSTER_MULTIPLIER_BY_PLAYERS: Record<number, number> = {
   1: 0.85,
-  2: 1.3,
-  3: 1.6,
-  4: 2.0,
+  2: 1.5,
+  3: 1.9,
+  4: 2.4,
 } as const;
 
 const FLOOR_CONFIG: Record<number, { roomCountMin: number; roomCountMax: number; hpMultiplier: number; attackMultiplier: number; hasBoss: boolean }> = {
-  1: { roomCountMin: 5, roomCountMax: 7, hpMultiplier: 1.0, attackMultiplier: 1.0, hasBoss: false },
-  2: { roomCountMin: 6, roomCountMax: 8, hpMultiplier: 1.2, attackMultiplier: 1.1, hasBoss: false },
-  3: { roomCountMin: 6, roomCountMax: 8, hpMultiplier: 1.4, attackMultiplier: 1.2, hasBoss: true },
-  4: { roomCountMin: 7, roomCountMax: 9, hpMultiplier: 1.6, attackMultiplier: 1.3, hasBoss: false },
-  5: { roomCountMin: 7, roomCountMax: 9, hpMultiplier: 1.8, attackMultiplier: 1.4, hasBoss: true },
-  6: { roomCountMin: 8, roomCountMax: 10, hpMultiplier: 2.0, attackMultiplier: 1.5, hasBoss: false },
-  7: { roomCountMin: 8, roomCountMax: 10, hpMultiplier: 2.3, attackMultiplier: 1.6, hasBoss: true },
-  8: { roomCountMin: 9, roomCountMax: 11, hpMultiplier: 2.6, attackMultiplier: 1.8, hasBoss: true },
-  9: { roomCountMin: 9, roomCountMax: 11, hpMultiplier: 3.0, attackMultiplier: 2.0, hasBoss: false },
-  10: { roomCountMin: 10, roomCountMax: 12, hpMultiplier: 3.5, attackMultiplier: 2.2, hasBoss: true },
+  1: { roomCountMin: 5, roomCountMax: 7, hpMultiplier: 1.2, attackMultiplier: 1.1, hasBoss: false },
+  2: { roomCountMin: 6, roomCountMax: 8, hpMultiplier: 1.5, attackMultiplier: 1.25, hasBoss: false },
+  3: { roomCountMin: 6, roomCountMax: 8, hpMultiplier: 1.8, attackMultiplier: 1.4, hasBoss: true },
+  4: { roomCountMin: 7, roomCountMax: 9, hpMultiplier: 2.1, attackMultiplier: 1.55, hasBoss: false },
+  5: { roomCountMin: 7, roomCountMax: 9, hpMultiplier: 2.4, attackMultiplier: 1.7, hasBoss: true },
+  6: { roomCountMin: 8, roomCountMax: 10, hpMultiplier: 2.8, attackMultiplier: 1.9, hasBoss: false },
+  7: { roomCountMin: 8, roomCountMax: 10, hpMultiplier: 3.2, attackMultiplier: 2.1, hasBoss: true },
+  8: { roomCountMin: 9, roomCountMax: 11, hpMultiplier: 3.7, attackMultiplier: 2.4, hasBoss: true },
+  9: { roomCountMin: 9, roomCountMax: 11, hpMultiplier: 4.2, attackMultiplier: 2.7, hasBoss: false },
+  10: { roomCountMin: 10, roomCountMax: 12, hpMultiplier: 5.0, attackMultiplier: 3.0, hasBoss: true },
 } as const;
 
 const DEFAULT_ROOM_COUNT_MIN = 6;
