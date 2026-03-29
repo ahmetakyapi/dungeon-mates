@@ -7,7 +7,6 @@ import { useGameSocket } from '@/hooks/useGameSocket';
 import { useGameLoop } from '@/hooks/useGameLoop';
 import { useSound } from '@/hooks/useSound';
 import { HUD } from '@/components/game/HUD';
-import { VirtualJoystick } from '@/components/game/VirtualJoystick';
 import { GameOverScreen } from '@/components/game/GameOverScreen';
 import { ClassSelect } from '@/components/game/ClassSelect';
 import { TutorialOverlay } from '@/components/game/TutorialOverlay';
@@ -153,7 +152,7 @@ function GamePage() {
     [phase, sendInput, showPauseMenu],
   );
 
-  const { fps, isTouchDevice } = useGameLoop({
+  const { fps, isTouchDevice, setTouchCooldowns, setTouchInteractVisible, setTouchPlayerHp } = useGameLoop({
     canvasRef,
     gameState,
     localPlayerId: playerId,
@@ -280,6 +279,17 @@ function GamePage() {
     const maxCd = ABILITY_MAX_COOLDOWNS[localPlayer.class];
     return Math.min(localPlayer.abilityCooldownTicks / maxCd, 1);
   }, [localPlayer?.abilityCooldownTicks, localPlayer?.class]);
+
+  // === Sync touch controls with game state ===
+  useEffect(() => {
+    if (!isTouchDevice) return;
+    setTouchCooldowns(0, abilityCooldownPct);
+  }, [isTouchDevice, abilityCooldownPct, setTouchCooldowns]);
+
+  useEffect(() => {
+    if (!isTouchDevice || !localPlayer) return;
+    setTouchPlayerHp(localPlayer.hp, localPlayer.maxHp);
+  }, [isTouchDevice, localPlayer?.hp, localPlayer?.maxHp, setTouchPlayerHp]);
 
   // === Sound Effects ===
 
@@ -773,28 +783,25 @@ function GamePage() {
           playerClass={localPlayer.class}
           monsterKillEvents={monsterKillEvents}
           lootPickupEvents={lootPickupEvents}
+          isTouchDevice={isTouchDevice}
         />
       )}
 
       {/* Solo lives indicator removed — lives shown in HUD */}
 
-      {/* Virtual joystick (mobile) */}
-      <VirtualJoystick
-        playerHp={localPlayer?.hp}
-        playerMaxHp={localPlayer?.maxHp}
-        currentFloor={gameState?.dungeon?.currentFloor}
-        skillCooldown={abilityCooldownPct}
-      />
-
-      {/* Chat box */}
-      {!isSolo && (phase === 'playing' || phase === 'boss') && (
+      {/* Chat box (hidden on touch — screen space reserved for controls) */}
+      {!isSolo && !isTouchDevice && (phase === 'playing' || phase === 'boss') && (
         <ChatBox messages={chatMessages} onSend={sendChat} compact />
       )}
 
-      {/* Pause button (gear icon) */}
+      {/* Pause button — larger on mobile for easy tap */}
       {(phase === 'playing' || phase === 'boss') && (
         <motion.button
-          className="pointer-events-auto absolute right-2 top-14 z-30 flex h-10 w-10 items-center justify-center rounded-lg border border-dm-border bg-dm-bg/70 text-lg backdrop-blur-sm transition-colors hover:border-dm-accent/40 sm:right-4 sm:top-16"
+          className={`pointer-events-auto absolute z-40 flex items-center justify-center rounded-lg border border-dm-border bg-dm-bg/70 backdrop-blur-sm transition-colors hover:border-dm-accent/40 ${
+            isTouchDevice
+              ? 'right-3 top-3 h-11 w-11 text-xl'
+              : 'right-2 top-14 h-10 w-10 text-lg sm:right-4 sm:top-16'
+          }`}
           onClick={() => setShowPauseMenu(true)}
           whileTap={{ scale: 0.9 }}
           initial={{ opacity: 0, scale: 0.8 }}

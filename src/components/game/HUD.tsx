@@ -246,7 +246,7 @@ function XPBar({
 
 function ToastList({ toasts }: { toasts: Toast[] }) {
   return (
-    <div className="pointer-events-none absolute right-2 top-12 z-30 flex flex-col items-end gap-2 sm:right-4 sm:top-16">
+    <div className="pointer-events-none absolute right-2 top-10 z-30 flex flex-col items-end gap-1.5 sm:right-4 sm:top-16 sm:gap-2">
       <AnimatePresence mode="popLayout">
         {toasts.map((toast) => (
           <motion.div
@@ -1086,9 +1086,10 @@ type HUDProps = {
   playerClass?: PlayerClass;
   monsterKillEvents?: Array<{ monsterId: string; killerId: string; xp: number }>;
   lootPickupEvents?: Array<{ playerId: string; lootType: string; value: number }>;
+  isTouchDevice?: boolean;
 };
 
-export function HUD({ player, gameState, fps, attackCooldownPct = 1, abilityCooldownPct = 0, abilityActive = false, playerClass, monsterKillEvents, lootPickupEvents }: HUDProps) {
+export function HUD({ player, gameState, fps, attackCooldownPct = 1, abilityCooldownPct = 0, abilityActive = false, playerClass, monsterKillEvents, lootPickupEvents, isTouchDevice = false }: HUDProps) {
   const { toasts, addToast } = useToasts();
   const [killFeedEntries, setKillFeedEntries] = useState<KillFeedEntry[]>([]);
   const [hpFlash, setHpFlash] = useState(false);
@@ -1328,9 +1329,9 @@ export function HUD({ player, gameState, fps, attackCooldownPct = 1, abilityCool
         </div>
       )}
 
-      {/* Top-Left: Player Stats */}
+      {/* Top-Left: Player Stats (compact on mobile) */}
       <div className="absolute left-2 top-2 sm:left-4 sm:top-4">
-        <PixelFrame className="w-44 p-2 sm:w-56 sm:p-3 lg:w-60 xl:w-64 2xl:w-72 2xl:p-4">
+        <PixelFrame className={`p-2 sm:p-3 lg:p-3 2xl:p-4 ${isTouchDevice ? 'w-36' : 'w-44 sm:w-56 lg:w-60 xl:w-64 2xl:w-72'}`}>
           {/* Player header */}
           <div className="mb-1.5 flex items-center gap-1.5">
             <span className="text-sm">{classInfo.emoji}</span>
@@ -1370,8 +1371,8 @@ export function HUD({ player, gameState, fps, attackCooldownPct = 1, abilityCool
             />
           </div>
 
-          {/* Teammates */}
-          {teammates.length > 0 && (
+          {/* Teammates (hidden on touch — saves space for controls) */}
+          {teammates.length > 0 && !isTouchDevice && (
             <div className="mt-2 flex flex-col gap-1.5 border-t border-dm-border/50 pt-1.5">
               {teammates.map((mate) => {
                 const mateClass = CLASS_STATS[mate.class];
@@ -1449,36 +1450,40 @@ export function HUD({ player, gameState, fps, attackCooldownPct = 1, abilityCool
         )}
       </div>
 
-      {/* Bottom-Left: Minimap */}
-      <div className="absolute bottom-2 left-2 sm:bottom-4 sm:left-4">
-        <Minimap
-          rooms={gameState.dungeon.rooms}
-          currentRoomId={gameState.currentRoomId}
-          players={gameState.players}
-          monsters={gameState.monsters}
-          loot={gameState.loot}
-          localPlayerId={player.id}
-          tiles={gameState.dungeon.tiles}
-          currentFloor={gameState.dungeon.currentFloor}
-          maxFloors={5}
-        />
-      </div>
-
-      {/* Bottom-Right: Sprint + Action Info + Ability Info */}
-      <div className="absolute bottom-2 right-2 flex items-end gap-2 sm:bottom-4 sm:right-4">
-        <SprintIndicator />
-        {playerClass && (
-          <AbilityInfo
-            abilityCooldownPct={abilityCooldownPct}
-            abilityActive={abilityActive}
-            playerClass={playerClass}
+      {/* Bottom-Left: Minimap (hidden on touch/mobile — joystick occupies this area) */}
+      {!isTouchDevice && (
+        <div className="absolute bottom-2 left-2 sm:bottom-4 sm:left-4">
+          <Minimap
+            rooms={gameState.dungeon.rooms}
+            currentRoomId={gameState.currentRoomId}
+            players={gameState.players}
+            monsters={gameState.monsters}
+            loot={gameState.loot}
+            localPlayerId={player.id}
+            tiles={gameState.dungeon.tiles}
+            currentFloor={gameState.dungeon.currentFloor}
+            maxFloors={5}
           />
-        )}
-        <ActionInfo attackCooldownPct={attackCooldownPct} playerClass={playerClass} />
-      </div>
+        </div>
+      )}
 
-      {/* Kill Feed — bottom center (hidden on mobile) */}
-      <KillFeed entries={killFeedEntries} onExpire={handleKillFeedExpire} />
+      {/* Bottom-Right: Sprint + Action Info + Ability Info (hidden on touch — touch buttons show cooldowns) */}
+      {!isTouchDevice && (
+        <div className="absolute bottom-2 right-2 flex items-end gap-2 sm:bottom-4 sm:right-4">
+          <SprintIndicator />
+          {playerClass && (
+            <AbilityInfo
+              abilityCooldownPct={abilityCooldownPct}
+              abilityActive={abilityActive}
+              playerClass={playerClass}
+            />
+          )}
+          <ActionInfo attackCooldownPct={attackCooldownPct} playerClass={playerClass} />
+        </div>
+      )}
+
+      {/* Kill Feed — bottom center (hidden on touch) */}
+      {!isTouchDevice && <KillFeed entries={killFeedEntries} onExpire={handleKillFeedExpire} />}
 
       {/* FPS counter (debug) */}
       <div className="absolute bottom-1 left-1/2 -translate-x-1/2">

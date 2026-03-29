@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CLASS_STATS } from '../../../shared/types';
 import { PixelButton } from '../ui/PixelButton';
@@ -103,12 +103,36 @@ function MobileControls() {
 }
 
 function SlideControls() {
+  const [isTouch, setIsTouch] = useState(false);
+
+  useEffect(() => {
+    setIsTouch('ontouchstart' in window || navigator.maxTouchPoints > 0);
+  }, []);
+
   return (
     <div className="flex flex-col gap-6">
       <h2 className="font-pixel text-sm text-dm-gold sm:text-base lg:text-lg xl:text-xl 2xl:text-2xl">Kontroller</h2>
-      <DesktopControls />
-      <div className="h-px w-full bg-dm-border" />
-      <MobileControls />
+      {/* Show mobile controls first on touch devices */}
+      {isTouch ? (
+        <>
+          <MobileControls />
+          <div className="h-px w-full bg-dm-border" />
+          <details className="group">
+            <summary className="cursor-pointer font-pixel text-[8px] text-zinc-500 group-open:text-dm-accent sm:text-[9px]">
+              Masaüstü kontrolleri göster ▾
+            </summary>
+            <div className="mt-3">
+              <DesktopControls />
+            </div>
+          </details>
+        </>
+      ) : (
+        <>
+          <DesktopControls />
+          <div className="h-px w-full bg-dm-border" />
+          <MobileControls />
+        </>
+      )}
     </div>
   );
 }
@@ -249,6 +273,7 @@ const slideVariants = {
 export function TutorialOverlay({ onComplete }: TutorialOverlayProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [direction, setDirection] = useState(1);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const goNext = useCallback(() => {
     if (currentSlide < TOTAL_SLIDES - 1) {
@@ -291,6 +316,21 @@ export function TutorialOverlay({ onComplete }: TutorialOverlayProps) {
     return () => clearTimeout(timer);
   }, [onComplete]);
 
+  // Swipe navigation for mobile
+  const handleSwipeTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }, []);
+
+  const handleSwipeTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
+    const dx = e.changedTouches[0].clientX - touchStartRef.current.x;
+    const dy = e.changedTouches[0].clientY - touchStartRef.current.y;
+    touchStartRef.current = null;
+    if (Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx)) return;
+    if (dx < 0) goNext();
+    else goPrev();
+  }, [goNext, goPrev]);
+
   const CurrentSlideComponent = SLIDES[currentSlide];
 
   return (
@@ -308,8 +348,12 @@ export function TutorialOverlay({ onComplete }: TutorialOverlayProps) {
         exit={{ scale: 0.9, opacity: 0, y: 20 }}
         transition={{ duration: 0.4, ease: EASE }}
       >
-        {/* Slide content */}
-        <div className="relative min-h-[280px] overflow-hidden sm:min-h-[320px]">
+        {/* Slide content — swipe enabled */}
+        <div
+          className="relative min-h-[240px] overflow-hidden sm:min-h-[320px]"
+          onTouchStart={handleSwipeTouchStart}
+          onTouchEnd={handleSwipeTouchEnd}
+        >
           <AnimatePresence mode="wait" custom={direction}>
             <motion.div
               key={currentSlide}
@@ -363,8 +407,11 @@ export function TutorialOverlay({ onComplete }: TutorialOverlayProps) {
           )}
         </div>
 
-        {/* Skip shortcut hint */}
-        <p className="text-center font-body text-[10px] text-zinc-600 lg:text-sm xl:text-sm 2xl:text-base">
+        {/* Skip shortcut hint — context-aware for mobile/desktop */}
+        <p className="text-center font-body text-[10px] text-zinc-600 sm:hidden">
+          Sola/sağa kaydır &middot; Herhangi bir yere dokun
+        </p>
+        <p className="hidden text-center font-body text-[10px] text-zinc-600 sm:block lg:text-sm xl:text-sm 2xl:text-base">
           ESC ile geç &middot; Enter/Space ile ilerle
         </p>
       </motion.div>

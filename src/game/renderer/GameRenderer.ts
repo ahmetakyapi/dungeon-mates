@@ -14,8 +14,8 @@ import { ParticleSystem } from './ParticleSystem';
 // Logical render resolution
 const LOGICAL_WIDTH_DESKTOP = 480;
 const LOGICAL_HEIGHT_DESKTOP = 270;
-const LOGICAL_WIDTH_MOBILE = 280;
-const LOGICAL_HEIGHT_MOBILE = 210;
+const LOGICAL_WIDTH_MOBILE = 320;
+const LOGICAL_HEIGHT_MOBILE = 240;
 
 // Quality presets
 const QUALITY_PRESETS = {
@@ -172,9 +172,10 @@ export class GameRenderer {
     this.sprites = new SpriteRenderer();
     this.particles = new ParticleSystem();
 
-    // Auto-detect quality on mobile
+    // Auto-detect quality on mobile + set default zoom
     if (this.isMobile) {
       this.quality = 'medium';
+      this.camera.setZoom(1.05);
     }
 
     // Pre-create fog gradient canvas

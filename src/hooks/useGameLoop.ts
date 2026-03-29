@@ -4,6 +4,19 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import type { RefObject } from 'react';
 import type { GameState, PlayerInput } from '../../shared/types';
 
+type TouchControlsAPI = {
+  attach: () => void;
+  detach: () => void;
+  getInput: () => PlayerInput;
+  update: (dt: number) => void;
+  render: () => void;
+  zoom: number;
+  attackCooldown: number;
+  skillCooldown: number;
+  interactVisible: boolean;
+  setPlayerHp?: (hp: number, maxHp: number) => void;
+};
+
 type UseGameLoopOptions = {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   gameState: GameState | null;
@@ -14,6 +27,9 @@ type UseGameLoopOptions = {
 type UseGameLoopReturn = {
   fps: number;
   isTouchDevice: boolean;
+  setTouchCooldowns: (attack: number, skill: number) => void;
+  setTouchInteractVisible: (visible: boolean) => void;
+  setTouchPlayerHp: (hp: number, maxHp: number) => void;
 };
 
 export function useGameLoop({
@@ -26,7 +42,7 @@ export function useGameLoop({
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const rendererRef = useRef<unknown>(null);
   const inputManagerRef = useRef<unknown>(null);
-  const touchControlsRef = useRef<unknown>(null);
+  const touchControlsRef = useRef<TouchControlsAPI | null>(null);
   const animFrameRef = useRef<number>(0);
   const lastTimeRef = useRef(0);
   const frameCountRef = useRef(0);
@@ -39,6 +55,26 @@ export function useGameLoop({
   useEffect(() => {
     gameStateRef.current = gameState;
   }, [gameState]);
+
+  // Callbacks to set touch control state from game page
+  const setTouchCooldowns = useCallback((attack: number, skill: number) => {
+    const tc = touchControlsRef.current;
+    if (!tc) return;
+    tc.attackCooldown = attack;
+    tc.skillCooldown = skill;
+  }, []);
+
+  const setTouchInteractVisible = useCallback((visible: boolean) => {
+    const tc = touchControlsRef.current;
+    if (!tc) return;
+    tc.interactVisible = visible;
+  }, []);
+
+  const setTouchPlayerHp = useCallback((hp: number, maxHp: number) => {
+    const tc = touchControlsRef.current;
+    if (!tc || !tc.setPlayerHp) return;
+    tc.setPlayerHp(hp, maxHp);
+  }, []);
 
   // Initialize renderer, input, and touch controls
   useEffect(() => {
@@ -67,14 +103,7 @@ export function useGameLoop({
       destroy: () => void;
     } | null = null;
 
-    let touchControls: {
-      attach: () => void;
-      detach: () => void;
-      getInput: () => PlayerInput;
-      update: (dt: number) => void;
-      render: () => void;
-      zoom: number;
-    } | null = null;
+    let touchControls: TouchControlsAPI | null = null;
 
     let touchOverlayCanvas: HTMLCanvasElement | null = null;
 
@@ -107,16 +136,19 @@ export function useGameLoop({
           const touchModule = await touchImport;
           const { TouchControls } = touchModule;
 
-          // Create touch overlay canvas
+          // Create touch overlay canvas — must receive all touch events
           touchOverlayCanvas = document.createElement('canvas');
           touchOverlayCanvas.className = 'touch-overlay';
           touchOverlayCanvas.style.position = 'fixed';
           touchOverlayCanvas.style.inset = '0';
           touchOverlayCanvas.style.zIndex = '50';
           touchOverlayCanvas.style.touchAction = 'none';
+          touchOverlayCanvas.style.pointerEvents = 'auto';
+          touchOverlayCanvas.style.webkitUserSelect = 'none';
+          touchOverlayCanvas.style.userSelect = 'none';
           canvas.parentElement?.appendChild(touchOverlayCanvas);
 
-          touchControls = new TouchControls(touchOverlayCanvas);
+          touchControls = new TouchControls(touchOverlayCanvas) as unknown as TouchControlsAPI;
           touchControls.attach();
           touchControlsRef.current = touchControls;
         }
@@ -289,8 +321,10 @@ export function useGameLoop({
       // Remove game-canvas-active class
       document.documentElement.classList.remove('game-canvas-active');
       document.body.classList.remove('game-canvas-active');
+
+      touchControlsRef.current = null;
     };
   }, [canvasRef, localPlayerId, onInput]);
 
-  return { fps, isTouchDevice };
+  return { fps, isTouchDevice, setTouchCooldowns, setTouchInteractVisible, setTouchPlayerHp };
 }
