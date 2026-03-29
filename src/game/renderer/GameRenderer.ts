@@ -1943,7 +1943,7 @@ export class GameRenderer {
             this.particles.emitHit(wx, wy, MONSTER_STATS[m.type].color);
           }
           // Screen shake on hit impact (stronger for bosses)
-          if (m.type === 'boss_demon') {
+          if (m.type.startsWith('boss_')) {
             this.camera.shake(4, 200);
             this.freezeFrame(35);
           } else {

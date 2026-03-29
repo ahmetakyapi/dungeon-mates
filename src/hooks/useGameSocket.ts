@@ -24,6 +24,7 @@ type DamageEvent = {
   type: 'damage' | 'heal' | 'gold';
   x?: number;
   y?: number;
+  _ts?: number; // timestamp for auto-cleanup
 };
 
 type UseGameSocketReturn = {
@@ -98,6 +99,11 @@ export function useGameSocket(): UseGameSocketReturn {
   const [levelUpEvent, setLevelUpEvent] = useState<{ playerId: string; level: number } | null>(null);
   const [floorModifiers, setFloorModifiers] = useState<FloorModifier[]>([]);
   const [bossDialogue, setBossDialogue] = useState<{ bossType: string; dialogue: string; phase: number } | null>(null);
+
+  // Timer refs for proper cleanup
+  const levelUpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bossDialogueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const damageCleanupRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Room intent tracking for reconnection
   const roomIntentRef = useRef<{
@@ -266,23 +272,19 @@ export function useGameSocket(): UseGameSocketReturn {
           targetId: data.targetId,
           value: data.damage,
           type: 'damage',
+          _ts: Date.now(),
         },
       ]);
-      // Clear after a tick
-      setTimeout(() => {
-        setDamageEvents((prev) =>
-          prev.filter((e) => e.targetId !== data.targetId),
-        );
-      }, 100);
     });
 
     socket.on('game:loot_pickup', (data) => {
       setDamageEvents((prev) => [
-        ...prev,
+        ...prev.slice(-19),
         {
           targetId: data.playerId,
           value: data.loot.value,
           type: 'gold',
+          _ts: Date.now(),
         },
       ]);
       setLootPickupEvents((prev) => [...prev.slice(-9), {
@@ -351,7 +353,11 @@ export function useGameSocket(): UseGameSocketReturn {
 
     socket.on('game:level_up', (data) => {
       setLevelUpEvent(data);
-      setTimeout(() => setLevelUpEvent(null), 3000);
+      if (levelUpTimerRef.current) clearTimeout(levelUpTimerRef.current);
+      levelUpTimerRef.current = setTimeout(() => {
+        setLevelUpEvent(null);
+        levelUpTimerRef.current = null;
+      }, 3000);
     });
 
     socket.on('game:shop_open', (data) => {
@@ -372,8 +378,11 @@ export function useGameSocket(): UseGameSocketReturn {
 
     socket.on('game:boss_dialogue', (data: { monsterId: string; bossType: string; dialogue: string; phase: number }) => {
       setBossDialogue({ bossType: data.bossType, dialogue: data.dialogue, phase: data.phase });
-      // Auto-clear after 4 seconds
-      setTimeout(() => setBossDialogue(null), 4000);
+      if (bossDialogueTimerRef.current) clearTimeout(bossDialogueTimerRef.current);
+      bossDialogueTimerRef.current = setTimeout(() => {
+        setBossDialogue(null);
+        bossDialogueTimerRef.current = null;
+      }, 4000);
     });
 
     // Handle mobile background/foreground — reconnect when page becomes visible
@@ -385,6 +394,15 @@ export function useGameSocket(): UseGameSocketReturn {
     };
     document.addEventListener('visibilitychange', handleVisibility);
 
+    // Periodic cleanup: remove damage events older than 150ms
+    damageCleanupRef.current = setInterval(() => {
+      const cutoff = Date.now() - 150;
+      setDamageEvents((prev) => {
+        const filtered = prev.filter((e) => (e._ts ?? 0) > cutoff);
+        return filtered.length === prev.length ? prev : filtered;
+      });
+    }, 100);
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
       socket.io.off('reconnect_attempt');
@@ -392,6 +410,10 @@ export function useGameSocket(): UseGameSocketReturn {
       socket.io.off('reconnect_failed');
       socket.disconnect();
       socketRef.current = null;
+      // Clean up tracked timers
+      if (levelUpTimerRef.current) clearTimeout(levelUpTimerRef.current);
+      if (bossDialogueTimerRef.current) clearTimeout(bossDialogueTimerRef.current);
+      if (damageCleanupRef.current) clearInterval(damageCleanupRef.current);
     };
   }, []);
 

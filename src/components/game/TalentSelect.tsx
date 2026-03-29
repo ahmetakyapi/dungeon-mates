@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { TalentDef, TalentBranch, PlayerClass } from '../../../shared/types';
 import { TALENT_BRANCH_NAMES } from '../../../shared/types';
@@ -42,10 +42,19 @@ export function TalentSelect({ isOpen, talents, playerClass, level, currentBranc
     return () => clearInterval(interval);
   }, [isOpen, talents, onSelect]);
 
+  const selectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (selectTimerRef.current) clearTimeout(selectTimerRef.current);
+    };
+  }, []);
+
   const handleSelect = useCallback((talentId: string) => {
     setSelectedId(talentId);
-    // Kısa gecikme sonrası onayla (görsel geri bildirim için)
-    setTimeout(() => {
+    if (selectTimerRef.current) clearTimeout(selectTimerRef.current);
+    selectTimerRef.current = setTimeout(() => {
+      selectTimerRef.current = null;
       onSelect(talentId);
     }, 300);
   }, [onSelect]);

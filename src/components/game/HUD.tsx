@@ -1274,7 +1274,7 @@ export function HUD({ player, gameState, fps, attackCooldownPct = 1, abilityCool
   );
 
   // Wire monster kill events to kill feed
-  const prevKillEventsLenRef = useRef(0);
+  const prevKillEventsLenRef = useRef(monsterKillEvents?.length ?? 0);
 
   useEffect(() => {
     if (!monsterKillEvents || monsterKillEvents.length <= prevKillEventsLenRef.current) return;
@@ -1310,7 +1310,7 @@ export function HUD({ player, gameState, fps, attackCooldownPct = 1, abilityCool
   }, [monsterKillEvents, gameState.players, addKillFeedEntry]);
 
   // Wire loot pickup events to toasts
-  const prevLootEventsLenRef = useRef(0);
+  const prevLootEventsLenRef = useRef(lootPickupEvents?.length ?? 0);
 
   useEffect(() => {
     if (!lootPickupEvents || lootPickupEvents.length <= prevLootEventsLenRef.current) return;
