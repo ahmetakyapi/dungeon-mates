@@ -530,7 +530,11 @@ function GamePage() {
   const playerList = useMemo(() => Object.values(players), [players]);
 
   // ====== CONNECTING / COLD START ======
-  if (connectionState === 'connecting' || connectionState === 'disconnected') {
+  // Only show WaitingScreen in pre-game phases (lobby, class_select).
+  // During gameplay (playing/boss/victory/defeat), let the game view render
+  // with DisconnectOverlay on top so the player doesn't lose the game view.
+  const hasActiveGameView = phase === 'playing' || phase === 'boss' || phase === 'victory' || phase === 'defeat';
+  if ((connectionState === 'connecting' || connectionState === 'disconnected') && !hasActiveGameView) {
     return (
       <WaitingScreen
         connectionState={connectionState}

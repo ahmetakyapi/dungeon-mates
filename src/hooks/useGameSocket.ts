@@ -81,6 +81,34 @@ export function useGameSocket(): UseGameSocketReturn {
   const [stairsUsedEvents, setStairsUsedEvents] = useState<number[]>([]);
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
 
+  // Room intent tracking for reconnection
+  const roomIntentRef = useRef<{
+    type: 'create' | 'join' | 'solo';
+    playerName: string;
+    roomCode?: string;
+  } | null>(null);
+  const roomJoinedRef = useRef(false);
+  const roomCodeRef = useRef('');
+  const pendingEmitRef = useRef(false);
+
+  // Helper: execute room intent on a connected socket
+  const executeRoomIntent = useCallback((socket: Socket<ServerEvents, ClientEvents>) => {
+    const intent = roomIntentRef.current;
+    if (!intent || roomJoinedRef.current || pendingEmitRef.current) return;
+    pendingEmitRef.current = true;
+
+    // If we have a known roomCode (from previous create/join), try rejoining first
+    if (roomCodeRef.current) {
+      socket.emit('room:join', { roomCode: roomCodeRef.current, playerName: intent.playerName });
+    } else if (intent.type === 'create') {
+      socket.emit('room:create', { playerName: intent.playerName });
+    } else if (intent.type === 'solo') {
+      socket.emit('room:create_solo', { playerName: intent.playerName });
+    } else if (intent.type === 'join' && intent.roomCode) {
+      socket.emit('room:join', { roomCode: intent.roomCode, playerName: intent.playerName });
+    }
+  }, []);
+
   // Connect socket on mount
   useEffect(() => {
     const serverUrl =
@@ -105,19 +133,28 @@ export function useGameSocket(): UseGameSocketReturn {
       setConnectionState('connected');
       setError('');
       setReconnectAttempt(0);
+
+      // Replay room intent if we haven't joined a room yet
+      executeRoomIntent(socket);
     });
 
     socket.on('disconnect', (reason) => {
-      setConnectionState('disconnected');
-      // If server deliberately closed the connection, don't auto-reconnect
+      // Mark room as not joined so reconnection handler replays intent
+      roomJoinedRef.current = false;
+      pendingEmitRef.current = false;
+
       if (reason === 'io server disconnect') {
+        // Server deliberately closed — reconnect manually
         socket.connect();
       }
+      // Socket.IO auto-reconnect is active, stay in 'connecting' not 'disconnected'
+      setConnectionState('connecting');
     });
 
     socket.on('connect_error', (err) => {
-      setConnectionState('disconnected');
-      setError(`Bağlantı hatası: ${err.message === 'timeout' ? 'Sunucu yanıt vermiyor' : 'Sunucuya ulaşılamıyor'}`);
+      // Don't set 'disconnected' — Socket.IO reconnection loop is still active
+      // Only show the error message, connectionState stays 'connecting'
+      setError(err.message === 'timeout' ? 'Sunucu yanıt vermiyor' : 'Sunucuya ulaşılamıyor');
     });
 
     socket.io.on('reconnect_attempt', (attempt) => {
@@ -131,6 +168,7 @@ export function useGameSocket(): UseGameSocketReturn {
     });
 
     socket.io.on('reconnect_failed', () => {
+      // All reconnection attempts exhausted — NOW set disconnected
       setConnectionState('disconnected');
       setError('Sunucuya bağlanılamadı. Lütfen tekrar deneyin.');
     });
@@ -138,13 +176,17 @@ export function useGameSocket(): UseGameSocketReturn {
     // Room events
     socket.on('room:created', (data) => {
       setRoomCode(data.roomCode);
+      roomCodeRef.current = data.roomCode;
       setPlayerId(data.playerId);
-      // Check if solo based on how room was created (flag set before emit)
+      roomJoinedRef.current = true;
+      pendingEmitRef.current = false;
     });
 
     socket.on('room:joined', (data) => {
       setPlayerId(data.playerId);
       setPlayers(data.players);
+      roomJoinedRef.current = true;
+      pendingEmitRef.current = false;
     });
 
     socket.on('room:player_joined', (data) => {
@@ -163,6 +205,25 @@ export function useGameSocket(): UseGameSocketReturn {
     });
 
     socket.on('room:error', (data) => {
+      pendingEmitRef.current = false;
+      const intent = roomIntentRef.current;
+
+      // If rejoin failed after reconnect (room destroyed/game over), create a new room
+      if (!roomJoinedRef.current && intent && roomCodeRef.current) {
+        if (data.message === 'Oda bulunamadı' || data.message === 'Oyun devam ediyor') {
+          roomCodeRef.current = '';
+          if (intent.type === 'solo') {
+            pendingEmitRef.current = true;
+            socket.emit('room:create_solo', { playerName: intent.playerName });
+            return;
+          }
+          if (intent.type === 'create') {
+            pendingEmitRef.current = true;
+            socket.emit('room:create', { playerName: intent.playerName });
+            return;
+          }
+        }
+      }
       setError(data.message);
     });
 
@@ -282,23 +343,42 @@ export function useGameSocket(): UseGameSocketReturn {
   }, []);
 
   const createRoom = useCallback((playerName: string) => {
-    socketRef.current?.emit('room:create', { playerName });
-  }, []);
+    roomIntentRef.current = { type: 'create', playerName };
+    roomJoinedRef.current = false;
+    pendingEmitRef.current = false;
+    roomCodeRef.current = '';
+    const socket = socketRef.current;
+    if (socket?.connected) {
+      executeRoomIntent(socket);
+    }
+    // If not connected, the 'connect' handler will pick up the intent
+  }, [executeRoomIntent]);
 
   const createSoloRoom = useCallback((playerName: string) => {
     setIsSolo(true);
-    socketRef.current?.emit('room:create_solo', { playerName });
-  }, []);
+    roomIntentRef.current = { type: 'solo', playerName };
+    roomJoinedRef.current = false;
+    pendingEmitRef.current = false;
+    roomCodeRef.current = '';
+    const socket = socketRef.current;
+    if (socket?.connected) {
+      executeRoomIntent(socket);
+    }
+  }, [executeRoomIntent]);
 
   const joinRoom = useCallback(
     (code: string, playerName: string) => {
       setRoomCode(code);
-      socketRef.current?.emit('room:join', {
-        roomCode: code,
-        playerName,
-      });
+      roomCodeRef.current = code;
+      roomIntentRef.current = { type: 'join', playerName, roomCode: code };
+      roomJoinedRef.current = false;
+      pendingEmitRef.current = false;
+      const socket = socketRef.current;
+      if (socket?.connected) {
+        executeRoomIntent(socket);
+      }
     },
-    [],
+    [executeRoomIntent],
   );
 
   const selectClass = useCallback((playerClass: PlayerClass) => {
@@ -359,9 +439,16 @@ export function useGameSocket(): UseGameSocketReturn {
     setError('');
     setReconnectAttempt(0);
     setConnectionState('connecting');
-    if (socket.connected) return;
+    // Reset so connect handler replays room intent
+    roomJoinedRef.current = false;
+    pendingEmitRef.current = false;
+    if (socket.connected) {
+      // Already connected but not in a room — replay intent
+      executeRoomIntent(socket);
+      return;
+    }
     socket.connect();
-  }, []);
+  }, [executeRoomIntent]);
 
   return {
     connectionState,

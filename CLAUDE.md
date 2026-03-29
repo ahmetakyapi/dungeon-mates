@@ -1,4 +1,4 @@
-# Dungeon Mates (Pixel Zindan) — Claude Code Proje Kılavuzu
+# Dungeon Mates — Claude Code Proje Kılavuzu
 
 ## Proje Özeti
 
