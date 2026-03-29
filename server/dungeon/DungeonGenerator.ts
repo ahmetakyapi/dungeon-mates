@@ -39,7 +39,7 @@ const DUNGEON_SIZE_BY_PLAYERS: Record<number, { size: number; roomMin: number; r
 } as const;
 
 export const MONSTER_MULTIPLIER_BY_PLAYERS: Record<number, number> = {
-  1: 0.7,
+  1: 0.85,
   2: 1.3,
   3: 1.6,
   4: 2.0,

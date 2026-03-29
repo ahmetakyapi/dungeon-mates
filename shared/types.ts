@@ -7,7 +7,7 @@
 export const TICK_RATE = 20; // server tick/saniye
 export const TICK_MS = 1000 / TICK_RATE;
 export const TILE_SIZE = 16;
-export const PLAYER_SPEED = 2.5; // tile/saniye
+export const PLAYER_SPEED = 1.8; // tile/saniye
 export const ROOM_MIN_SIZE = 7;
 export const ROOM_MAX_SIZE = 13;
 export const DUNGEON_WIDTH = 64;
@@ -124,18 +124,18 @@ export const MONSTER_STATS: Record<MonsterType, {
   color: string;
   size: number;
 }> = {
-  skeleton: { hp: 30, attack: 12, defense: 2, speed: 1.5, xp: 10, color: '#d1d5db', size: 1 },
-  slime: { hp: 20, attack: 5, defense: 1, speed: 0.8, xp: 5, color: '#4ade80', size: 0.8 },
-  bat: { hp: 15, attack: 6, defense: 0, speed: 2.5, xp: 7, color: '#a78bfa', size: 0.6 },
-  goblin: { hp: 40, attack: 14, defense: 4, speed: 1.8, xp: 15, color: '#84cc16', size: 0.9 },
-  rat: { hp: 12, attack: 4, defense: 0, speed: 2.2, xp: 3, color: '#78716c', size: 0.5 },
-  spider: { hp: 25, attack: 10, defense: 2, speed: 1.0, xp: 8, color: '#581c87', size: 0.8 },
-  wraith: { hp: 35, attack: 18, defense: 1, speed: 2.2, xp: 15, color: '#a5f3fc', size: 1.0 },
-  mushroom: { hp: 45, attack: 12, defense: 6, speed: 0.6, xp: 12, color: '#f472b6', size: 0.9 },
-  gargoyle: { hp: 55, attack: 16, defense: 8, speed: 1.4, xp: 20, color: '#6b7280', size: 1.2 },
-  dark_knight: { hp: 80, attack: 22, defense: 12, speed: 1.6, xp: 30, color: '#1e293b', size: 1.3 },
-  phantom: { hp: 40, attack: 20, defense: 2, speed: 2.5, xp: 25, color: '#c4b5fd', size: 1.0 },
-  lava_slime: { hp: 50, attack: 15, defense: 6, speed: 1.0, xp: 18, color: '#f97316', size: 1.0 },
+  skeleton: { hp: 45, attack: 15, defense: 3, speed: 1.6, xp: 10, color: '#d1d5db', size: 1 },
+  slime: { hp: 30, attack: 7, defense: 1, speed: 0.9, xp: 5, color: '#4ade80', size: 0.8 },
+  bat: { hp: 22, attack: 8, defense: 0, speed: 2.5, xp: 7, color: '#a78bfa', size: 0.6 },
+  goblin: { hp: 55, attack: 17, defense: 5, speed: 1.9, xp: 15, color: '#84cc16', size: 0.9 },
+  rat: { hp: 18, attack: 6, defense: 0, speed: 2.2, xp: 3, color: '#78716c', size: 0.5 },
+  spider: { hp: 35, attack: 13, defense: 3, speed: 1.1, xp: 8, color: '#581c87', size: 0.8 },
+  wraith: { hp: 50, attack: 22, defense: 2, speed: 2.2, xp: 15, color: '#a5f3fc', size: 1.0 },
+  mushroom: { hp: 60, attack: 15, defense: 8, speed: 0.7, xp: 12, color: '#f472b6', size: 0.9 },
+  gargoyle: { hp: 75, attack: 20, defense: 10, speed: 1.5, xp: 20, color: '#6b7280', size: 1.2 },
+  dark_knight: { hp: 110, attack: 28, defense: 14, speed: 1.7, xp: 30, color: '#1e293b', size: 1.3 },
+  phantom: { hp: 55, attack: 25, defense: 3, speed: 2.5, xp: 25, color: '#c4b5fd', size: 1.0 },
+  lava_slime: { hp: 65, attack: 18, defense: 8, speed: 1.1, xp: 18, color: '#f97316', size: 1.0 },
   boss_spider_queen: { hp: 350, attack: 28, defense: 10, speed: 1.3, xp: 80, color: '#7c3aed', size: 2.2 },
   boss_demon: { hp: 500, attack: 35, defense: 15, speed: 1.5, xp: 100, color: '#dc2626', size: 2.5 },
   boss_forge_guardian: { hp: 200, attack: 20, defense: 8, speed: 1.0, xp: 50, color: '#f97316', size: 1.8 },

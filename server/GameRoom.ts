@@ -129,9 +129,9 @@ function pickWeightedMonster(pool: WeightedMonster[]): MonsterType {
 const RECONNECT_TIMEOUT_MS = 30_000;
 const BOSS_BASE_HP = 300;
 const BOSS_HP_SCALE_PER_PLAYER = 0.5;
-const ROOM_AREA_PER_MONSTER = 20;
-const MAX_MONSTERS_PER_ROOM = 10;
-const MIN_MONSTERS_PER_ROOM = 3;
+const ROOM_AREA_PER_MONSTER = 14;
+const MAX_MONSTERS_PER_ROOM = 14;
+const MIN_MONSTERS_PER_ROOM = 4;
 const AOE_DAMAGE_MULTIPLIER = 0.6;
 const MAX_CHAT_LENGTH = 100;
 

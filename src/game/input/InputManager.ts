@@ -150,13 +150,13 @@ export class InputManager {
     // Sprint modifier
     const isSprinting = this.isDown(KEY_BINDINGS.sprint) || this.isGamepadButtonDown(10); // L3
     if (isSprinting && (dx !== 0 || dy !== 0)) {
-      dx *= 1.3;
-      dy *= 1.3;
+      dx *= 1.2;
+      dy *= 1.2;
       // Clamp after sprint
       const mag = Math.sqrt(dx * dx + dy * dy);
-      if (mag > 1.3) {
-        dx = (dx / mag) * 1.3;
-        dy = (dy / mag) * 1.3;
+      if (mag > 1.2) {
+        dx = (dx / mag) * 1.2;
+        dy = (dy / mag) * 1.2;
       }
     }
 
