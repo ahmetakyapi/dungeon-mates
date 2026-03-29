@@ -21,9 +21,10 @@ const io = new Server<ClientEvents, ServerEvents>(httpServer, {
     origin: process.env.ALLOWED_ORIGINS?.split(',') ?? '*',
     methods: ['GET', 'POST'],
   },
-  transports: ['websocket', 'polling'],
-  pingInterval: 25000,
-  pingTimeout: 60000,
+  transports: ['polling', 'websocket'],
+  allowUpgrades: true,
+  pingInterval: 10000,
+  pingTimeout: 20000,
 });
 
 const rooms = new Map<string, GameRoom>();

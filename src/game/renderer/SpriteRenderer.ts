@@ -755,6 +755,11 @@ export class SpriteRenderer {
       case 'spider': this.drawSpider(ctx, x, y, facing, frame); break;
       case 'wraith': this.drawWraith(ctx, x, y, facing, frame); break;
       case 'mushroom': this.drawMushroom(ctx, x, y, facing, frame); break;
+      case 'gargoyle': this.drawSkeleton(ctx, x, y, facing, frame, attacking); break;
+      case 'dark_knight': this.drawGoblin(ctx, x, y, facing, frame, attacking); break;
+      case 'phantom': this.drawWraith(ctx, x, y, facing, frame); break;
+      case 'lava_slime': this.drawSlime(ctx, x, y, frame); break;
+      case 'boss_spider_queen': this.drawBossDemon(ctx, x, y, facing, frame); break;
       case 'boss_demon': this.drawBossDemon(ctx, x, y, facing, frame); break;
     }
   }

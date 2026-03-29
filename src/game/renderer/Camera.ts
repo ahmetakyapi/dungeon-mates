@@ -66,6 +66,11 @@ export class Camera {
   private targetLookAheadY = 0;
   private playerFacing: Direction = 'down';
 
+  // Camera punch (directional impulse)
+  private punchX = 0;
+  private punchY = 0;
+  private punchDecay = 0;
+
   constructor(viewWidth: number, viewHeight: number) {
     this.viewWidth = viewWidth;
     this.viewHeight = viewHeight;
@@ -94,6 +99,13 @@ export class Camera {
   /** Set player facing for look-ahead */
   setFacing(facing: Direction): void {
     this.playerFacing = facing;
+  }
+
+  /** Apply a directional camera punch impulse */
+  punch(dirX: number, dirY: number, amount: number, decayRate = 0.85): void {
+    this.punchX = dirX * amount;
+    this.punchY = dirY * amount;
+    this.punchDecay = decayRate;
   }
 
   /** Set lerp mode: 'smooth' (0.08) or 'responsive' (0.15) */
@@ -138,6 +150,12 @@ export class Camera {
     if (Math.abs(dy) > DEADZONE) {
       this.y += dy * this.lerpSpeed * dtFactor;
     }
+
+    // Decay punch
+    this.punchX *= this.punchDecay;
+    this.punchY *= this.punchDecay;
+    if (Math.abs(this.punchX) < 0.1) this.punchX = 0;
+    if (Math.abs(this.punchY) < 0.1) this.punchY = 0;
 
     this.clamp();
     this.updateShake(dt);
@@ -224,14 +242,14 @@ export class Camera {
     this.y = Math.max(0, Math.min(maxY, this.y));
   }
 
-  /** Get the final camera X including shake offset */
+  /** Get the final camera X including shake offset and punch */
   get scrollX(): number {
-    return Math.round(this.x + this.shakeState.offsetX);
+    return Math.round(this.x + this.shakeState.offsetX + this.punchX);
   }
 
-  /** Get the final camera Y including shake offset */
+  /** Get the final camera Y including shake offset and punch */
   get scrollY(): number {
-    return Math.round(this.y + this.shakeState.offsetY);
+    return Math.round(this.y + this.shakeState.offsetY + this.punchY);
   }
 
   /** Convert world coordinates (pixels) to screen coordinates */

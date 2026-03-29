@@ -249,14 +249,24 @@ export function GameOverScreen({
 
         {/* Victory: pulse glow, Defeat: skull */}
         {isVictory ? (
-          <motion.div
-            className="font-pixel text-[10px] text-dm-gold/80 lg:text-sm xl:text-sm 2xl:text-base"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.6 }}
-          >
-            Zindanı fethettin, kahraman!
-          </motion.div>
+          <>
+            <motion.div
+              className="font-pixel text-[10px] text-dm-gold/80 lg:text-sm xl:text-sm 2xl:text-base"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.6 }}
+            >
+              Mor'Khan'ın laneti kırıldı. Zephara sonunda huzura kavuştu.
+            </motion.div>
+            <motion.p
+              className="font-body text-[10px] text-zinc-400 text-center max-w-xs lg:text-xs"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.8 }}
+            >
+              Yüzyıllık lanet sona erdi. Mor&apos;Khan&apos;ın ruhu özgür, Zephara&apos;nın ışıkları son kez yanıp söndü. Bu hikaye unutulmayacak.
+            </motion.p>
+          </>
         ) : (
           <>
             <SkullAnimation />
@@ -266,7 +276,15 @@ export function GameOverScreen({
               animate={{ opacity: 1 }}
               transition={{ delay: 1 }}
             >
-              Her kahraman düşer... önemli olan kalkmaktır!
+              Zephara seni yuttu... Bu sefer. Ama hikaye bitmedi.
+            </motion.p>
+            <motion.p
+              className="font-body text-[9px] lg:text-xs text-zinc-500/80 text-center max-w-xs italic"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1.2 }}
+            >
+              Mor'Khan hâlâ bekliyor. Zephara'nın karanlığı galip geldi ama umut tükenmez. Yeniden dön.
             </motion.p>
           </>
         )}

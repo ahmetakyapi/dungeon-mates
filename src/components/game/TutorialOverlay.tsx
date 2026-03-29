@@ -204,7 +204,7 @@ const TIPS = [
   'Yeteneğin (E) hazır olduğunda HUD\'da parlak görünür',
   'Sandıklar her zaman loot verir — kaçırma!',
   'Odadaki tüm canavarları öldürünce kapılar açılır — HUD\'da canavar sayısını takip et',
-  'Boss odasına hazırlıksız girme!',
+  'Taht Salonu\'na hazırlıksız girme!',
   'Hızlı öldürme yaparak kombo zinciri oluştur — daha fazla puan!',
   'Shift ile sprint yaparak hızlı hareket et',
 ] as const;

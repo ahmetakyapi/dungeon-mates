@@ -8,6 +8,9 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 type WaitingScreenProps = {
   connectionState: 'connecting' | 'disconnected';
   reconnectAttempt: number;
+  error?: string;
+  onRetry?: () => void;
+  onBack?: () => void;
 };
 
 // ─── TIPS ──────────────────────────────────────────────────
@@ -163,7 +166,7 @@ function useProgress() {
 }
 
 // ─── MAIN COMPONENT ──────────────────────────────────────
-export function WaitingScreen({ connectionState, reconnectAttempt }: WaitingScreenProps) {
+export function WaitingScreen({ connectionState, reconnectAttempt, error, onRetry, onBack }: WaitingScreenProps) {
   const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * GAME_TIPS.length));
   const [factIndex, setFactIndex] = useState(0);
   const [dotCount, setDotCount] = useState(0);
@@ -294,7 +297,43 @@ export function WaitingScreen({ connectionState, reconnectAttempt }: WaitingScre
             Deneme #{reconnectAttempt}
           </p>
         )}
+        {error && (
+          <motion.p
+            className="mt-2 font-body text-[11px] text-dm-health sm:text-xs lg:text-sm 2xl:text-base"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            {error}
+          </motion.p>
+        )}
       </motion.div>
+
+      {/* ── Retry / Back buttons ── */}
+      {(connectionState === 'disconnected' || reconnectAttempt >= 3) && (
+        <motion.div
+          className="mb-4 flex gap-3"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, duration: 0.4, ease: EASE }}
+        >
+          {onRetry && (
+            <button
+              onClick={onRetry}
+              className="rounded border-2 border-dm-accent bg-dm-accent/10 px-4 py-2 font-pixel text-[10px] text-dm-accent transition-colors hover:bg-dm-accent/20 sm:text-xs lg:text-sm 2xl:text-base"
+            >
+              Tekrar Dene
+            </button>
+          )}
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="rounded border-2 border-dm-border bg-dm-surface px-4 py-2 font-pixel text-[10px] text-zinc-400 transition-colors hover:text-white sm:text-xs lg:text-sm 2xl:text-base"
+            >
+              Ana Menü
+            </button>
+          )}
+        </motion.div>
+      )}
 
       {/* ── Progress bar ── */}
       <motion.div

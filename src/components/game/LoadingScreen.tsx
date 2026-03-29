@@ -13,30 +13,88 @@ type LoadingScreenProps = {
 
 const GAME_TIPS: Record<number, readonly string[]> = {
   0: [
-    'Savaşçı en önde, büyücü en arkada durmalı.',
-    'Can iksirini doğru zamanda topla — israf etme.',
-    'Kapılar ancak tüm canavarlar temizlenince açılır.',
-    'Boss\'un saldırı kalıplarını öğren, sonra vur.',
-    'Okçu hızlıdır — keşif görevi için idealdir.',
-    'Takım arkadaşın düşerse onu yalnız bırakma.',
-    'Altın toplamak skoru artırır.',
-    'Her katta canavarlar daha güçlü olur — hazırlıklı ol.',
+    'Zephara bir zamanlar yerin altındaki en görkemli şehirdi.',
+    'Kral Mor\'Khan halkını korumak istedi. Ama bedeli çok ağır oldu.',
+    'Canavarlar bir zamanlar Zephara\'nın vatandaşlarıydı.',
+    'Kapılar ancak tüm düşmanlar temizlenince açılır — eski güvenlik sistemi hâlâ çalışıyor.',
+    'Takım halinde hareket et — yalnız kalanı Zephara yutar.',
+    'Sandıklar eski sakinlerin eşyalarını içeriyor.',
+    'Her katta tehlike büyüyor — hazırlıklı ol.',
+    'Merdiveni bulmak için tüm odaları temizle.',
   ],
   1: [
-    'İlk kat — acele etme, kontrollere alış.',
-    'İskeletler yavaştır ama güçlüdür — mesafe koru.',
-    'Balçıklar kolay ama sürü halinde tehlikeli.',
+    'Yıkık Kapılar — Zephara\'nın çökmüş girişi. Haşereler her yerde.',
+    'Fareler sürü halinde saldırır — bölüp avla.',
+    'Balçıklar eski lağım sisteminin kalıntıları.',
+    'Bu kat Zephara\'nın dış halkası — gerçek şehir aşağıda.',
   ],
   2: [
-    'İkinci katta yarasalar var — hızlı hareket et!',
-    'Goblinler gruplarda saldırır — dikkatli ol.',
-    'Mana iksirlerini büyücüye bırak.',
+    'Sessiz Sokaklar — Evlerin kapıları hâlâ açık, sahipleri çoktan gitti.',
+    'İskeletler eski muhafızların kalıntıları — hâlâ nöbet tutuyorlar.',
+    'Örümcekler Zephara\'nın dokumacılarıydı bir zamanlar.',
+    'Yarasalar keşif birliğinin son kalıntıları.',
   ],
   3: [
-    'Üçüncü kat çok daha zor — hazırlıklı ol!',
-    'Boss odası yaklaşıyor — iksir biriktir.',
-    'Takım koordinasyonu burada çok önemli.',
+    'Derin Tüneller — Madencilerin çekiç sesleri kesileli yüzyıllar oldu.',
+    'Goblinler işçi kastının yozlaşmış torunları.',
+    'Mantarlar zehir saçıyor — mesafe koru.',
+    'Tünellerin duvarlarında eski yazıtlar var. Kim okuyabilir ki artık?',
   ],
+  4: [
+    'Terkedilmiş Pazar — Eski ticaret merkezi. Tezgahlar devrilmiş.',
+    'Gölgeler hareket ediyor — tuzaklara dikkat et.',
+    'Pazarın altında daha karanlık bir şey var.',
+    'Zephara\'nın tüccarları bir zamanlar zenginlik içindeydi.',
+  ],
+  5: [
+    'Örümcek Kraliçe\'nin İni — MID-BOSS katı!',
+    'Kraliçe ağ fırlatır — hareket etmeyi bırakma.',
+    'Yavru örümcekleri önce temizle, sonra kraliçeye odaklan.',
+    'Örümcek Kraliçe Zephara\'nın eski dokumacılarının lideriydi.',
+  ],
+  6: [
+    'Yıkık Kütüphane — Zephara\'nın bilgi merkezi. Kitaplar çürümüş ama ruhlar hâlâ okuyor.',
+    'Hayaletler duvarlardan geçer — arkana dikkat et.',
+    'Eski yazıtlar Mor\'Khan\'ın ritüelini anlatıyor. Bir zamanlar iyi bir kraldı.',
+    'Kütüphanedeki sandıklar değerli loot içerir.',
+  ],
+  7: [
+    'Taş Bahçeler — Petrified bitki kalıntıları ve gargoiller.',
+    'Gargoiller taş gibi dayanıklı — savaşçı önde gitsin.',
+    'Fantom düşmanlar görünmez olabilir — dikkatli ol.',
+    'Zephara\'nın bahçeleri bir zamanlar şehrin gururuydu.',
+  ],
+  8: [
+    'Lav Nehirleri — Magma arasında yürü, lav balçıklarına dikkat.',
+    'Lav balçıkları patlayınca alan hasarı verir — mesafe koru.',
+    'Karanlık şövalyeler en güçlü düşmanlar — birlikte saldırın.',
+    'Sıcaklık arttıkça Mor\'Khan\'ın gücü de artıyor.',
+  ],
+  9: [
+    'Ruhlar Tapınağı — Son normal kat. En güçlü düşmanlar burada.',
+    'Tüm canavar türleri burada — stratejik ol.',
+    'İksir biriktir, final boss savaşına hazırlan.',
+    'Tapınağın altında Taht Salonu var. Dönüşü yok.',
+  ],
+  10: [
+    'Taht Salonu — Kral Mor\'Khan\'ın son sığınağı.',
+    'Mor\'Khan minyon çağırır — önce onları temizle.',
+    'Kralın charge saldırısından kaç — çok hasar verir.',
+    'Mor\'Khan bir zamanlar halkını seven bir kraldı. Şimdi sadece acı var.',
+  ],
+} as const;
+
+const FLOOR_NAMES: Record<number, string> = {
+  1: 'Yıkık Kapılar',
+  2: 'Sessiz Sokaklar',
+  3: 'Derin Tüneller',
+  4: 'Terkedilmiş Pazar',
+  5: 'Örümcek Kraliçe\'nin İni',
+  6: 'Yıkık Kütüphane',
+  7: 'Taş Bahçeler',
+  8: 'Lav Nehirleri',
+  9: 'Ruhlar Tapınağı',
+  10: 'Taht Salonu',
 } as const;
 
 // Pixel particles
@@ -161,6 +219,16 @@ export function LoadingScreen({ message, subMessage, floor }: LoadingScreenProps
           transition={{ delay: 0.3, duration: 0.5, ease: EASE }}
         >
           Kat {floor}
+        </motion.p>
+      )}
+      {floor && FLOOR_NAMES[floor] && (
+        <motion.p
+          className="mt-1 font-pixel text-[9px] text-dm-accent/80 sm:text-[10px] lg:text-xs xl:text-sm 2xl:text-base"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5, duration: 0.4, ease: EASE }}
+        >
+          {FLOOR_NAMES[floor]}
         </motion.p>
       )}
 

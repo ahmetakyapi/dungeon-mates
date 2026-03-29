@@ -20,7 +20,7 @@ export type PlayerClass = 'warrior' | 'mage' | 'archer';
 export type GamePhase = 'lobby' | 'class_select' | 'playing' | 'boss' | 'victory' | 'defeat' | 'game_over';
 export type TileType = 'floor' | 'wall' | 'door' | 'stairs' | 'chest' | 'void';
 export type Direction = 'up' | 'down' | 'left' | 'right';
-export type MonsterType = 'skeleton' | 'slime' | 'bat' | 'goblin' | 'rat' | 'spider' | 'wraith' | 'mushroom' | 'boss_demon';
+export type MonsterType = 'skeleton' | 'slime' | 'bat' | 'goblin' | 'rat' | 'spider' | 'wraith' | 'mushroom' | 'gargoyle' | 'dark_knight' | 'phantom' | 'lava_slime' | 'boss_spider_queen' | 'boss_demon';
 export type LootType = 'health_potion' | 'mana_potion' | 'damage_boost' | 'speed_boost' | 'gold';
 
 // --- Sınıf İstatistikleri ---
@@ -84,15 +84,20 @@ export const MONSTER_STATS: Record<MonsterType, {
   color: string;
   size: number;
 }> = {
-  skeleton: { hp: 30, attack: 8, defense: 2, speed: 1.2, xp: 10, color: '#d1d5db', size: 1 },
+  skeleton: { hp: 30, attack: 12, defense: 2, speed: 1.5, xp: 10, color: '#d1d5db', size: 1 },
   slime: { hp: 20, attack: 5, defense: 1, speed: 0.8, xp: 5, color: '#4ade80', size: 0.8 },
   bat: { hp: 15, attack: 6, defense: 0, speed: 2.5, xp: 7, color: '#a78bfa', size: 0.6 },
-  goblin: { hp: 40, attack: 10, defense: 4, speed: 1.5, xp: 15, color: '#84cc16', size: 0.9 },
+  goblin: { hp: 40, attack: 14, defense: 4, speed: 1.8, xp: 15, color: '#84cc16', size: 0.9 },
   rat: { hp: 12, attack: 4, defense: 0, speed: 2.2, xp: 3, color: '#78716c', size: 0.5 },
-  spider: { hp: 25, attack: 7, defense: 2, speed: 1.0, xp: 8, color: '#581c87', size: 0.8 },
-  wraith: { hp: 35, attack: 14, defense: 1, speed: 1.8, xp: 15, color: '#a5f3fc', size: 1.0 },
-  mushroom: { hp: 45, attack: 8, defense: 6, speed: 0.6, xp: 12, color: '#f472b6', size: 0.9 },
-  boss_demon: { hp: 300, attack: 25, defense: 12, speed: 1.0, xp: 100, color: '#dc2626', size: 2.5 },
+  spider: { hp: 25, attack: 10, defense: 2, speed: 1.0, xp: 8, color: '#581c87', size: 0.8 },
+  wraith: { hp: 35, attack: 18, defense: 1, speed: 2.2, xp: 15, color: '#a5f3fc', size: 1.0 },
+  mushroom: { hp: 45, attack: 12, defense: 6, speed: 0.6, xp: 12, color: '#f472b6', size: 0.9 },
+  gargoyle: { hp: 55, attack: 16, defense: 8, speed: 1.4, xp: 20, color: '#6b7280', size: 1.2 },
+  dark_knight: { hp: 80, attack: 22, defense: 12, speed: 1.6, xp: 30, color: '#1e293b', size: 1.3 },
+  phantom: { hp: 40, attack: 20, defense: 2, speed: 2.5, xp: 25, color: '#c4b5fd', size: 1.0 },
+  lava_slime: { hp: 50, attack: 15, defense: 6, speed: 1.0, xp: 18, color: '#f97316', size: 1.0 },
+  boss_spider_queen: { hp: 350, attack: 28, defense: 10, speed: 1.3, xp: 80, color: '#7c3aed', size: 2.2 },
+  boss_demon: { hp: 500, attack: 35, defense: 15, speed: 1.5, xp: 100, color: '#dc2626', size: 2.5 },
 } as const;
 
 // --- Entity Tipleri ---

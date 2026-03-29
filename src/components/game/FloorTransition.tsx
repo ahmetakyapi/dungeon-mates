@@ -4,8 +4,33 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
-const AUTO_CONTINUE_MS = 3000;
+const AUTO_CONTINUE_MS = 5000;
 const PARTICLE_COUNT = 20;
+
+const FLOOR_LORE: Record<number, { name: string; lore: string; icon: string }> = {
+  1: { name: 'Yıkık Kapılar', lore: 'Zephara\'nın çökmüş giriş kapıları. Haşereler her yerde.', icon: '🚪' },
+  2: { name: 'Sessiz Sokaklar', lore: 'Bir zamanlar canlı mahalleler. İskeletler hâlâ nöbet tutuyor.', icon: '🏚️' },
+  3: { name: 'Derin Tüneller', lore: 'Madenci tünelleri. Goblinler karanlıkta büyüyor.', icon: '⛏️' },
+  4: { name: 'Terkedilmiş Pazar', lore: 'Eski ticaret merkezi. Tezgahlar devrilmiş, gölgeler hareket ediyor.', icon: '🏪' },
+  5: { name: 'Örümcek Kraliçe\'nin İni', lore: 'Devasa ağlar her yeri kaplamış. İn\'in sahibi sizi bekliyor.', icon: '🕷️' },
+  6: { name: 'Yıkık Kütüphane', lore: 'Zephara\'nın bilgi hazinesi. Kitaplar çürümüş, ruhlar dolaşıyor.', icon: '📚' },
+  7: { name: 'Taş Bahçeler', lore: 'Bir zamanlar yeşillik. Şimdi taşlaşmış ağaçlar ve gargoiller.', icon: '🗿' },
+  8: { name: 'Lav Nehirleri', lore: 'Zephara\'nın en derin noktası. Magma arasında yol bul.', icon: '🌋' },
+  9: { name: 'Ruhlar Tapınağı', lore: 'Rahiplerin lanetli duaları hâlâ yankılanıyor.', icon: '🕯️' },
+  10: { name: 'Taht Salonu', lore: 'Mor\'Khan burada bekliyor. İlk Ateş\'in yozlaşmış ışığı son kez yanıyor.', icon: '👑' },
+} as const;
+
+const FLOOR_QUOTES: Record<number, string> = {
+  1: 'Kapılar geçildi. Zephara seni içine çekiyor...',
+  2: 'Sokaklar sessiz ama duvarlar hatırlıyor.',
+  3: 'Tünellerin sonu görünmüyor. Karanlık kalınlaşıyor.',
+  4: 'Pazarın sessizliği aldatıcı. Daha derinde bir şey var.',
+  5: 'Kraliçe yenildi. Ama asıl tehlike daha aşağıda.',
+  6: 'Bilgi güçtür. Ama buradaki bilgi lanetli.',
+  7: 'Taş bahçeler geride kaldı. Sıcaklık artıyor.',
+  8: 'Lavların arasından geçtin. Tapınak görünüyor.',
+  9: 'Son engel aşıldı. Mor\'Khan\'la yüzleşme zamanı.',
+} as const;
 
 type FloorTransitionProps = {
   isVisible: boolean;
@@ -144,6 +169,23 @@ export function FloorTransition({
               >
                 Kat {completedFloor}
               </motion.h1>
+
+              {/* Completed floor name & lore */}
+              {FLOOR_LORE[completedFloor] && (
+                <motion.div
+                  className="mt-2 flex flex-col items-center gap-1"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4, duration: 0.5, ease: EASE }}
+                >
+                  <span className="font-pixel text-[11px] text-dm-accent lg:text-sm xl:text-base 2xl:text-lg">
+                    {FLOOR_LORE[completedFloor].icon} {FLOOR_LORE[completedFloor].name}
+                  </span>
+                  <span className="font-body text-[10px] italic text-zinc-500 lg:text-xs xl:text-sm 2xl:text-base">
+                    {FLOOR_LORE[completedFloor].lore}
+                  </span>
+                </motion.div>
+              )}
             </motion.div>
 
             {/* Mini stats */}
@@ -177,6 +219,18 @@ export function FloorTransition({
               )}
             </motion.div>
 
+            {/* Motivational quote */}
+            {FLOOR_QUOTES[completedFloor] && (
+              <motion.p
+                className="max-w-xs text-center font-body text-[10px] italic text-dm-gold/60 lg:text-xs xl:text-sm 2xl:text-base"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.7, duration: 0.5, ease: EASE }}
+              >
+                &ldquo;{FLOOR_QUOTES[completedFloor]}&rdquo;
+              </motion.p>
+            )}
+
             {/* Divider */}
             <motion.div
               className="section-divider w-40"
@@ -205,6 +259,23 @@ export function FloorTransition({
                   >
                     Kat {nextFloor}
                   </motion.h2>
+
+                  {/* Next floor name & lore */}
+                  {FLOOR_LORE[nextFloor] && (
+                    <motion.div
+                      className="mt-1 flex flex-col items-center gap-1"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.3, duration: 0.5, ease: EASE }}
+                    >
+                      <span className="font-pixel text-[11px] text-dm-gold lg:text-sm xl:text-base 2xl:text-lg">
+                        {FLOOR_LORE[nextFloor].icon} {FLOOR_LORE[nextFloor].name}
+                      </span>
+                      <span className="max-w-xs text-center font-body text-[10px] italic text-zinc-500 lg:text-xs xl:text-sm 2xl:text-base">
+                        {FLOOR_LORE[nextFloor].lore}
+                      </span>
+                    </motion.div>
+                  )}
 
                   {/* Auto-continue indicator */}
                   <motion.div

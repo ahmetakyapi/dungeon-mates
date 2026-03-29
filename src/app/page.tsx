@@ -92,7 +92,7 @@ const STEPS = [
     num: '04',
     icon: '👑',
     title: "Boss'u Yen",
-    desc: 'Son odadaki İblis Lordunu yenip zafere ulaş',
+    desc: 'Zephara\'nın derinliklerindeki yozlaşmış kralı yen',
   },
 ] as const;
 

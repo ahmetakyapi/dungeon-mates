@@ -54,9 +54,13 @@ export function useSound() {
   const playDoorOpen = useCallback(() => getManager()?.playDoorOpen(), [getManager]);
   const playChestOpen = useCallback(() => getManager()?.playChestOpen(), [getManager]);
   const playStairsDescend = useCallback(() => getManager()?.playStairsDescend(), [getManager]);
+  const playFootstep = useCallback(() => getManager()?.playFootstep(), [getManager]);
   const playDungeonMusic = useCallback(() => getManager()?.playDungeonMusic(), [getManager]);
+  const playFloorMusic = useCallback((floor: number) => getManager()?.playFloorMusic(floor), [getManager]);
   const playBossMusic = useCallback(() => getManager()?.playBossMusic(), [getManager]);
   const stopMusic = useCallback(() => getManager()?.stopMusic(), [getManager]);
+  const startAmbience = useCallback((floor: number) => getManager()?.startAmbience(floor), [getManager]);
+  const stopAmbience = useCallback(() => getManager()?.stopAmbience(), [getManager]);
   const setMasterVolume = useCallback((v: number) => getManager()?.setMasterVolume(v), [getManager]);
   const setSfxVolume = useCallback((v: number) => getManager()?.setSfxVolume(v), [getManager]);
   const setMusicVolume = useCallback((v: number) => getManager()?.setMusicVolume(v), [getManager]);
@@ -73,7 +77,9 @@ export function useSound() {
     playButtonClick, playMenuOpen, playMenuClose,
     playRoomCleared, playLevelUp, playBossAppear, playFloorComplete,
     playVictory, playDefeat, playDoorOpen, playChestOpen, playStairsDescend,
-    playDungeonMusic, playBossMusic, stopMusic,
+    playFootstep,
+    playDungeonMusic, playFloorMusic, playBossMusic, stopMusic,
+    startAmbience, stopAmbience,
     setMasterVolume, setSfxVolume, setMusicVolume,
     toggleMute, isMuted, getMasterVolume, getSfxVolume, getMusicVolume,
   }), [
@@ -83,7 +89,9 @@ export function useSound() {
     playButtonClick, playMenuOpen, playMenuClose,
     playRoomCleared, playLevelUp, playBossAppear, playFloorComplete,
     playVictory, playDefeat, playDoorOpen, playChestOpen, playStairsDescend,
-    playDungeonMusic, playBossMusic, stopMusic,
+    playFootstep,
+    playDungeonMusic, playFloorMusic, playBossMusic, stopMusic,
+    startAmbience, stopAmbience,
     setMasterVolume, setSfxVolume, setMusicVolume,
     toggleMute, isMuted, getMasterVolume, getSfxVolume, getMusicVolume,
   ]);

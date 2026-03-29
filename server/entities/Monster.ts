@@ -19,27 +19,27 @@ const generateMonsterId = (): string => {
   return `mon_${nextMonsterId}_${Date.now()}`;
 };
 
-const DETECTION_RANGE = 5;
+const DETECTION_RANGE = 7;
 const ATTACK_RANGE = 1.2;
 const MONSTER_RADIUS_BASE = 0.4;
 const WANDER_CHANGE_INTERVAL = 60; // ticks
-const BOSS_CHARGE_RANGE = 4;
-const BOSS_CHARGE_SPEED_MULT = 2.5;
-const BOSS_CHARGE_DURATION = 15; // ticks
-const BOSS_SUMMON_COOLDOWN = 300; // ticks
+const BOSS_CHARGE_RANGE = 6;
+const BOSS_CHARGE_SPEED_MULT = 3.0;
+const BOSS_CHARGE_DURATION = 20; // ticks
+const BOSS_SUMMON_COOLDOWN = 200; // ticks
 const GOBLIN_RETREAT_HP_RATIO = 0.3;
 
 // New monster constants
 const RAT_ERRATIC_CHANCE = 0.3;
-const SPIDER_WEB_COOLDOWN = 100; // ticks
+const SPIDER_WEB_COOLDOWN = 70; // ticks
 const SPIDER_WEB_SLOW_MULT = 0.5;
 const SPIDER_WEB_SLOW_DURATION = 40; // ticks
 const WRAITH_PHASE_DURATION = 20; // ticks invulnerable
 const WRAITH_PHASE_INTERVAL = 80; // ticks between phases
 const MUSHROOM_AGGRO_RANGE = 3; // tiles
 const MUSHROOM_POISON_RANGE = 1.5; // tiles
-const MUSHROOM_POISON_DAMAGE = 2;
-const MUSHROOM_POISON_INTERVAL = 20; // ticks
+const MUSHROOM_POISON_DAMAGE = 4;
+const MUSHROOM_POISON_INTERVAL = 15; // ticks
 
 export class Monster {
   public state: MonsterState;
@@ -183,6 +183,16 @@ export class Monster {
         return this.updateWraith(nearest, tiles);
       case 'mushroom':
         return this.updateMushroom(nearest, players, tiles);
+      case 'gargoyle':
+        return this.updateSkeleton(nearest, tiles);
+      case 'dark_knight':
+        return this.updateGoblin(nearest, tiles);
+      case 'phantom':
+        return this.updateWraith(nearest, tiles);
+      case 'lava_slime':
+        return this.updateSlime(nearest, tiles);
+      case 'boss_spider_queen':
+        return this.updateBossDemon(nearest, tiles);
       case 'boss_demon':
         return this.updateBossDemon(nearest, tiles);
     }
@@ -671,7 +681,7 @@ export class Monster {
       this.tryMove(this.chargeDir.x * speed, this.chargeDir.y * speed, tiles);
 
       if (nearest && nearest.distance <= ATTACK_RANGE * 1.5 && this.attackCooldown <= 0) {
-        this.attackCooldown = Math.floor(TICK_RATE * 0.5);
+        this.attackCooldown = Math.floor(TICK_RATE * 0.35);
         return { targetId: nearest.id, damage: Math.floor(this.scaledAttack * 1.5) };
       }
 

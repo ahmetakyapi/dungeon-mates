@@ -50,6 +50,7 @@ type UseGameSocketReturn = {
   ready: () => void;
   sendInput: (input: PlayerInput) => void;
   sendChat: (text: string) => void;
+  retryConnection: () => void;
 };
 
 export function useGameSocket(): UseGameSocketReturn {
@@ -88,31 +89,50 @@ export function useGameSocket(): UseGameSocketReturn {
     setConnectionState('connecting');
 
     const socket: Socket<ServerEvents, ClientEvents> = io(serverUrl, {
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
+      upgrade: true,
       autoConnect: true,
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      reconnectionAttempts: Infinity,
-      timeout: 60000,
+      reconnectionAttempts: 10,
+      timeout: 15000,
     });
 
     socketRef.current = socket;
 
     socket.on('connect', () => {
       setConnectionState('connected');
+      setError('');
+      setReconnectAttempt(0);
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
       setConnectionState('disconnected');
+      // If server deliberately closed the connection, don't auto-reconnect
+      if (reason === 'io server disconnect') {
+        socket.connect();
+      }
+    });
+
+    socket.on('connect_error', (err) => {
+      setConnectionState('disconnected');
+      setError(`Bağlantı hatası: ${err.message === 'timeout' ? 'Sunucu yanıt vermiyor' : 'Sunucuya ulaşılamıyor'}`);
     });
 
     socket.io.on('reconnect_attempt', (attempt) => {
+      setConnectionState('connecting');
       setReconnectAttempt(attempt);
     });
 
     socket.io.on('reconnect', () => {
       setReconnectAttempt(0);
+      setError('');
+    });
+
+    socket.io.on('reconnect_failed', () => {
+      setConnectionState('disconnected');
+      setError('Sunucuya bağlanılamadı. Lütfen tekrar deneyin.');
     });
 
     // Room events
@@ -242,7 +262,17 @@ export function useGameSocket(): UseGameSocketReturn {
       setPhase('defeat');
     });
 
+    // Handle mobile background/foreground — reconnect when page becomes visible
+    const handleVisibility = () => {
+      if (!document.hidden && socket && !socket.connected) {
+        setConnectionState('connecting');
+        socket.connect();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
       socket.disconnect();
       socketRef.current = null;
     };
@@ -320,6 +350,16 @@ export function useGameSocket(): UseGameSocketReturn {
     socket.emit('chat:send', { text });
   }, []);
 
+  const retryConnection = useCallback(() => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    setError('');
+    setReconnectAttempt(0);
+    setConnectionState('connecting');
+    if (socket.connected) return;
+    socket.connect();
+  }, []);
+
   return {
     connectionState,
     roomCode,
@@ -347,5 +387,6 @@ export function useGameSocket(): UseGameSocketReturn {
     ready,
     sendInput,
     sendChat,
+    retryConnection,
   };
 }

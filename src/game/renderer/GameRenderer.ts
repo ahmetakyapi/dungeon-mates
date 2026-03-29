@@ -144,6 +144,10 @@ export class GameRenderer {
   private fogNoiseTimer = 0;
   private fogNoiseCanvas: HTMLCanvasElement | null = null;
 
+  // Freeze frame (hitstop) system
+  private freezeFrameMs = 0;
+  private prevEntityPositions: Map<string, { x: number; y: number }> = new Map();
+
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     const ctx = canvas.getContext('2d');
@@ -272,6 +276,11 @@ export class GameRenderer {
     this.camera.shake(intensity, duration);
   }
 
+  /** Trigger a freeze frame (hitstop) for the given duration in ms */
+  public freezeFrame(durationMs: number): void {
+    this.freezeFrameMs = Math.max(this.freezeFrameMs, durationMs);
+  }
+
   /** Trigger a screen flash (white flash on big damage, etc.) */
   triggerScreenFlash(color = '#ffffff', intensity = 0.6): void {
     this.screenFlashAlpha = intensity;
@@ -298,6 +307,19 @@ export class GameRenderer {
 
     // Track frame time for auto-quality
     const frameStart = now;
+
+    // Hitstop freeze frame
+    if (this.freezeFrameMs > 0) {
+      this.freezeFrameMs -= dt * 1000;
+      if (this.freezeFrameMs > 0) {
+        // Still render particles and effects but skip world update
+        const preset = QUALITY_PRESETS[this.quality];
+        if (preset.particles) {
+          this.particles.update(dt);
+        }
+        // Continue to draw the frozen frame
+      }
+    }
 
     // Update animation frame (8 fps for pixel art)
     this.animTimer += dt;
@@ -1312,7 +1334,7 @@ export class GameRenderer {
     const tiles = state.dungeon.tiles;
     const ppx = localPlayer.position.x;
     const ppy = localPlayer.position.y;
-    const HIGHLIGHT_RADIUS = 3; // Show glow within 3 tiles
+    const HIGHLIGHT_RADIUS = 5; // Show glow within 5 tiles
 
     const startX = Math.max(0, Math.floor(ppx - HIGHLIGHT_RADIUS));
     const endX = Math.min(state.dungeon.width - 1, Math.floor(ppx + HIGHLIGHT_RADIUS));
@@ -1344,14 +1366,14 @@ export class GameRenderer {
         const glowColor = isChest ? '#fbbf24' : '#38bdf8';
 
         // Outer glow
-        ctx.globalAlpha = alpha * 0.4;
+        ctx.globalAlpha = alpha * 0.6;
         ctx.fillStyle = glowColor;
-        ctx.fillRect(sx - 2, sy - 2, TILE_SIZE + 4, TILE_SIZE + 4);
+        ctx.fillRect(sx - 4, sy - 4, TILE_SIZE + 8, TILE_SIZE + 8);
 
         // Inner glow border
-        ctx.globalAlpha = alpha * 0.7;
+        ctx.globalAlpha = alpha * 0.9;
         ctx.strokeStyle = glowColor;
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 1.5;
         ctx.strokeRect(sx - 0.5, sy - 0.5, TILE_SIZE + 1, TILE_SIZE + 1);
 
         ctx.globalAlpha = 1;
@@ -1393,8 +1415,18 @@ export class GameRenderer {
       const monster: MonsterState = monsters[i];
       if (!monster.alive) continue;
 
-      const wx = monster.position.x * TILE_SIZE;
-      const wy = monster.position.y * TILE_SIZE;
+      // Smooth position interpolation
+      const prevMonPos = this.prevEntityPositions.get(monster.id);
+      let monRenderX = monster.position.x;
+      let monRenderY = monster.position.y;
+      if (prevMonPos) {
+        monRenderX = prevMonPos.x + (monster.position.x - prevMonPos.x) * 0.35;
+        monRenderY = prevMonPos.y + (monster.position.y - prevMonPos.y) * 0.35;
+      }
+      this.prevEntityPositions.set(monster.id, { x: monRenderX, y: monRenderY });
+
+      const wx = monRenderX * TILE_SIZE;
+      const wy = monRenderY * TILE_SIZE;
       const stats = MONSTER_STATS[monster.type];
       const renderSize = TILE_SIZE * stats.size;
 
@@ -1477,8 +1509,18 @@ export class GameRenderer {
       const player: PlayerState = players[i];
       if (!player.alive) continue;
 
-      const wx = player.position.x * TILE_SIZE;
-      const wy = player.position.y * TILE_SIZE;
+      // Smooth position interpolation
+      const prevPlrPos = this.prevEntityPositions.get(player.id);
+      let plrRenderX = player.position.x;
+      let plrRenderY = player.position.y;
+      if (prevPlrPos) {
+        plrRenderX = prevPlrPos.x + (player.position.x - prevPlrPos.x) * 0.35;
+        plrRenderY = prevPlrPos.y + (player.position.y - prevPlrPos.y) * 0.35;
+      }
+      this.prevEntityPositions.set(player.id, { x: plrRenderX, y: plrRenderY });
+
+      const wx = plrRenderX * TILE_SIZE;
+      const wy = plrRenderY * TILE_SIZE;
       if (!this.camera.isVisible(wx, wy, TILE_SIZE, TILE_SIZE)) continue;
 
       const sx = Math.floor(wx - camX);
@@ -1535,7 +1577,7 @@ export class GameRenderer {
       if (player.id === localPlayerId) {
         const interactable = this.getNearbyInteractable(state, player.position.x, player.position.y);
         if (interactable) {
-          this.drawInteractIndicator(ctx, sx + TILE_SIZE / 2, sy - 16, interactable);
+          this.drawInteractIndicator(ctx, sx + TILE_SIZE / 2, sy - 22, interactable);
         }
       }
     }
@@ -1641,9 +1683,9 @@ export class GameRenderer {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
     ctx.fillStyle = '#000000';
-    ctx.fillText('BOSS DEMON', this.logicalWidth / 2 + 1, barY - 2 + 1);
+    ctx.fillText('MOR\'KHAN', this.logicalWidth / 2 + 1, barY - 2 + 1);
     ctx.fillStyle = '#ef4444';
-    ctx.fillText('BOSS DEMON', this.logicalWidth / 2, barY - 2);
+    ctx.fillText('MOR\'KHAN', this.logicalWidth / 2, barY - 2);
 
     // 1px black outline
     ctx.fillStyle = '#000000';
@@ -1980,8 +2022,10 @@ export class GameRenderer {
           if (p.id === localPlayerId) {
             if (diff > p.maxHp * 0.3) {
               this.triggerScreenFlash('#ffffff', 0.5);
+              this.freezeFrame(60);
             } else if (isCritical) {
               this.triggerScreenFlash('#ffffff', 0.25);
+              this.freezeFrame(60);
             } else {
               this.triggerScreenFlash('#ffffff', 0.15);
             }
@@ -2020,8 +2064,13 @@ export class GameRenderer {
           if (preset.particles) {
             this.particles.emitHit(wx, wy, MONSTER_STATS[m.type].color);
           }
-          // Tiny screen shake on hit impact
-          this.camera.shake(1, 80);
+          // Screen shake on hit impact (stronger for bosses)
+          if (m.type === 'boss_demon') {
+            this.camera.shake(4, 200);
+            this.freezeFrame(35);
+          } else {
+            this.camera.shake(1, 80);
+          }
         }
       }
       if (prev !== undefined && m.hp <= 0 && (prev > 0)) {
@@ -2036,8 +2085,11 @@ export class GameRenderer {
         if (m.type === 'boss_demon') {
           this.camera.shakeBossSlam();
           this.triggerScreenFlash('#ffffff', 0.7);
+          this.freezeFrame(80);
         } else {
-          this.camera.shake(3, 200);
+          this.camera.shake(3, 150);
+          this.triggerScreenFlash('#ffffff', 0.12);
+          this.freezeFrame(50);
         }
       }
       this.prevHp.set(m.id, m.hp);
@@ -2080,7 +2132,7 @@ export class GameRenderer {
 
   /** Draw a floating interaction prompt above the player, showing what can be done */
   private drawInteractIndicator(ctx: CanvasRenderingContext2D, x: number, y: number, tileType: TileType): void {
-    const bobOffset = Math.sin(this.animFrame * 0.4) * 2;
+    const bobOffset = Math.sin(this.animFrame * 0.3) * 4;
     const iy = Math.floor(y + bobOffset);
     const ix = Math.floor(x);
 
@@ -2089,21 +2141,21 @@ export class GameRenderer {
     const accentColor = isChest ? '#fbbf24' : '#38bdf8';
 
     // Measure text width
-    ctx.font = 'bold 4px monospace';
+    ctx.font = 'bold 6px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const textW = ctx.measureText(label).width;
 
-    const pillW = Math.ceil(textW) + 6;
-    const pillH = 8;
+    const pillW = Math.ceil(textW) + 10;
+    const pillH = 12;
     const px = ix - Math.floor(pillW / 2);
     const py = iy - Math.floor(pillH / 2);
 
     // Pulsing glow behind
-    const pulse = 0.3 + Math.sin(this.animFrame * 0.5) * 0.15;
+    const pulse = 0.5 + Math.sin(this.animFrame * 0.5) * 0.25;
     ctx.globalAlpha = pulse;
     ctx.fillStyle = accentColor;
-    ctx.fillRect(px - 1, py - 1, pillW + 2, pillH + 2);
+    ctx.fillRect(px - 3, py - 3, pillW + 6, pillH + 6);
     ctx.globalAlpha = 1;
 
     // Background pill
@@ -2122,8 +2174,8 @@ export class GameRenderer {
     // Small arrow pointing down
     ctx.fillStyle = accentColor;
     ctx.globalAlpha = 0.8;
-    ctx.fillRect(ix - 1, iy + Math.floor(pillH / 2) + 1, 2, 2);
-    ctx.fillRect(ix, iy + Math.floor(pillH / 2) + 3, 1, 1);
+    ctx.fillRect(ix - 1, iy + Math.floor(pillH / 2) + 1, 3, 3);
+    ctx.fillRect(ix, iy + Math.floor(pillH / 2) + 4, 1, 2);
     ctx.globalAlpha = 1;
   }
 

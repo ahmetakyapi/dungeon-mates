@@ -69,6 +69,44 @@ const MONSTER_POOL_BY_FLOOR: Record<number, WeightedMonster[]> = {
     { type: 'rat', weight: 1 },
     { type: 'bat', weight: 1 },
   ],
+  6: [
+    { type: 'skeleton', weight: 2 },
+    { type: 'goblin', weight: 3 },
+    { type: 'gargoyle', weight: 3 },
+    { type: 'wraith', weight: 2 },
+    { type: 'mushroom', weight: 2 },
+    { type: 'spider', weight: 1 },
+  ],
+  7: [
+    { type: 'gargoyle', weight: 3 },
+    { type: 'dark_knight', weight: 2 },
+    { type: 'phantom', weight: 2 },
+    { type: 'wraith', weight: 2 },
+    { type: 'goblin', weight: 2 },
+    { type: 'mushroom', weight: 1 },
+  ],
+  8: [
+    { type: 'dark_knight', weight: 3 },
+    { type: 'phantom', weight: 3 },
+    { type: 'gargoyle', weight: 2 },
+    { type: 'lava_slime', weight: 2 },
+    { type: 'wraith', weight: 2 },
+  ],
+  9: [
+    { type: 'dark_knight', weight: 3 },
+    { type: 'phantom', weight: 3 },
+    { type: 'lava_slime', weight: 3 },
+    { type: 'gargoyle', weight: 2 },
+    { type: 'wraith', weight: 1 },
+  ],
+  10: [
+    { type: 'dark_knight', weight: 3 },
+    { type: 'phantom', weight: 2 },
+    { type: 'lava_slime', weight: 2 },
+    { type: 'gargoyle', weight: 2 },
+    { type: 'wraith', weight: 2 },
+    { type: 'goblin', weight: 1 },
+  ],
 };
 
 /** Pick a random monster type from a weighted pool. */
@@ -138,7 +176,7 @@ export class GameRoom {
     this.rooms = [];
     this.currentRoomId = 0;
     this.currentFloor = 1;
-    this.maxFloors = 5;
+    this.maxFloors = 10;
     this.floorHpMultiplier = 1.0;
     this.floorAttackMultiplier = 1.0;
     this.playerCount = 1;
@@ -393,8 +431,9 @@ export class GameRoom {
       if (room.isStartRoom) continue;
 
       if (room.isBossRoom) {
-        // Boss room: 1 boss_demon with HP scaled by player count
-        const boss = new Monster('boss_demon', { x: room.centerX, y: room.centerY }, room.id);
+        // Boss room: spawn boss type based on floor
+        const bossType: MonsterType = this.currentFloor === this.maxFloors ? 'boss_demon' : 'boss_spider_queen';
+        const boss = new Monster(bossType, { x: room.centerX, y: room.centerY }, room.id);
         // Override boss HP based on player count: 300 * (1 + (playerCount - 1) * 0.5)
         const bossHpScale = 1 + (clampedPlayers - 1) * 0.5;
         const bossBaseHp = Math.floor(300 * bossHpScale);
@@ -641,7 +680,7 @@ export class GameRoom {
       }
 
       // Boss summon minions
-      if (monster.shouldSummon && monster.state.type === 'boss_demon') {
+      if (monster.shouldSummon && (monster.state.type === 'boss_demon' || monster.state.type === 'boss_spider_queen')) {
         const room = this.rooms.find((r) => r.id === monster.roomId);
         if (room) {
           const skel = new Monster('skeleton', {
@@ -885,12 +924,20 @@ export class GameRoom {
         room.cleared = true;
         this.io.to(this.roomCode).emit('game:room_cleared', { roomId: room.id });
 
-        // Check if boss room cleared (only on final floor)
-        if (room.isBossRoom && this.currentFloor >= this.maxFloors) {
-          this.setPhase('victory');
-          this.io.to(this.roomCode).emit('game:victory');
-          this.stopGameLoop();
-          return;
+        // Check if boss room cleared
+        if (room.isBossRoom) {
+          if (this.currentFloor >= this.maxFloors) {
+            // Final floor boss defeated — victory!
+            this.setPhase('victory');
+            this.io.to(this.roomCode).emit('game:victory');
+            this.stopGameLoop();
+            return;
+          } else {
+            // Mid-boss defeated — auto-advance to next floor
+            this.io.to(this.roomCode).emit('game:stairs_used');
+            this.advanceToNextFloor();
+            return;
+          }
         }
       }
     }

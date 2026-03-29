@@ -28,6 +28,7 @@ export class SoundManager {
   private muted = false;
   private musicIntervals: ReturnType<typeof setInterval>[] = [];
   private musicOscillators: OscillatorNode[] = [];
+  private ambientIntervals: ReturnType<typeof setInterval>[] = [];
   private noiseBuffer: AudioBuffer | null = null;
   private lastPlayTime: Map<string, number> = new Map();
 
@@ -168,35 +169,38 @@ export class SoundManager {
 
   playSwordSlash(): void {
     if (!this.canPlay('swordSlash', 150)) return;
+    const variation = 0.9 + Math.random() * 0.2; // 90-110%
     const ctx = this.getContext();
     // White noise burst
-    this.playNoise(0.12, 0.25, 3000, 'highpass');
+    this.playNoise(0.12, 0.25, 3000 * variation, 'highpass');
     // Descending frequency sweep
-    this.playTone(800, 0.15, 'sawtooth', 0.15, 200);
+    this.playTone(800 * variation, 0.15, 'sawtooth', 0.15, 200 * variation);
     // Quick click at start
-    this.playTone(1200, 0.03, 'square', 0.1);
+    this.playTone(1200 * variation, 0.03, 'square', 0.1);
   }
 
   playArrowShoot(): void {
     if (!this.canPlay('arrowShoot', 100)) return;
+    const variation = 0.9 + Math.random() * 0.2; // 90-110%
     // Quick ascending "twang"
-    this.playTone(400, 0.08, 'sine', 0.2, 1200);
+    this.playTone(400 * variation, 0.08, 'sine', 0.2, 1200 * variation);
     // Follow-up high ping
     const ctx = this.getContext();
-    this.playTone(1800, 0.06, 'sine', 0.1, 2400, ctx.currentTime + 0.05);
+    this.playTone(1800 * variation, 0.06, 'sine', 0.1, 2400 * variation, ctx.currentTime + 0.05);
   }
 
   playFireball(): void {
     if (!this.canPlay('fireball', 200)) return;
+    const variation = 0.9 + Math.random() * 0.2; // 90-110%
     const ctx = this.getContext();
     // Low rumble ascending
-    this.playTone(80, 0.25, 'sawtooth', 0.2, 400);
+    this.playTone(80 * variation, 0.25, 'sawtooth', 0.2, 400 * variation);
     // Noise burst mid-way
     setTimeout(() => {
-      this.playNoise(0.15, 0.15, 800, 'lowpass');
+      this.playNoise(0.15, 0.15, 800 * variation, 'lowpass');
     }, 100);
     // High crackle
-    this.playTone(200, 0.3, 'sawtooth', 0.1, 600, ctx.currentTime + 0.05);
+    this.playTone(200 * variation, 0.3, 'sawtooth', 0.1, 600 * variation, ctx.currentTime + 0.05);
   }
 
   // =====================
@@ -419,39 +423,126 @@ export class SoundManager {
   }
 
   // =====================
+  // SFX - Footsteps
+  // =====================
+
+  playFootstep(): void {
+    if (!this.canPlay('footstep', 220)) return;
+    const ctx = this.getContext();
+    if (!this.noiseBuffer || !this.sfxGain) return;
+    const source = ctx.createBufferSource();
+    source.buffer = this.noiseBuffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 400 + Math.random() * 400;
+    filter.Q.value = 2;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.05, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.sfxGain);
+    source.start();
+    source.stop(ctx.currentTime + 0.05);
+  }
+
+  // =====================
+  // Music Helpers
+  // =====================
+
+  private playMusicNote(freq: number, type: OscillatorType, duration: number, volume: number): void {
+    const ctx = this.getContext();
+    if (!this.musicGain) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(volume, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration / 1000);
+    osc.connect(gain);
+    gain.connect(this.musicGain);
+    osc.start();
+    osc.stop(ctx.currentTime + duration / 1000);
+  }
+
+  private playMusicPercussion(duration: number, volume: number): void {
+    const ctx = this.getContext();
+    if (!this.noiseBuffer || !this.musicGain) return;
+    const source = ctx.createBufferSource();
+    source.buffer = this.noiseBuffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = 1000;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(volume, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration / 1000);
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.musicGain);
+    source.start();
+    source.stop(ctx.currentTime + duration / 1000);
+  }
+
+  // =====================
   // Music
   // =====================
 
-  playDungeonMusic(): void {
+  playFloorMusic(floor: number): void {
     this.stopMusic();
     const ctx = this.getContext();
     if (!this.musicGain) return;
 
-    // Dark ambient bass pattern
-    const bassPattern = [NOTES.C3, NOTES.Eb3, NOTES.C3, NOTES.Bb3, NOTES.C3, NOTES.Ab3, NOTES.C3, NOTES.G3];
-    const melodyPattern = [NOTES.C4, 0, NOTES.Eb4, 0, NOTES.G3, 0, NOTES.Bb3, 0];
-    let step = 0;
-    const bpm = 70;
-    const stepDuration = 60 / bpm;
+    const tempo = 60 + Math.min(floor - 1, 8) * 3; // 60-84 BPM
+    const stepMs = (60000 / tempo) / 2; // 8th notes
 
+    // Base notes (C minor pentatonic)
+    const baseNotes = [130.81, 155.56, 174.61, 196.00, 233.08]; // C3, Eb3, F3, G3, Bb3
+    // Melody notes (higher octave)
+    const melodyNotes = [261.63, 311.13, 349.23, 392.00, 466.16]; // C4, Eb4, F4, G4, Bb4
+
+    let step = 0;
     const interval = setInterval(() => {
       if (this.muted || !this.musicGain) return;
-      const ctx2 = this.getContext();
-      const bassFreq = bassPattern[step % bassPattern.length];
-      const melFreq = melodyPattern[step % melodyPattern.length];
 
-      // Bass
-      this.playTone(bassFreq, stepDuration * 0.8, 'triangle', 0.08, undefined, undefined, this.musicGain!);
+      // Bass layer (all floors)
+      if (step % 4 === 0) {
+        this.playMusicNote(
+          baseNotes[step % baseNotes.length] * (floor >= 5 ? 0.5 : 1),
+          'triangle',
+          stepMs * 3,
+          0.12,
+        );
+      }
 
-      // Melody (only on non-zero)
-      if (melFreq > 0) {
-        this.playTone(melFreq, stepDuration * 0.4, 'square', 0.04, undefined, undefined, this.musicGain!);
+      // Melody layer (floor 3+)
+      if (floor >= 3 && step % 2 === 0) {
+        const noteIdx = (step + floor) % melodyNotes.length;
+        this.playMusicNote(melodyNotes[noteIdx], 'sine', stepMs * 1.5, 0.06);
+      }
+
+      // Dissonance layer (floor 5+)
+      if (floor >= 5 && step % 3 === 0) {
+        this.playMusicNote(
+          melodyNotes[step % melodyNotes.length] * 1.03,
+          'sawtooth',
+          stepMs,
+          0.03,
+        );
+      }
+
+      // Percussion (floor 7+)
+      if (floor >= 7 && (step % 4 === 0 || (floor >= 9 && step % 2 === 0))) {
+        this.playMusicPercussion(stepMs * 0.3, 0.08);
       }
 
       step++;
-    }, stepDuration * 1000);
+    }, stepMs);
 
     this.musicIntervals.push(interval);
+  }
+
+  playDungeonMusic(): void {
+    this.playFloorMusic(1);
   }
 
   playBossMusic(): void {
@@ -496,6 +587,126 @@ export class SoundManager {
       try { osc.stop(); } catch { /* already stopped */ }
     });
     this.musicOscillators = [];
+  }
+
+  // =====================
+  // Ambient Sounds
+  // =====================
+
+  startAmbience(floor: number): void {
+    this.stopAmbience();
+    this.getContext();
+    if (!this.sfxGain) return;
+
+    // Water drip — all floors, more frequent on deeper floors
+    const dripInterval = setInterval(() => {
+      if (this.muted) return;
+      if (Math.random() < 0.3 + floor * 0.05) {
+        this.playDrip();
+      }
+    }, 2000 + Math.random() * 3000);
+    this.ambientIntervals.push(dripInterval);
+
+    // Wind — floors 3+
+    if (floor >= 3) {
+      const windInterval = setInterval(() => {
+        if (this.muted) return;
+        this.playWind();
+      }, 5000 + Math.random() * 5000);
+      this.ambientIntervals.push(windInterval);
+    }
+
+    // Whispers — floors 6+
+    if (floor >= 6) {
+      const whisperInterval = setInterval(() => {
+        if (this.muted) return;
+        this.playWhisper();
+      }, 8000 + Math.random() * 7000);
+      this.ambientIntervals.push(whisperInterval);
+    }
+
+    // Heartbeat — floor 9+
+    if (floor >= 9) {
+      const heartbeatInterval = setInterval(() => {
+        if (this.muted) return;
+        this.playHeartbeat();
+      }, 800);
+      this.ambientIntervals.push(heartbeatInterval);
+    }
+  }
+
+  stopAmbience(): void {
+    this.ambientIntervals.forEach((id) => clearInterval(id));
+    this.ambientIntervals = [];
+  }
+
+  private playDrip(): void {
+    const ctx = this.getContext();
+    if (!this.sfxGain) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1200 + Math.random() * 800, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.04, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.12);
+  }
+
+  private playWind(): void {
+    const ctx = this.getContext();
+    if (!this.noiseBuffer || !this.sfxGain) return;
+    const source = ctx.createBufferSource();
+    source.buffer = this.noiseBuffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 300 + Math.random() * 200;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.03, ctx.currentTime + 0.5);
+    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 2);
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.sfxGain);
+    source.start();
+    source.stop(ctx.currentTime + 2.1);
+  }
+
+  private playWhisper(): void {
+    const ctx = this.getContext();
+    if (!this.sfxGain) return;
+    // Multiple detuned sine waves for eerie whisper
+    for (let i = 0; i < 3; i++) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 200 + Math.random() * 300 + i * 50;
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.015, ctx.currentTime + 0.3);
+      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 1.5);
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+      osc.start();
+      osc.stop(ctx.currentTime + 1.6);
+    }
+  }
+
+  private playHeartbeat(): void {
+    const ctx = this.getContext();
+    if (!this.sfxGain) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 40;
+    gain.gain.setValueAtTime(0.06, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.2);
   }
 
   // =====================
@@ -552,6 +763,7 @@ export class SoundManager {
 
   destroy(): void {
     this.stopMusic();
+    this.stopAmbience();
     if (this.ctx) {
       this.ctx.close();
       this.ctx = null;

@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { PlayerState, GameState, DungeonRoom, PlayerClass, MonsterState } from '../../../shared/types';
+import type { PlayerState, GameState, DungeonRoom, PlayerClass, MonsterState, TileType } from '../../../shared/types';
 import { CLASS_STATS } from '../../../shared/types';
 import { KillFeed, createKillFeedEntry } from './KillFeed';
 import type { KillFeedEntry } from './KillFeed';
@@ -320,7 +320,7 @@ function BossHPBar({ gameState }: { gameState: GameState }) {
         <div className="mb-1.5 flex items-center justify-center gap-2">
           <span className="text-xs sm:text-sm">💀</span>
           <span className="boss-pulse font-pixel text-[9px] text-dm-health sm:text-[11px] lg:text-[12px] xl:text-[13px] 2xl:text-[15px]">
-            İblis Lordu
+            Yozlaşmış Kral Mor'Khan
           </span>
           <span className="text-xs sm:text-sm">💀</span>
         </div>
@@ -369,22 +369,216 @@ function BossHPBar({ gameState }: { gameState: GameState }) {
 
 // --- Minimap ---
 
+/** Per-room monster count from live monster data */
+function useRoomMonsterCounts(rooms: DungeonRoom[], monsters: Record<string, MonsterState>) {
+  return useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const room of rooms) {
+      let alive = 0;
+      for (const mId of room.monsterIds) {
+        if (monsters[mId]?.alive) alive++;
+      }
+      counts.set(room.id, alive);
+    }
+    return counts;
+  }, [rooms, monsters]);
+}
+
+/** Find loot positions grouped by room bounds */
+function useRoomHasLoot(rooms: DungeonRoom[], loot: Record<string, { position: { x: number; y: number } }>) {
+  return useMemo(() => {
+    const set = new Set<number>();
+    const lootArr = Object.values(loot);
+    for (const room of rooms) {
+      for (const l of lootArr) {
+        if (
+          l.position.x >= room.x && l.position.x < room.x + room.width &&
+          l.position.y >= room.y && l.position.y < room.y + room.height
+        ) {
+          set.add(room.id);
+          break;
+        }
+      }
+    }
+    return set;
+  }, [rooms, loot]);
+}
+
+function MinimapRoom({
+  room,
+  isCurrent,
+  monsterCount,
+  hasLoot,
+  bx,
+  by,
+  expanded,
+}: {
+  room: DungeonRoom;
+  isCurrent: boolean;
+  monsterCount: number;
+  hasLoot: boolean;
+  bx: number;
+  by: number;
+  expanded: boolean;
+}) {
+  const rx = room.x - bx;
+  const ry = room.y - by;
+  const cx = room.centerX - bx;
+  const cy = room.centerY - by;
+
+  // Room fill & style
+  let fill: string;
+  let opacity: number;
+  let cssClass = '';
+
+  if (isCurrent) {
+    fill = '#f59e0b';
+    opacity = 0.85;
+  } else if (room.cleared) {
+    fill = '#22c55e';
+    opacity = 0.5;
+  } else if (room.isBossRoom) {
+    fill = '#dc2626';
+    opacity = 0.7;
+    cssClass = 'minimap-boss-glow';
+  } else {
+    fill = '#b91c1c';
+    opacity = 0.5;
+    cssClass = 'minimap-danger-pulse';
+  }
+
+  return (
+    <g>
+      {/* Room background */}
+      <rect
+        x={rx}
+        y={ry}
+        width={room.width}
+        height={room.height}
+        fill={fill}
+        opacity={opacity}
+        rx={1}
+        className={cssClass}
+      />
+
+      {/* Current room golden border */}
+      {isCurrent && (
+        <rect
+          x={rx - 0.3}
+          y={ry - 0.3}
+          width={room.width + 0.6}
+          height={room.height + 0.6}
+          fill="none"
+          stroke="#fbbf24"
+          strokeWidth={0.8}
+          rx={1.2}
+          className="minimap-current-border"
+        />
+      )}
+
+      {/* Boss room: skull + outer glow ring */}
+      {room.isBossRoom && (
+        <>
+          <circle cx={cx} cy={cy} r={Math.min(room.width, room.height) * 0.35} fill="none" stroke="#ef4444" strokeWidth={0.4} opacity={0.5} className="minimap-boss-glow" />
+          <text x={cx} y={cy + 1.5} textAnchor="middle" fontSize={4} fill="#ffffff" opacity={0.95}>☠</text>
+        </>
+      )}
+
+      {/* Cleared room: checkmark */}
+      {room.cleared && !room.isBossRoom && (
+        <text x={cx} y={cy + 1.2} textAnchor="middle" fontSize={expanded ? 3.5 : 3} fill="#ffffff" opacity={0.85}>✓</text>
+      )}
+
+      {/* Uncleared non-current: monster count or "!" */}
+      {!room.cleared && !room.isBossRoom && !isCurrent && (
+        <text x={cx} y={cy + 1.2} textAnchor="middle" fontSize={expanded ? 3.5 : 2.8} fill="#fbbf24" opacity={0.9} fontWeight="bold">
+          {monsterCount > 0 ? monsterCount : '!'}
+        </text>
+      )}
+
+      {/* Current room: show monster count if enemies remain */}
+      {isCurrent && !room.isBossRoom && monsterCount > 0 && (
+        <text x={cx} y={cy + 1.2} textAnchor="middle" fontSize={expanded ? 3.5 : 2.8} fill="#ffffff" opacity={0.9} fontWeight="bold">
+          {monsterCount}
+        </text>
+      )}
+
+      {/* Loot indicator: small gold dot */}
+      {hasLoot && !room.isBossRoom && (
+        <circle cx={rx + room.width - 1.5} cy={ry + 1.5} r={0.8} fill="#eab308" opacity={0.85} />
+      )}
+    </g>
+  );
+}
+
+function MinimapStairs({ sx, sy, bx, by }: { sx: number; sy: number; bx: number; by: number }) {
+  const x = sx - bx;
+  const y = sy - by;
+  return (
+    <g>
+      {/* Beacon ring (expanding pulse) */}
+      <circle cx={x} cy={y} r={2} fill="none" stroke="#3b82f6" strokeWidth={0.5} className="minimap-stairs-beacon" />
+      {/* Solid center dot */}
+      <circle cx={x} cy={y} r={1.5} fill="#3b82f6" opacity={0.95} className="minimap-blink" />
+      {/* Down arrow label */}
+      <text x={x} y={y - 2.8} textAnchor="middle" fontSize={3} fill="#93c5fd" opacity={0.95}>⬇</text>
+    </g>
+  );
+}
+
+function MinimapLegend({ expanded, allCleared, currentFloor, maxFloors }: { expanded: boolean; allCleared: boolean; currentFloor: number; maxFloors: number }) {
+  if (!expanded) return null;
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+      <span className="font-pixel text-[5px] text-zinc-400 sm:text-[6px] lg:text-[7px]">
+        Kat {currentFloor}/{maxFloors}
+      </span>
+      <span className="flex items-center gap-0.5">
+        <span className="inline-block h-1.5 w-1.5 rounded-sm bg-amber-500" />
+        <span className="font-pixel text-[5px] text-zinc-500 sm:text-[6px]">Aktif</span>
+      </span>
+      <span className="flex items-center gap-0.5">
+        <span className="inline-block h-1.5 w-1.5 rounded-sm bg-green-500" />
+        <span className="font-pixel text-[5px] text-zinc-500 sm:text-[6px]">Temiz</span>
+      </span>
+      <span className="flex items-center gap-0.5">
+        <span className="inline-block h-1.5 w-1.5 rounded-sm bg-red-700" />
+        <span className="font-pixel text-[5px] text-zinc-500 sm:text-[6px]">Düşman</span>
+      </span>
+      {allCleared && (
+        <span className="flex items-center gap-0.5">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500" />
+          <span className="font-pixel text-[5px] text-zinc-500 sm:text-[6px]">Merdiven</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
 function Minimap({
   rooms,
   currentRoomId,
   players,
   monsters,
+  loot,
   localPlayerId,
+  tiles,
+  currentFloor,
+  maxFloors,
 }: {
   rooms: DungeonRoom[];
   currentRoomId: number;
   players: Record<string, PlayerState>;
   monsters: Record<string, MonsterState>;
+  loot: Record<string, { position: { x: number; y: number } }>;
   localPlayerId: string;
+  tiles?: TileType[][];
+  currentFloor: number;
+  maxFloors: number;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [screenTier, setScreenTier] = useState(0); // 0=mobile, 1=sm, 2=lg, 3=xl, 4=2xl
+  const [screenTier, setScreenTier] = useState(0);
 
   useEffect(() => {
     const check = () => {
@@ -400,10 +594,10 @@ function Minimap({
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  const sizeByTier = [120, 120, 140, 160, 180] as const;
-  const expandedSizeByTier = [160, 200, 220, 240, 260] as const;
+  const sizeByTier = [120, 130, 150, 170, 190] as const;
+  const expandedSizeByTier = [180, 220, 250, 280, 310] as const;
   const size = expanded ? expandedSizeByTier[screenTier] : sizeByTier[screenTier];
-  const mobileSize = expanded ? 160 : 80;
+  const mobileSize = expanded ? 180 : 90;
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 640);
@@ -416,7 +610,10 @@ function Minimap({
     setExpanded((prev) => !prev);
   }, []);
 
-  // Calculate bounds for proper scaling
+  const roomMonsterCounts = useRoomMonsterCounts(rooms, monsters);
+  const roomHasLoot = useRoomHasLoot(rooms, loot);
+
+  // Calculate bounds with padding
   const bounds = useMemo(() => {
     if (rooms.length === 0) return { minX: 0, minY: 0, maxX: 1, maxY: 1 };
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -426,13 +623,14 @@ function Minimap({
       maxX = Math.max(maxX, room.x + room.width);
       maxY = Math.max(maxY, room.y + room.height);
     }
-    return { minX, minY, maxX, maxY };
+    const pad = 2;
+    return { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad };
   }, [rooms]);
 
   const rangeX = bounds.maxX - bounds.minX || 1;
   const rangeY = bounds.maxY - bounds.minY || 1;
 
-  // Adjacency: connect rooms that have overlapping corridor potential
+  // Corridor connections
   const connections = useMemo(() => {
     const conns: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
     for (let i = 0; i < rooms.length; i++) {
@@ -442,24 +640,40 @@ function Minimap({
         const dist = Math.sqrt(
           Math.pow(a.centerX - b.centerX, 2) + Math.pow(a.centerY - b.centerY, 2),
         );
-        // Heuristic: rooms within reasonable distance are connected
         if (dist < 25) {
-          conns.push({
-            x1: a.centerX,
-            y1: a.centerY,
-            x2: b.centerX,
-            y2: b.centerY,
-          });
+          conns.push({ x1: a.centerX, y1: a.centerY, x2: b.centerX, y2: b.centerY });
         }
       }
     }
     return conns;
   }, [rooms]);
 
+  // Check if all non-boss, non-start rooms are cleared
+  const allCleared = useMemo(() => {
+    const normalRooms = rooms.filter((r) => !r.isBossRoom && !r.isStartRoom);
+    return normalRooms.length > 0 && normalRooms.every((r) => r.cleared);
+  }, [rooms]);
+
+  // Find stairs position when all rooms cleared
+  const stairsPosition = useMemo(() => {
+    if (!allCleared || !tiles || tiles.length === 0) return null;
+    for (let y = 0; y < tiles.length; y++) {
+      for (let x = 0; x < tiles[y].length; x++) {
+        if (tiles[y][x] === 'stairs') return { x, y };
+      }
+    }
+    return null;
+  }, [allCleared, tiles]);
+
+  // Local player class for dot color
+  const localPlayer = players[localPlayerId];
+
   return (
-    <PixelFrame className="cursor-pointer p-1.5 sm:p-2" >
+    <PixelFrame className="cursor-pointer p-1.5 sm:p-2">
       <div className="mb-1 flex items-center justify-between" onClick={toggleExpand}>
-        <span className="font-pixel text-[6px] text-zinc-500 sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">Harita</span>
+        <span className="font-pixel text-[6px] text-zinc-500 sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">
+          Harita {expanded ? '' : `(${currentFloor}/${maxFloors})`}
+        </span>
         <span className="font-pixel text-[5px] text-zinc-600 sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">
           {expanded ? '−' : '+'}
         </span>
@@ -478,7 +692,38 @@ function Minimap({
           className="h-full w-full"
           style={{ imageRendering: 'pixelated' }}
         >
-          {/* Corridor connections */}
+          {/* SVG defs for glow filters */}
+          <defs>
+            <filter id="mm-glow-gold" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="1" result="blur" />
+              <feFlood floodColor="#fbbf24" floodOpacity="0.4" result="color" />
+              <feComposite in="color" in2="blur" operator="in" />
+              <feMerge>
+                <feMergeNode />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="mm-glow-blue" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="1.2" result="blur" />
+              <feFlood floodColor="#3b82f6" floodOpacity="0.5" result="color" />
+              <feComposite in="color" in2="blur" operator="in" />
+              <feMerge>
+                <feMergeNode />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="mm-glow-red" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="1" result="blur" />
+              <feFlood floodColor="#ef4444" floodOpacity="0.4" result="color" />
+              <feComposite in="color" in2="blur" operator="in" />
+              <feMerge>
+                <feMergeNode />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+
+          {/* Corridor connections — gradient lines */}
           {connections.map((c, i) => (
             <line
               key={`conn_${i}`}
@@ -486,98 +731,86 @@ function Minimap({
               y1={c.y1 - bounds.minY}
               x2={c.x2 - bounds.minX}
               y2={c.y2 - bounds.minY}
-              stroke="#374151"
-              strokeWidth={0.8}
+              stroke="#4b5563"
+              strokeWidth={0.6}
+              strokeDasharray="1 0.5"
+              opacity={0.6}
             />
           ))}
 
           {/* Room rectangles */}
-          {rooms.map((room) => {
-            const isCurrent = room.id === currentRoomId;
-            const fill = isCurrent
-              ? '#f59e0b'
-              : room.cleared
-                ? '#22c55e'
-                : room.isBossRoom
-                  ? '#dc2626'
-                  : '#374151';
-            const opacity = isCurrent ? 1 : room.cleared ? 0.6 : room.isBossRoom ? 0.7 : 0.35;
+          {rooms.map((room) => (
+            <MinimapRoom
+              key={room.id}
+              room={room}
+              isCurrent={room.id === currentRoomId}
+              monsterCount={roomMonsterCounts.get(room.id) ?? 0}
+              hasLoot={roomHasLoot.has(room.id)}
+              bx={bounds.minX}
+              by={bounds.minY}
+              expanded={expanded}
+            />
+          ))}
 
-            return (
-              <g key={room.id}>
-                <rect
-                  x={room.x - bounds.minX}
-                  y={room.y - bounds.minY}
-                  width={room.width}
-                  height={room.height}
-                  fill={fill}
-                  opacity={opacity}
-                  rx={0.5}
-                />
-                {/* Boss room skull marker */}
-                {room.isBossRoom && (
-                  <text
-                    x={room.centerX - bounds.minX}
-                    y={room.centerY - bounds.minY + 1.5}
-                    textAnchor="middle"
-                    fontSize={4}
-                    fill="#ffffff"
-                    opacity={0.9}
-                  >
-                    ☠
-                  </text>
-                )}
-                {/* Current room player dot (fallback if no precise position) */}
-                {isCurrent && !players[localPlayerId] && (
-                  <circle
-                    cx={room.centerX - bounds.minX}
-                    cy={room.centerY - bounds.minY}
-                    r={1.2}
-                    fill="#ffffff"
-                    className="minimap-blink"
-                  />
-                )}
-              </g>
-            );
-          })}
+          {/* Stairs beacon when all cleared */}
+          {stairsPosition && (
+            <g filter="url(#mm-glow-blue)">
+              <MinimapStairs sx={stairsPosition.x} sy={stairsPosition.y} bx={bounds.minX} by={bounds.minY} />
+            </g>
+          )}
 
-          {/* Alive monsters — red pulsing dots */}
+          {/* Alive monsters — small red dots */}
           {Object.values(monsters).filter((m) => m.alive).map((monster) => (
             <circle
               key={`mm_${monster.id}`}
               cx={monster.position.x - bounds.minX}
               cy={monster.position.y - bounds.minY}
-              r={0.7}
+              r={0.6}
               fill="#ef4444"
-              opacity={0.85}
+              opacity={0.8}
               className="minimap-enemy-pulse"
             />
           ))}
 
-          {/* Teammate dots — green */}
-          {Object.values(players).filter((p) => p.id !== localPlayerId && p.alive).map((mate) => (
-            <circle
-              key={`mt_${mate.id}`}
-              cx={mate.position.x - bounds.minX}
-              cy={mate.position.y - bounds.minY}
-              r={1.0}
-              fill="#4ade80"
-              opacity={0.9}
-            />
-          ))}
+          {/* Teammate dots — class-colored */}
+          {Object.values(players).filter((p) => p.id !== localPlayerId && p.alive).map((mate) => {
+            const mateColor = CLASS_STATS[mate.class]?.color ?? '#4ade80';
+            return (
+              <circle
+                key={`mt_${mate.id}`}
+                cx={mate.position.x - bounds.minX}
+                cy={mate.position.y - bounds.minY}
+                r={1.0}
+                fill={mateColor}
+                opacity={0.9}
+              />
+            );
+          })}
 
-          {/* Local player dot — white blinking */}
-          {players[localPlayerId]?.alive && (
-            <circle
-              cx={players[localPlayerId].position.x - bounds.minX}
-              cy={players[localPlayerId].position.y - bounds.minY}
-              r={1.2}
-              fill="#ffffff"
-              className="minimap-blink"
-            />
+          {/* Local player dot — class-colored with white ring, blinking */}
+          {localPlayer?.alive && (
+            <g filter="url(#mm-glow-gold)">
+              <circle
+                cx={localPlayer.position.x - bounds.minX}
+                cy={localPlayer.position.y - bounds.minY}
+                r={1.4}
+                fill="none"
+                stroke="#ffffff"
+                strokeWidth={0.4}
+                opacity={0.6}
+              />
+              <circle
+                cx={localPlayer.position.x - bounds.minX}
+                cy={localPlayer.position.y - bounds.minY}
+                r={1.0}
+                fill={CLASS_STATS[localPlayer.class]?.color ?? '#ffffff'}
+                className="minimap-blink"
+              />
+            </g>
           )}
         </svg>
       </motion.div>
+      <MinimapLegend expanded={expanded} allCleared={allCleared} currentFloor={currentFloor} maxFloors={maxFloors} />
     </PixelFrame>
   );
 }
@@ -947,7 +1180,7 @@ export function HUD({ player, gameState, fps, onPing, attackCooldownPct = 1, abi
           return dist < closestDist ? m : closest;
         });
         const XP_TO_NAME: Record<number, string> = {
-          5: 'Balçık', 7: 'Yarasa', 10: 'İskelet', 15: 'Goblin', 100: 'İblis Lordu',
+          5: 'Balçık', 7: 'Yarasa', 10: 'İskelet', 15: 'Goblin', 18: 'Lav Balçığı', 20: 'Gargoil', 25: 'Fantom', 30: 'Kara Şövalye', 80: 'Örümcek Kraliçe', 100: 'Mor\'Khan',
         };
         const monsterXp = nearest.maxHp <= 20 ? 5 : nearest.maxHp <= 30 ? 7 : nearest.maxHp <= 50 ? 10 : nearest.maxHp <= 60 ? 15 : 100;
         setLastKillerMonster(XP_TO_NAME[monsterXp] ?? 'Canavar');
@@ -1041,7 +1274,12 @@ export function HUD({ player, gameState, fps, onPing, attackCooldownPct = 1, abi
       7: 'Yarasa',
       10: 'İskelet',
       15: 'Goblin',
-      100: 'İblis Lordu',
+      18: 'Lav Balçığı',
+      20: 'Gargoil',
+      25: 'Fantom',
+      30: 'Kara Şövalye',
+      80: 'Örümcek Kraliçe',
+      100: 'Mor\'Khan',
     };
 
     for (const event of newEvents) {
@@ -1246,7 +1484,11 @@ export function HUD({ player, gameState, fps, onPing, attackCooldownPct = 1, abi
           currentRoomId={gameState.currentRoomId}
           players={gameState.players}
           monsters={gameState.monsters}
+          loot={gameState.loot}
           localPlayerId={player.id}
+          tiles={gameState.dungeon.tiles}
+          currentFloor={gameState.dungeon.currentFloor}
+          maxFloors={5}
         />
       </div>
 

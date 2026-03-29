@@ -16,6 +16,8 @@ import { WaitingScreen } from '@/components/game/WaitingScreen';
 import { PauseMenu } from '@/components/game/PauseMenu';
 import { DisconnectOverlay } from '@/components/game/DisconnectOverlay';
 import { FloorTransition } from '@/components/game/FloorTransition';
+import { StoryIntro } from '@/components/game/StoryIntro';
+import { BossIntro } from '@/components/game/BossIntro';
 import { ChatBox } from '@/components/game/ChatBox';
 import { PixelButton } from '@/components/ui/PixelButton';
 import { PixelHero } from '@/components/game/PixelHero';
@@ -105,6 +107,7 @@ function GamePage() {
     chestOpenedEvents,
     stairsUsedEvents,
     reconnectAttempt,
+    retryConnection,
   } = useGameSocket();
 
   const [gameOverStats, setGameOverStats] = useState<{
@@ -129,6 +132,9 @@ function GamePage() {
   const [showPauseMenu, setShowPauseMenu] = useState(false);
   const [showFloorTransition, setShowFloorTransition] = useState(false);
   const [floorTransitionData, setFloorTransitionData] = useState({ completed: 1, next: 2, kills: 0, time: 0 });
+  const [showStoryIntro, setShowStoryIntro] = useState(false);
+  const [showBossIntro, setShowBossIntro] = useState(false);
+  const storyShownRef = useRef(false);
   const [copied, setCopied] = useState(false);
   const [roomEntryFlash, setRoomEntryFlash] = useState<{ roomId: number; roomNum: number } | null>(null);
   const [showRoomCleared, setShowRoomCleared] = useState(false);
@@ -188,8 +194,14 @@ function GamePage() {
 
     if (!prevPhase || prevPhase === phase) return;
 
-    // Show tutorial when transitioning from class_select to playing (first time only)
+    // Show story intro when first entering playing phase
     if (prevPhase === 'class_select' && phase === 'playing') {
+      if (!storyShownRef.current) {
+        storyShownRef.current = true;
+        setShowStoryIntro(true);
+        return;
+      }
+      // Fallback: show tutorial if story already shown
       const tutorialSeen = localStorage.getItem('dungeon-mates-tutorial-seen');
       if (!tutorialSeen) {
         setShowTutorial(true);
@@ -197,10 +209,15 @@ function GamePage() {
       }
     }
 
+    // Show boss intro when entering boss phase
+    if (phase === 'boss' && prevPhase === 'playing') {
+      setShowBossIntro(true);
+      return;
+    }
+
     // Show loading screen for phase transitions
     const LOADING_MESSAGES: Partial<Record<GamePhase, string>> = {
       playing: 'Zindan hazırlanıyor',
-      boss: 'Boss odası açılıyor',
     } as const;
 
     const msg = LOADING_MESSAGES[phase];
@@ -254,6 +271,9 @@ function GamePage() {
       setShowFloorTransition(true);
       floorKillsRef.current = 0;
       floorStartTime.current = Date.now();
+      // Update music & ambience for the new floor
+      sound.playFloorMusic(currentFloor);
+      sound.startAmbience(currentFloor);
     }
     previousFloorRef.current = currentFloor;
   }, [gameState?.dungeon.currentFloor, gameState]);
@@ -286,18 +306,23 @@ function GamePage() {
     }
   }, [localPlayer?.attacking, localPlayer?.class, sound]);
 
-  // Phase change sounds
+  // Phase change sounds + floor-based music & ambience
   useEffect(() => {
-    if (phase === 'playing') sound.playDungeonMusic();
+    if (phase === 'playing') {
+      const floor = gameState?.dungeon.currentFloor ?? 1;
+      sound.playFloorMusic(floor);
+      sound.startAmbience(floor);
+    }
     if (phase === 'boss') {
       sound.stopMusic();
+      sound.stopAmbience();
       sound.playBossAppear();
       const timer = setTimeout(() => sound.playBossMusic(), 1500);
       return () => clearTimeout(timer);
     }
-    if (phase === 'victory') { sound.stopMusic(); sound.playVictory(); }
-    if (phase === 'defeat') { sound.stopMusic(); sound.playDefeat(); }
-  }, [phase, sound]);
+    if (phase === 'victory') { sound.stopMusic(); sound.stopAmbience(); sound.playVictory(); }
+    if (phase === 'defeat') { sound.stopMusic(); sound.stopAmbience(); sound.playDefeat(); }
+  }, [phase, sound, gameState?.dungeon.currentFloor]);
 
   // Monster kill sounds
   useEffect(() => {
@@ -376,13 +401,26 @@ function GamePage() {
     if (showPauseMenu) sound.playMenuOpen();
   }, [showPauseMenu, sound]);
 
-  // Stop music on unmount
+  // Stop music & ambience on unmount
   useEffect(() => {
-    return () => { sound.stopMusic(); };
+    return () => { sound.stopMusic(); sound.stopAmbience(); };
   }, [sound]);
 
   const handleFloorTransitionContinue = useCallback(() => {
     setShowFloorTransition(false);
+  }, []);
+
+  const handleStoryIntroComplete = useCallback(() => {
+    setShowStoryIntro(false);
+    // Show tutorial after story if not seen
+    const tutorialSeen = localStorage.getItem('dungeon-mates-tutorial-seen');
+    if (!tutorialSeen) {
+      setShowTutorial(true);
+    }
+  }, []);
+
+  const handleBossIntroComplete = useCallback(() => {
+    setShowBossIntro(false);
   }, []);
 
   const handleTutorialComplete = useCallback(() => {
@@ -428,7 +466,7 @@ function GamePage() {
           ? Object.values(gameState.monsters).find((m) => m.type === 'boss_demon' && m.alive)
           : null;
         defeatCause = bossAlive
-          ? 'İblis Lordu tarafından yenildiniz'
+          ? 'Kral Mor\'Khan tarafından yenildiniz'
           : `Kat ${gameState?.dungeon.currentFloor ?? 1} zindan canavarları tarafından yenildiniz`;
       }
 
@@ -500,7 +538,15 @@ function GamePage() {
 
   // ====== CONNECTING / COLD START ======
   if (connectionState === 'connecting' || connectionState === 'disconnected') {
-    return <WaitingScreen connectionState={connectionState} reconnectAttempt={reconnectAttempt} />;
+    return (
+      <WaitingScreen
+        connectionState={connectionState}
+        reconnectAttempt={reconnectAttempt}
+        error={error}
+        onRetry={retryConnection}
+        onBack={() => router.push('/')}
+      />
+    );
   }
 
   // ====== LOBBY PHASE ======
@@ -849,6 +895,16 @@ function GamePage() {
         timeSpent={floorTransitionData.time}
         onContinue={handleFloorTransitionContinue}
       />
+
+      {/* Story intro */}
+      <AnimatePresence>
+        {showStoryIntro && <StoryIntro onComplete={handleStoryIntroComplete} />}
+      </AnimatePresence>
+
+      {/* Boss intro */}
+      <AnimatePresence>
+        {showBossIntro && <BossIntro onComplete={handleBossIntroComplete} floor={gameState?.dungeon.currentFloor} />}
+      </AnimatePresence>
 
       {/* Tutorial */}
       <AnimatePresence>

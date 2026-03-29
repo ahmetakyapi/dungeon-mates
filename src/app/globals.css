@@ -208,6 +208,35 @@ body {
 }
 .minimap-enemy-pulse { animation: minimap-enemy-pulse 1.2s ease-in-out infinite; }
 
+/* Minimap uncleared room danger pulse */
+@keyframes minimap-danger-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.7; }
+}
+.minimap-danger-pulse { animation: minimap-danger-pulse 1.5s ease-in-out infinite; }
+
+/* Minimap boss room glow pulse */
+@keyframes minimap-boss-glow {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 0.95; }
+}
+.minimap-boss-glow { animation: minimap-boss-glow 1s ease-in-out infinite; }
+
+/* Minimap stairs beacon */
+@keyframes minimap-stairs-beacon {
+  0% { r: 1.5; opacity: 0.9; }
+  50% { r: 3; opacity: 0.3; }
+  100% { r: 1.5; opacity: 0.9; }
+}
+.minimap-stairs-beacon { animation: minimap-stairs-beacon 1.2s ease-in-out infinite; }
+
+/* Minimap current room border pulse */
+@keyframes minimap-current-border {
+  0%, 100% { stroke-opacity: 1; stroke-width: 1; }
+  50% { stroke-opacity: 0.5; stroke-width: 0.6; }
+}
+.minimap-current-border { animation: minimap-current-border 1s ease-in-out infinite; }
+
 /* Boss text pulsing */
 @keyframes boss-pulse {
   0%, 100% { text-shadow: 0 0 8px rgba(239, 68, 68, 0.6); }
