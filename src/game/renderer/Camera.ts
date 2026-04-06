@@ -252,29 +252,32 @@ export class Camera {
     return Math.round(this.y + this.shakeState.offsetY + this.punchY);
   }
 
-  /** Convert world coordinates (pixels) to screen coordinates */
+  // Pre-allocated Vec2 objects to avoid per-frame allocations
+  private readonly _wtsVec: Vec2 = { x: 0, y: 0 };
+  private readonly _stwVec: Vec2 = { x: 0, y: 0 };
+  private readonly _sttVec: Vec2 = { x: 0, y: 0 };
+
+  /** Convert world coordinates (pixels) to screen coordinates (mutates reusable vec) */
   worldToScreen(wx: number, wy: number): Vec2 {
-    return {
-      x: (wx - this.scrollX) * this._zoom,
-      y: (wy - this.scrollY) * this._zoom,
-    };
+    this._wtsVec.x = (wx - this.scrollX) * this._zoom;
+    this._wtsVec.y = (wy - this.scrollY) * this._zoom;
+    return this._wtsVec;
   }
 
-  /** Convert screen coordinates to world coordinates (pixels) */
+  /** Convert screen coordinates to world coordinates (mutates reusable vec) */
   screenToWorld(sx: number, sy: number): Vec2 {
-    return {
-      x: sx / this._zoom + this.scrollX,
-      y: sy / this._zoom + this.scrollY,
-    };
+    this._stwVec.x = sx / this._zoom + this.scrollX;
+    this._stwVec.y = sy / this._zoom + this.scrollY;
+    return this._stwVec;
   }
 
-  /** Convert screen coordinates to tile coordinates */
+  /** Convert screen coordinates to tile coordinates (mutates reusable vec) */
   screenToTile(sx: number, sy: number): Vec2 {
-    const world = this.screenToWorld(sx, sy);
-    return {
-      x: Math.floor(world.x / TILE_SIZE),
-      y: Math.floor(world.y / TILE_SIZE),
-    };
+    const wx = sx / this._zoom + this.scrollX;
+    const wy = sy / this._zoom + this.scrollY;
+    this._sttVec.x = Math.floor(wx / TILE_SIZE);
+    this._sttVec.y = Math.floor(wy / TILE_SIZE);
+    return this._sttVec;
   }
 
   /** Check if a world-space rect is visible on screen */

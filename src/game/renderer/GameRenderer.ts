@@ -107,8 +107,10 @@ export class GameRenderer {
   private torchPositions: Array<{ x: number; y: number }> = [];
   private torchCacheTick = -1;
 
-  // Film grain noise canvas (pre-generated, cycled)
+  // Film grain noise canvases (pre-generated pool, cycled to avoid per-frame createImageData)
+  private grainCanvases: HTMLCanvasElement[] = [];
   private grainCanvas: HTMLCanvasElement | null = null;
+  private grainIndex = 0;
   private grainPhase = 0;
 
   // Low HP vignette pulse timer
@@ -117,6 +119,23 @@ export class GameRenderer {
   // Torch flame animation frame
   private torchFlameFrame = 0;
   private torchFlameTimer = 0;
+
+  // Cached vignette canvases (avoid creating gradients every frame)
+  private vignetteCanvas: HTMLCanvasElement | null = null;
+  private redVignetteCanvas: HTMLCanvasElement | null = null;
+  private lastRedVignetteIntensity = -1;
+
+  // Reusable Set for cleared rooms (avoid new Set() every frame in renderTiles)
+  private readonly _clearedRoomsSet = new Set<number>();
+
+  // Cleanup counter to avoid checking prevHp/prevEntityPositions every frame
+  private entityCleanupCounter = 0;
+
+  // Pre-rendered torch light canvas (avoids createRadialGradient per torch per frame)
+  private _torchLightCanvas: HTMLCanvasElement | null = null;
+
+  // Circular buffer write index for perf monitoring
+  private _perfWriteIdx = 0;
 
   // Pre-created radial gradient canvas for fog (avoids creating gradients per-frame)
   private fogGradientCanvas: HTMLCanvasElement | null = null;
@@ -209,7 +228,18 @@ export class GameRenderer {
   /** Add a floating damage number */
   addDamageNumber(x: number, y: number, amount: number, isHealing: boolean, kind?: DamageNumberKind): void {
     if (this.damageNumbers.length >= MAX_DAMAGE_NUMBERS) {
-      this.damageNumbers.shift();
+      // Find oldest (lowest life) and overwrite it — O(n) scan but avoids O(n) shift
+      let oldestIdx = 0;
+      let oldestLife = this.damageNumbers[0].life;
+      for (let i = 1; i < this.damageNumbers.length; i++) {
+        if (this.damageNumbers[i].life < oldestLife) {
+          oldestLife = this.damageNumbers[i].life;
+          oldestIdx = i;
+        }
+      }
+      // Remove oldest by swap-with-last
+      this.damageNumbers[oldestIdx] = this.damageNumbers[this.damageNumbers.length - 1];
+      this.damageNumbers.pop();
     }
 
     // Always round to integer for clean display
@@ -601,10 +631,18 @@ export class GameRenderer {
     this.ctx.imageSmoothingEnabled = false;
     this.ctx.drawImage(this.offscreen, 0, 0, this.canvas.width, this.canvas.height);
 
-    // Clean up stale entity positions (prevent memory leak from dead entities)
-    for (const id of this.prevEntityPositions.keys()) {
-      if (!state.monsters[id] && !state.players[id]) {
-        this.prevEntityPositions.delete(id);
+    // Clean up stale entity positions every ~60 frames (prevent memory leak, skip hot path)
+    if (++this.entityCleanupCounter >= 60) {
+      this.entityCleanupCounter = 0;
+      for (const id of this.prevEntityPositions.keys()) {
+        if (!state.monsters[id] && !state.players[id]) {
+          this.prevEntityPositions.delete(id);
+        }
+      }
+      for (const id of this.prevHp.keys()) {
+        if (!state.monsters[id] && !state.players[id]) {
+          this.prevHp.delete(id);
+        }
       }
     }
 
@@ -615,35 +653,57 @@ export class GameRenderer {
 
   // ===== VISUAL EFFECTS =====
 
-  /** Render dark vignette (dark corners) */
+  /** Render dark vignette (dark corners) — uses cached offscreen canvas */
   private renderVignette(ctx: CanvasRenderingContext2D, intensity: number): void {
-    const w = this.logicalWidth;
-    const h = this.logicalHeight;
-    const cx = w / 2;
-    const cy = h / 2;
-    const radius = Math.max(cx, cy);
-
-    const gradient = ctx.createRadialGradient(cx, cy, radius * 0.4, cx, cy, radius * 1.2);
-    gradient.addColorStop(0, 'rgba(0,0,0,0)');
-    gradient.addColorStop(1, `rgba(0,0,0,${intensity})`);
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, w, h);
+    // Build cache once (intensity is always 0.4 in normal use)
+    if (!this.vignetteCanvas) {
+      const w = this.logicalWidth;
+      const h = this.logicalHeight;
+      const cx = w / 2;
+      const cy = h / 2;
+      const radius = Math.max(cx, cy);
+      this.vignetteCanvas = document.createElement('canvas');
+      this.vignetteCanvas.width = w;
+      this.vignetteCanvas.height = h;
+      const vCtx = this.vignetteCanvas.getContext('2d');
+      if (vCtx) {
+        const gradient = vCtx.createRadialGradient(cx, cy, radius * 0.4, cx, cy, radius * 1.2);
+        gradient.addColorStop(0, 'rgba(0,0,0,0)');
+        gradient.addColorStop(1, 'rgba(0,0,0,1)');
+        vCtx.fillStyle = gradient;
+        vCtx.fillRect(0, 0, w, h);
+      }
+    }
+    ctx.globalAlpha = intensity;
+    ctx.drawImage(this.vignetteCanvas, 0, 0);
+    ctx.globalAlpha = 1;
   }
 
-  /** Render pulsing red vignette for low HP */
+  /** Render pulsing red vignette for low HP — cached canvas, intensity via globalAlpha */
   private renderRedVignette(ctx: CanvasRenderingContext2D, intensity: number): void {
-    const w = this.logicalWidth;
-    const h = this.logicalHeight;
-    const cx = w / 2;
-    const cy = h / 2;
-    const radius = Math.max(cx, cy);
-
-    const gradient = ctx.createRadialGradient(cx, cy, radius * 0.3, cx, cy, radius * 1.1);
-    gradient.addColorStop(0, 'rgba(0,0,0,0)');
-    gradient.addColorStop(0.5, 'rgba(127,29,29,0)');
-    gradient.addColorStop(1, `rgba(220,38,38,${intensity})`);
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, w, h);
+    // Rebuild red vignette cache only when needed (shape is fixed, intensity changes)
+    if (!this.redVignetteCanvas) {
+      const w = this.logicalWidth;
+      const h = this.logicalHeight;
+      const cx = w / 2;
+      const cy = h / 2;
+      const radius = Math.max(cx, cy);
+      this.redVignetteCanvas = document.createElement('canvas');
+      this.redVignetteCanvas.width = w;
+      this.redVignetteCanvas.height = h;
+      const rCtx = this.redVignetteCanvas.getContext('2d');
+      if (rCtx) {
+        const gradient = rCtx.createRadialGradient(cx, cy, radius * 0.3, cx, cy, radius * 1.1);
+        gradient.addColorStop(0, 'rgba(0,0,0,0)');
+        gradient.addColorStop(0.5, 'rgba(127,29,29,0)');
+        gradient.addColorStop(1, 'rgba(220,38,38,1)');
+        rCtx.fillStyle = gradient;
+        rCtx.fillRect(0, 0, w, h);
+      }
+    }
+    ctx.globalAlpha = intensity;
+    ctx.drawImage(this.redVignetteCanvas, 0, 0);
+    ctx.globalAlpha = 1;
   }
 
   /** Render subtle film grain noise overlay */
@@ -660,26 +720,36 @@ export class GameRenderer {
     ctx.globalAlpha = 1;
   }
 
-  /** Create grain noise canvas (small, tiled) */
+  /** Create grain noise canvas pool (pre-generate multiple frames to avoid per-frame createImageData) */
   private createGrainCanvas(): void {
     const size = 64;
-    if (!this.grainCanvas) {
-      this.grainCanvas = document.createElement('canvas');
-      this.grainCanvas.width = size;
-      this.grainCanvas.height = size;
+    const GRAIN_POOL_SIZE = 8;
+
+    // Only build pool once
+    if (this.grainCanvases.length === 0) {
+      for (let f = 0; f < GRAIN_POOL_SIZE; f++) {
+        const c = document.createElement('canvas');
+        c.width = size;
+        c.height = size;
+        const gCtx = c.getContext('2d');
+        if (!gCtx) continue;
+        const imageData = gCtx.createImageData(size, size);
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+          const v = Math.random() * 255;
+          data[i] = v;
+          data[i + 1] = v;
+          data[i + 2] = v;
+          data[i + 3] = 255;
+        }
+        gCtx.putImageData(imageData, 0, 0);
+        this.grainCanvases.push(c);
+      }
     }
-    const gCtx = this.grainCanvas.getContext('2d');
-    if (!gCtx) return;
-    const imageData = gCtx.createImageData(size, size);
-    const data = imageData.data;
-    for (let i = 0; i < data.length; i += 4) {
-      const v = Math.random() * 255;
-      data[i] = v;
-      data[i + 1] = v;
-      data[i + 2] = v;
-      data[i + 3] = 255;
-    }
-    gCtx.putImageData(imageData, 0, 0);
+
+    // Cycle to next pre-generated canvas (O(1), no allocation)
+    this.grainIndex = (this.grainIndex + 1) % this.grainCanvases.length;
+    this.grainCanvas = this.grainCanvases[this.grainIndex];
   }
 
   /** Render heat distortion for boss room (subtle horizontal scanline shift) */
@@ -896,17 +966,27 @@ export class GameRenderer {
       // Skip off-screen torches
       if (sx < -30 || sx > this.logicalWidth + 30 || sy < -30 || sy > this.logicalHeight + 30) continue;
 
-      // Warm-colored light circle (larger, warmer tint)
+      // Warm-colored light circle — use cached torch light canvas
       const lightRadius = 24;
       const flicker = 1 + Math.sin(this.animFrame * 0.7 + i * 1.3) * 0.08;
       const r = lightRadius * flicker;
-      const gradient = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
-      gradient.addColorStop(0, 'rgba(255,180,80,0.15)');
-      gradient.addColorStop(0.3, 'rgba(255,150,50,0.10)');
-      gradient.addColorStop(0.6, 'rgba(255,120,30,0.04)');
-      gradient.addColorStop(1, 'rgba(255,100,20,0)');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(sx - r, sy - r, r * 2, r * 2);
+      if (!this._torchLightCanvas) {
+        this._torchLightCanvas = document.createElement('canvas');
+        const tlSize = 64;
+        this._torchLightCanvas.width = tlSize;
+        this._torchLightCanvas.height = tlSize;
+        const tlCtx = this._torchLightCanvas.getContext('2d');
+        if (tlCtx) {
+          const gr = tlCtx.createRadialGradient(tlSize / 2, tlSize / 2, 0, tlSize / 2, tlSize / 2, tlSize / 2);
+          gr.addColorStop(0, 'rgba(255,180,80,0.15)');
+          gr.addColorStop(0.3, 'rgba(255,150,50,0.10)');
+          gr.addColorStop(0.6, 'rgba(255,120,30,0.04)');
+          gr.addColorStop(1, 'rgba(255,100,20,0)');
+          tlCtx.fillStyle = gr;
+          tlCtx.fillRect(0, 0, tlSize, tlSize);
+        }
+      }
+      ctx.drawImage(this._torchLightCanvas, sx - r, sy - r, r * 2, r * 2);
 
       // Enhanced flame sprite (5x8px, animated 3 patterns)
       this.drawEnhancedFlame(ctx, Math.floor(sx) - 2, Math.floor(sy) - 8, this.torchFlameFrame, i);
@@ -1097,10 +1177,13 @@ export class GameRenderer {
   }
 
   private monitorPerformance(frameTimeMs: number): void {
-    this.frameTimes.push(frameTimeMs);
-    if (this.frameTimes.length > PERF_SAMPLE_COUNT) {
-      this.frameTimes.shift();
+    // Circular buffer for frame times — avoids shift() which is O(n)
+    if (this.frameTimes.length < PERF_SAMPLE_COUNT) {
+      this.frameTimes.push(frameTimeMs);
+    } else {
+      this.frameTimes[this._perfWriteIdx % PERF_SAMPLE_COUNT] = frameTimeMs;
     }
+    this._perfWriteIdx++;
 
     const now = performance.now();
     if (now - this.lastPerfCheck < PERF_CHECK_INTERVAL) return;
@@ -1108,7 +1191,9 @@ export class GameRenderer {
 
     if (this.frameTimes.length < PERF_SAMPLE_COUNT) return;
 
-    const avg = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length;
+    let sum = 0;
+    for (let i = 0; i < this.frameTimes.length; i++) sum += this.frameTimes[i];
+    const avg = sum / this.frameTimes.length;
 
     if (avg > 20 && this.quality === 'high') {
       this.setQuality('medium');
@@ -1132,7 +1217,9 @@ export class GameRenderer {
     endY: number,
   ): void {
     const tiles = state.dungeon.tiles;
-    const clearedRooms = new Set<number>();
+    // Reuse Set instance to avoid per-frame allocation
+    const clearedRooms = this._clearedRoomsSet;
+    clearedRooms.clear();
     for (const room of state.dungeon.rooms) {
       if (room.cleared) clearedRooms.add(room.id);
     }
@@ -1709,10 +1796,17 @@ export class GameRenderer {
   }
 
   private updateDamageNumbers(dt: number): void {
-    for (let i = this.damageNumbers.length - 1; i >= 0; i--) {
+    // Swap-with-last removal pattern — O(1) per removal instead of O(n) splice
+    let i = 0;
+    while (i < this.damageNumbers.length) {
       this.damageNumbers[i].life -= dt;
       if (this.damageNumbers[i].life <= 0) {
-        this.damageNumbers.splice(i, 1);
+        // Swap with last element and pop (O(1))
+        this.damageNumbers[i] = this.damageNumbers[this.damageNumbers.length - 1];
+        this.damageNumbers.pop();
+        // Don't increment i — re-check swapped element
+      } else {
+        i++;
       }
     }
   }

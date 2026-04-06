@@ -604,8 +604,8 @@ export class GameRoom {
           }
         }
 
-        // Elite monster: %15 + kat*3% şansla bir elite canavar spawn et
-        const eliteChance = 0.15 + this.currentFloor * 0.03;
+        // Elite monster: %15 + kat*3% şansla bir elite canavar spawn et (max %60)
+        const eliteChance = Math.min(0.6, 0.15 + this.currentFloor * 0.03);
         if (Math.random() < eliteChance) {
           const elitePool = MONSTER_POOL_BY_FLOOR[this.currentFloor] ?? MONSTER_POOL_BY_FLOOR[4];
           const eliteType = pickWeightedMonster(elitePool);

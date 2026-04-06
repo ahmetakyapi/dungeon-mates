@@ -405,6 +405,8 @@ export function useGameSocket(): UseGameSocketReturn {
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
+      // Remove ALL socket listeners to prevent memory leak on remount
+      socket.removeAllListeners();
       socket.io.off('reconnect_attempt');
       socket.io.off('reconnect');
       socket.io.off('reconnect_failed');

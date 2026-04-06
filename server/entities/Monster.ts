@@ -736,7 +736,7 @@ export class Monster {
     players: ReadonlyArray<{ id: string; position: Vec2; alive: boolean }>,
     tiles: TileType[][],
   ): { targetId: string; damage: number } | null {
-    const stats = MONSTER_STATS.boss_demon;
+    const stats = MONSTER_STATS.boss_spider_queen;
 
     this.summonCooldown -= 1;
     if (this.webCooldown > 0) this.webCooldown -= 1;
@@ -899,7 +899,7 @@ export class Monster {
     players: ReadonlyArray<{ id: string; position: Vec2; alive: boolean }>,
     tiles: TileType[][],
   ): { targetId: string; damage: number } | null {
-    const stats = MONSTER_STATS.boss_demon; // base stats
+    const stats = MONSTER_STATS.boss_forge_guardian;
 
     this.summonCooldown -= 1;
     if (this.slamCooldown > 0) this.slamCooldown -= 1;
@@ -950,7 +950,7 @@ export class Monster {
     players: ReadonlyArray<{ id: string; position: Vec2; alive: boolean }>,
     tiles: TileType[][],
   ): { targetId: string; damage: number } | null {
-    const stats = MONSTER_STATS.boss_demon;
+    const stats = MONSTER_STATS.boss_stone_warden;
 
     this.summonCooldown -= 1;
     if (this.petrifyGazeCooldown > 0) this.petrifyGazeCooldown -= 1;
@@ -1017,7 +1017,7 @@ export class Monster {
     players: ReadonlyArray<{ id: string; position: Vec2; alive: boolean }>,
     tiles: TileType[][],
   ): { targetId: string; damage: number } | null {
-    const stats = MONSTER_STATS.boss_demon;
+    const stats = MONSTER_STATS.boss_flame_knight;
 
     this.summonCooldown -= 1;
     if (this.flameChargeCooldown > 0) this.flameChargeCooldown -= 1;

@@ -68,13 +68,19 @@ export class ParticleSystem {
   private dustTimer = 0;
   private maxActive = MAX_PARTICLES;
 
+  // Free-list: indices of inactive particles for O(1) acquire
+  private readonly freeList: number[];
+  private freeCount = MAX_PARTICLES;
+
   /** Set to true by emitHitSpark; renderer should check and reset each frame */
   public screenFlashRequested = false;
 
   constructor() {
     this.pool = new Array<Particle>(MAX_PARTICLES);
+    this.freeList = new Array<number>(MAX_PARTICLES);
     for (let i = 0; i < MAX_PARTICLES; i++) {
       this.pool[i] = createParticle();
+      this.freeList[i] = i; // all indices start free
     }
   }
 
@@ -83,26 +89,32 @@ export class ParticleSystem {
     this.maxActive = Math.max(0, Math.min(MAX_PARTICLES, max));
   }
 
+  /** Return a particle index to the free list */
+  private release(index: number): void {
+    this.pool[index].active = false;
+    this.freeList[this.freeCount++] = index;
+    this.activeCount--;
+  }
+
   private acquire(requestPriority: ParticlePriority = 1): Particle | null {
-    // Find an inactive particle
-    for (let i = 0; i < MAX_PARTICLES; i++) {
-      if (!this.pool[i].active) {
-        this.pool[i].active = true;
-        this.pool[i].priority = requestPriority;
-        this.activeCount++;
-        return this.pool[i];
-      }
+    // O(1) acquire from free list
+    if (this.freeCount > 0) {
+      const idx = this.freeList[--this.freeCount];
+      const p = this.pool[idx];
+      p.active = true;
+      p.priority = requestPriority;
+      this.activeCount++;
+      return p;
     }
 
     if (this.activeCount >= this.maxActive) {
       // Pool is full -- recycle lowest priority particle with lowest life ratio
       let bestIdx = -1;
-      let bestScore = Infinity; // lower = better candidate for recycling
+      let bestScore = Infinity;
 
       for (let i = 0; i < MAX_PARTICLES; i++) {
         const p = this.pool[i];
         if (!p.active) continue;
-        // Score: priority * 10 + lifeRatio, so low-priority dying particles recycle first
         const score = p.priority * 10 + (p.life / p.maxLife);
         if (score < bestScore) {
           bestScore = score;
@@ -1021,8 +1033,7 @@ export class ParticleSystem {
 
       p.life -= dt;
       if (p.life <= 0) {
-        p.active = false;
-        this.activeCount--;
+        this.release(i);
         continue;
       }
 
