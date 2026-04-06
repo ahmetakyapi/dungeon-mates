@@ -1402,9 +1402,10 @@ export class GameRoom {
     // Calculate solo deaths remaining
     let soloDeathsRemaining = 0;
     if (this.isSolo) {
-      const soloPlayer = Array.from(this.players.values())[0];
-      if (soloPlayer) {
-        soloDeathsRemaining = soloPlayer.getSoloDeathsRemaining();
+      // Avoid Array.from() — just get first value from iterator
+      const first = this.players.values().next();
+      if (!first.done) {
+        soloDeathsRemaining = first.value.getSoloDeathsRemaining();
       }
     }
 

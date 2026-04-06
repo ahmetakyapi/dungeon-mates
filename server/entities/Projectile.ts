@@ -131,6 +131,7 @@ export class Projectile {
   }
 
   getState(): ProjectileState {
-    return { ...this.state };
+    // Return direct reference — serialized by Socket.IO before next mutation
+    return this.state;
   }
 }

@@ -1165,6 +1165,7 @@ export class Monster {
   }
 
   getState(): MonsterState {
-    return { ...this.state };
+    // Return direct reference — client only reads, no need for defensive copy
+    return this.state;
   }
 }
