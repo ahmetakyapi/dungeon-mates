@@ -1892,7 +1892,7 @@ export class GameRenderer {
     playersArr: PlayerState[],
   ): void {
     const isSimple = QUALITY_PRESETS[this.quality].fogSimple;
-    const exploredStyle = isSimple ? 'rgba(10,12,30,0.5)' : 'rgba(10,12,30,0.55)';
+    const exploredStyle = isSimple ? 'rgba(10,12,30,0.35)' : 'rgba(10,12,30,0.4)';
 
     // Batch consecutive same-state fog tiles per row into single wider fillRect calls
     for (let ty = startY; ty < endY; ty++) {
@@ -1911,12 +1911,12 @@ export class GameRenderer {
             const sx = runStart * TILE_SIZE - camX;
             const runW = (tx - runStart) * TILE_SIZE;
             if (runState === 0) {
-              ctx.fillStyle = '#060810';
+              ctx.fillStyle = '#080c18';
               ctx.fillRect(sx, sy, runW, TILE_SIZE);
             } else {
               ctx.fillStyle = exploredStyle;
               ctx.fillRect(sx, sy, runW, TILE_SIZE);
-              ctx.globalAlpha = 0.08;
+              ctx.globalAlpha = 0.1;
               ctx.fillStyle = '#1e3a5f';
               ctx.fillRect(sx, sy, runW, TILE_SIZE);
               ctx.globalAlpha = 1;
@@ -1955,7 +1955,7 @@ export class GameRenderer {
     // Check only 4 cardinal neighbors (fast path) + batch consecutive border tiles per row
     const dw = state.dungeon.width;
     const dh = state.dungeon.height;
-    ctx.globalAlpha = 0.12;
+    ctx.globalAlpha = 0.08;
     ctx.fillStyle = '#0a0c1a';
     for (let ty = startY; ty < endY; ty++) {
       const fogRow = this.fogGrid[ty];
@@ -2007,11 +2007,11 @@ export class GameRenderer {
       if (vCtx) {
         const cx = falloffSize / 2;
         const cy = falloffSize / 2;
-        const grad = vCtx.createRadialGradient(cx, cy, visionPx * 0.4, cx, cy, extendedVision);
+        const grad = vCtx.createRadialGradient(cx, cy, visionPx * 0.5, cx, cy, extendedVision);
         grad.addColorStop(0, 'rgba(0,0,0,0)');
-        grad.addColorStop(0.5, 'rgba(0,0,0,0)');
-        grad.addColorStop(0.75, 'rgba(6,8,16,0.1)');
-        grad.addColorStop(1, 'rgba(6,8,16,0.35)');
+        grad.addColorStop(0.6, 'rgba(0,0,0,0)');
+        grad.addColorStop(0.8, 'rgba(6,8,16,0.06)');
+        grad.addColorStop(1, 'rgba(6,8,16,0.2)');
         vCtx.fillStyle = grad;
         vCtx.fillRect(0, 0, falloffSize, falloffSize);
       }

@@ -2508,29 +2508,29 @@ export class SpriteRenderer {
     const variation = hash % 5;
 
     // Base stone floor
-    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#1a1a2e');
+    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#28284a');
 
     // Subtle grid lines (mortar)
-    ctx.fillStyle = '#22223a';
+    ctx.fillStyle = '#323250';
     ctx.fillRect(x + TILE_SIZE - 1, y, 1, TILE_SIZE);
     ctx.fillRect(x, y + TILE_SIZE - 1, TILE_SIZE, 1);
 
     // Stone tile variation (5 types)
     if (variation === 0) {
       // Clean stone - subtle color difference
-      px(ctx, x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2, '#1c1c32');
+      px(ctx, x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2, '#2c2c4e');
     } else if (variation === 1) {
       // Cracked stone with deeper cracks
-      px(ctx, x + 3, y + 5, 1, 4, '#141424');
-      px(ctx, x + 4, y + 8, 1, 3, '#141424');
-      px(ctx, x + 5, y + 10, 1, 2, '#141424');
+      px(ctx, x + 3, y + 5, 1, 4, '#1e1e38');
+      px(ctx, x + 4, y + 8, 1, 3, '#1e1e38');
+      px(ctx, x + 5, y + 10, 1, 2, '#1e1e38');
       // Deeper crack branching
-      px(ctx, x + 2, y + 6, 1, 1, '#0f0f1e');
-      px(ctx, x + 4, y + 9, 1, 1, '#0f0f1e');
-      px(ctx, x + 6, y + 11, 1, 1, '#141424');
+      px(ctx, x + 2, y + 6, 1, 1, '#181830');
+      px(ctx, x + 4, y + 9, 1, 1, '#181830');
+      px(ctx, x + 6, y + 11, 1, 1, '#1e1e38');
       // Secondary crack
-      px(ctx, x + 9, y + 3, 1, 3, '#141424');
-      px(ctx, x + 10, y + 5, 1, 2, '#0f0f1e');
+      px(ctx, x + 9, y + 3, 1, 3, '#1e1e38');
+      px(ctx, x + 10, y + 5, 1, 2, '#181830');
     } else if (variation === 2) {
       // Moss with small mushroom growth
       px(ctx, x + 10, y + 3, 2, 1, '#1e3a1e');
@@ -2559,9 +2559,9 @@ export class SpriteRenderer {
       ctx.globalAlpha = 1;
     } else {
       // Stone with water puddle (reflective blue-gray, animated shimmer)
-      px(ctx, x + 4, y + 5, 7, 5, '#1a2030');
-      px(ctx, x + 5, y + 4, 5, 1, '#1a2030');
-      px(ctx, x + 5, y + 10, 5, 1, '#1a2030');
+      px(ctx, x + 4, y + 5, 7, 5, '#243048');
+      px(ctx, x + 5, y + 4, 5, 1, '#243048');
+      px(ctx, x + 5, y + 10, 5, 1, '#243048');
       // Reflective shimmer (using hash-based pseudo-animation since we don't have frame here)
       const shimmerOffset = (hash >> 6) % 4;
       ctx.globalAlpha = 0.15;
@@ -2574,19 +2574,19 @@ export class SpriteRenderer {
 
     // Occasional small stone detail
     if ((hash >> 8) % 5 === 0) {
-      px(ctx, x + 7, y + 7, 2, 2, '#1e1e36');
+      px(ctx, x + 7, y + 7, 2, 2, '#2e2e4e');
     }
   }
 
   private drawWallTile(ctx: CanvasRenderingContext2D, x: number, y: number, hash: number): void {
     // Base wall
-    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#2d1b69');
+    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#3a2580');
 
     // Top slightly lighter (implied light from above)
-    px(ctx, x, y, TILE_SIZE, 3, '#3d2b79');
+    px(ctx, x, y, TILE_SIZE, 3, '#4a3590');
 
     // Proper brick pattern with mortar lines
-    const mortarColor = '#1e1245';
+    const mortarColor = '#261658';
     // Horizontal mortar lines
     ctx.fillStyle = mortarColor;
     ctx.fillRect(x, y + 4, TILE_SIZE, 1);
@@ -2605,33 +2605,33 @@ export class SpriteRenderer {
     const brickVar1 = ((hash >> 2) % 3);
     const brickVar2 = ((hash >> 5) % 3);
     if (brickVar1 === 0) {
-      px(ctx, x + 1, y + 1, 3, 3, '#321d72');
+      px(ctx, x + 1, y + 1, 3, 3, '#3e2888');
     } else if (brickVar1 === 1) {
-      px(ctx, x + 5, y + 1, 6, 3, '#291760');
+      px(ctx, x + 5, y + 1, 6, 3, '#342075');
     }
     if (brickVar2 === 0) {
-      px(ctx, x + 1, y + 5, 7, 4, '#2a1865');
+      px(ctx, x + 1, y + 5, 7, 4, '#35217a');
     } else if (brickVar2 === 2) {
-      px(ctx, x + 9, y + 5, 6, 4, '#331f75');
+      px(ctx, x + 9, y + 5, 6, 4, '#40288c');
     }
     // More brick variation in lower rows
     if (((hash >> 7) % 2) === 0) {
-      px(ctx, x + 5, y + 10, 6, 4, '#2a1865');
+      px(ctx, x + 5, y + 10, 6, 4, '#35217a');
     }
 
     // Brick highlights (subtle)
-    px(ctx, x + 1, y + 1, 2, 1, '#352070');
-    px(ctx, x + 6, y + 6, 2, 1, '#352070');
-    px(ctx, x + 1, y + 11, 2, 1, '#352070');
-    px(ctx, x + 9, y + 1, 2, 1, '#352070');
-    px(ctx, x + 13, y + 11, 2, 1, '#352070');
+    px(ctx, x + 1, y + 1, 2, 1, '#452d90');
+    px(ctx, x + 6, y + 6, 2, 1, '#452d90');
+    px(ctx, x + 1, y + 11, 2, 1, '#452d90');
+    px(ctx, x + 9, y + 1, 2, 1, '#452d90');
+    px(ctx, x + 13, y + 11, 2, 1, '#452d90');
 
     // Darker border edges
-    ctx.fillStyle = '#1e1245';
+    ctx.fillStyle = '#261658';
     ctx.fillRect(x, y, TILE_SIZE, 1); // top
     ctx.fillRect(x, y, 1, TILE_SIZE); // left
 
-    ctx.fillStyle = '#3d2b79';
+    ctx.fillStyle = '#4a3590';
     ctx.fillRect(x, y + TILE_SIZE - 1, TILE_SIZE, 1); // bottom highlight
     ctx.fillRect(x + TILE_SIZE - 1, y, 1, TILE_SIZE); // right highlight
 
