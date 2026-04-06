@@ -398,9 +398,11 @@ export function useGameSocket(): UseGameSocketReturn {
     document.addEventListener('visibilitychange', handleVisibility);
 
     // Periodic cleanup: remove damage events older than 150ms
+    // Uses a smarter interval that only runs when there are events to clean
     damageCleanupRef.current = setInterval(() => {
-      const cutoff = Date.now() - 150;
       setDamageEvents((prev) => {
+        if (prev.length === 0) return prev; // Skip work when empty
+        const cutoff = Date.now() - 150;
         const filtered = prev.filter((e) => (e._ts ?? 0) > cutoff);
         return filtered.length === prev.length ? prev : filtered;
       });
