@@ -46,6 +46,9 @@ type CacheKey = string;
 const SPRITE_CACHE_MAX = 256;
 const spriteCache = new Map<CacheKey, HTMLCanvasElement>();
 
+// Separate tile cache — tiles are static per floor so no LRU needed (cleared on floor change)
+const tileCache = new Map<string, HTMLCanvasElement>();
+
 const getCachedSprite = (
   key: CacheKey,
   width: number,
@@ -2488,14 +2491,29 @@ export class SpriteRenderer {
     // Use tile position for deterministic variation
     const hash = tileHash(Math.floor(x / TILE_SIZE + 1000), Math.floor(y / TILE_SIZE + 1000));
 
-    switch (type) {
-      case 'floor': this.drawFloorTile(ctx, x, y, hash); break;
-      case 'wall': this.drawWallTile(ctx, x, y, hash); break;
-      case 'door': this.drawDoorTile(ctx, x, y, roomCleared); break;
-      case 'stairs': this.drawStairsTile(ctx, x, y); break;
-      case 'chest': this.drawChestTile(ctx, x, y, roomCleared); break;
-      case 'void': px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#000000'); break;
+    // Cache each tile as an offscreen canvas — tiles are fully deterministic per hash
+    // Use only bits that affect visual output (bits 0-10 cover all tile drawing branches)
+    const reducedHash = hash & 0x7ff;
+    const cacheKey = `tile_${type}_${reducedHash}_${roomCleared ? 1 : 0}`;
+    let cached = tileCache.get(cacheKey);
+    if (!cached) {
+      cached = document.createElement('canvas');
+      cached.width = TILE_SIZE;
+      cached.height = TILE_SIZE;
+      const sprCtx = cached.getContext('2d');
+      if (sprCtx) {
+        switch (type) {
+          case 'floor': this.drawFloorTile(sprCtx, 0, 0, hash); break;
+          case 'wall': this.drawWallTile(sprCtx, 0, 0, hash); break;
+          case 'door': this.drawDoorTile(sprCtx, 0, 0, roomCleared); break;
+          case 'stairs': this.drawStairsTile(sprCtx, 0, 0); break;
+          case 'chest': this.drawChestTile(sprCtx, 0, 0, roomCleared); break;
+          case 'void': px(sprCtx, 0, 0, TILE_SIZE, TILE_SIZE, '#000000'); break;
+        }
+      }
+      tileCache.set(cacheKey, cached);
     }
+    ctx.drawImage(cached, Math.floor(x), Math.floor(y));
   }
 
   private drawFloorTile(ctx: CanvasRenderingContext2D, x: number, y: number, hash: number): void {
