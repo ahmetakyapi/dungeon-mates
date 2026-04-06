@@ -469,18 +469,18 @@ const MinimapRoom = memo(function MinimapRoom({
   let cssClass = '';
 
   if (isCurrent) {
-    fill = '#fbbf24';
-    opacity = 0.95;
-  } else if (room.cleared) {
-    fill = '#4ade80';
-    opacity = 0.7;
-  } else if (room.isBossRoom) {
-    fill = '#ef4444';
+    fill = '#f59e0b';
     opacity = 0.85;
+  } else if (room.cleared) {
+    fill = '#22c55e';
+    opacity = 0.5;
+  } else if (room.isBossRoom) {
+    fill = '#dc2626';
+    opacity = 0.7;
     cssClass = 'minimap-boss-glow';
   } else {
-    fill = '#f87171';
-    opacity = 0.7;
+    fill = '#b91c1c';
+    opacity = 0.5;
     cssClass = 'minimap-danger-pulse';
   }
 
@@ -503,11 +503,11 @@ const MinimapRoom = memo(function MinimapRoom({
         <rect
           x={rx - 0.3}
           y={ry - 0.3}
-          width={room.width + 0.8}
-          height={room.height + 0.8}
+          width={room.width + 0.6}
+          height={room.height + 0.6}
           fill="none"
-          stroke="#fde68a"
-          strokeWidth={1.0}
+          stroke="#fbbf24"
+          strokeWidth={0.8}
           rx={1.2}
           className="minimap-current-border"
         />
@@ -710,7 +710,7 @@ function Minimap({
         </span>
       </div>
       <motion.div
-        className="relative overflow-hidden rounded border border-zinc-700/60 bg-zinc-900/90"
+        className="relative overflow-hidden rounded border border-zinc-800/60 bg-zinc-950"
         animate={{
           width: isMobile ? mobileSize : size,
           height: isMobile ? mobileSize : size,
@@ -762,10 +762,10 @@ function Minimap({
               y1={c.y1 - bounds.minY}
               x2={c.x2 - bounds.minX}
               y2={c.y2 - bounds.minY}
-              stroke="#9ca3af"
-              strokeWidth={0.7}
+              stroke="#4b5563"
+              strokeWidth={0.6}
               strokeDasharray="1 0.5"
-              opacity={0.7}
+              opacity={0.6}
             />
           ))}
 
@@ -1546,7 +1546,7 @@ export function HUD({ player, gameState, fps, showFps = false, attackCooldownPct
             localPlayerId={player.id}
             tiles={gameState.dungeon.tiles}
             currentFloor={gameState.dungeon.currentFloor}
-            maxFloors={10}
+            maxFloors={5}
           />
         </div>
       ) : (
@@ -1560,7 +1560,7 @@ export function HUD({ player, gameState, fps, showFps = false, attackCooldownPct
             localPlayerId={player.id}
             tiles={gameState.dungeon.tiles}
             currentFloor={gameState.dungeon.currentFloor}
-            maxFloors={10}
+            maxFloors={5}
           />
         </div>
       )}
