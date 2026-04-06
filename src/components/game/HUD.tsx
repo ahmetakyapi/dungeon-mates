@@ -469,24 +469,24 @@ const MinimapRoom = memo(function MinimapRoom({
   let cssClass = '';
 
   if (isCurrent) {
-    fill = '#f59e0b';
-    opacity = 0.85;
+    fill = '#fbbf24';
+    opacity = 1;
   } else if (room.cleared) {
-    fill = '#22c55e';
-    opacity = 0.5;
+    fill = '#4ade80';
+    opacity = 0.85;
   } else if (room.isBossRoom) {
-    fill = '#dc2626';
-    opacity = 0.7;
+    fill = '#ef4444';
+    opacity = 1;
     cssClass = 'minimap-boss-glow';
   } else {
-    fill = '#b91c1c';
-    opacity = 0.5;
+    fill = '#a78bfa';
+    opacity = 0.85;
     cssClass = 'minimap-danger-pulse';
   }
 
   return (
     <g>
-      {/* Room background */}
+      {/* Room background with border */}
       <rect
         x={rx}
         y={ry}
@@ -494,7 +494,9 @@ const MinimapRoom = memo(function MinimapRoom({
         height={room.height}
         fill={fill}
         opacity={opacity}
-        rx={1}
+        stroke="#d1d5db"
+        strokeWidth={0.5}
+        rx={0.5}
         className={cssClass}
       />
 
@@ -632,8 +634,8 @@ function Minimap({
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  const sizeByTier = [120, 130, 150, 170, 190] as const;
-  const expandedSizeByTier = [180, 220, 250, 280, 310] as const;
+  const sizeByTier = [130, 140, 160, 180, 200] as const;
+  const expandedSizeByTier = [190, 230, 260, 290, 320] as const;
   const size = expanded ? expandedSizeByTier[screenTier] : sizeByTier[screenTier];
   const mobileSize = expanded ? 200 : 105;
 
@@ -710,7 +712,7 @@ function Minimap({
         </span>
       </div>
       <motion.div
-        className="relative overflow-hidden rounded border border-zinc-800/60 bg-zinc-950"
+        className="relative overflow-hidden rounded border border-zinc-600/70 bg-zinc-900"
         animate={{
           width: isMobile ? mobileSize : size,
           height: isMobile ? mobileSize : size,
@@ -762,10 +764,10 @@ function Minimap({
               y1={c.y1 - bounds.minY}
               x2={c.x2 - bounds.minX}
               y2={c.y2 - bounds.minY}
-              stroke="#4b5563"
-              strokeWidth={0.6}
-              strokeDasharray="1 0.5"
-              opacity={0.6}
+              stroke="#9ca3af"
+              strokeWidth={0.7}
+              strokeDasharray="1.5 0.5"
+              opacity={0.7}
             />
           ))}
 
@@ -1063,14 +1065,14 @@ function FloorInfo({
         <span className="text-xs sm:text-sm">🏰</span>
         <div className="flex flex-1 flex-col items-center">
           <span className="font-pixel text-[9px] text-dm-gold sm:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">
-            Kat {floor}/5
+            Kat {floor}/10
           </span>
           {/* Floor dots */}
-          <div className="mt-0.5 flex items-center gap-1">
-            {Array.from({ length: 5 }).map((_, i) => (
+          <div className="mt-0.5 flex items-center gap-0.5">
+            {Array.from({ length: 10 }).map((_, i) => (
               <motion.div
                 key={i}
-                className="h-1.5 w-1.5 rounded-full sm:h-2 sm:w-2"
+                className="h-1 w-1 rounded-full sm:h-1.5 sm:w-1.5"
                 style={{
                   backgroundColor: i < floor ? '#f59e0b' : i === floor - 1 ? '#f59e0b' : '#3f3f46',
                 }}
@@ -1546,7 +1548,7 @@ export function HUD({ player, gameState, fps, showFps = false, attackCooldownPct
             localPlayerId={player.id}
             tiles={gameState.dungeon.tiles}
             currentFloor={gameState.dungeon.currentFloor}
-            maxFloors={5}
+            maxFloors={10}
           />
         </div>
       ) : (
@@ -1560,7 +1562,7 @@ export function HUD({ player, gameState, fps, showFps = false, attackCooldownPct
             localPlayerId={player.id}
             tiles={gameState.dungeon.tiles}
             currentFloor={gameState.dungeon.currentFloor}
-            maxFloors={5}
+            maxFloors={10}
           />
         </div>
       )}
