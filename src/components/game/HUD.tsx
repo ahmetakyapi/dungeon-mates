@@ -470,33 +470,43 @@ const MinimapRoom = memo(function MinimapRoom({
 
   if (isCurrent) {
     fill = '#fbbf24';
-    opacity = 1;
+    opacity = 0.95;
   } else if (room.cleared) {
     fill = '#4ade80';
-    opacity = 0.9;
+    opacity = 0.7;
   } else if (room.isBossRoom) {
     fill = '#ef4444';
-    opacity = 1;
+    opacity = 0.85;
     cssClass = 'minimap-boss-glow';
   } else {
-    fill = '#a78bfa';
-    opacity = 0.9;
+    fill = '#f87171';
+    opacity = 0.7;
     cssClass = 'minimap-danger-pulse';
   }
 
   return (
     <g>
-      {/* Room background with border */}
+      {/* Room outline */}
       <rect
         x={rx}
         y={ry}
         width={room.width}
         height={room.height}
+        fill="none"
+        stroke="#9ca3af"
+        strokeWidth={0.5}
+        opacity={0.4}
+        rx={1}
+      />
+      {/* Room background */}
+      <rect
+        x={rx + 0.3}
+        y={ry + 0.3}
+        width={room.width - 0.6}
+        height={room.height - 0.6}
         fill={fill}
         opacity={opacity}
-        stroke="#e5e7eb"
-        strokeWidth={0.6}
-        rx={0.5}
+        rx={0.8}
         className={cssClass}
       />
 
@@ -634,8 +644,8 @@ function Minimap({
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  const sizeByTier = [140, 150, 170, 190, 210] as const;
-  const expandedSizeByTier = [200, 240, 270, 300, 330] as const;
+  const sizeByTier = [120, 130, 150, 170, 190] as const;
+  const expandedSizeByTier = [180, 220, 250, 280, 310] as const;
   const size = expanded ? expandedSizeByTier[screenTier] : sizeByTier[screenTier];
   const mobileSize = expanded ? 200 : 105;
 
@@ -712,7 +722,7 @@ function Minimap({
         </span>
       </div>
       <motion.div
-        className="relative overflow-hidden rounded border border-zinc-600/80 bg-zinc-800"
+        className="relative overflow-hidden rounded border border-zinc-700/60 bg-zinc-900/90"
         animate={{
           width: isMobile ? mobileSize : size,
           height: isMobile ? mobileSize : size,
@@ -764,10 +774,10 @@ function Minimap({
               y1={c.y1 - bounds.minY}
               x2={c.x2 - bounds.minX}
               y2={c.y2 - bounds.minY}
-              stroke="#d1d5db"
-              strokeWidth={0.8}
-              strokeDasharray="1.5 0.5"
-              opacity={0.8}
+              stroke="#9ca3af"
+              strokeWidth={0.7}
+              strokeDasharray="1 0.5"
+              opacity={0.7}
             />
           ))}
 
