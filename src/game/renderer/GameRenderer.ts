@@ -140,8 +140,13 @@ export class GameRenderer {
   // Pre-created radial gradient canvas for fog (avoids creating gradients per-frame)
   private fogGradientCanvas: HTMLCanvasElement | null = null;
 
-  // Environmental decorations
+  // Pre-rendered vision falloff canvas (avoids createRadialGradient per player per frame)
+  private visionFalloffCanvas: HTMLCanvasElement | null = null;
+  private visionFalloffRadius = -1;
+
+  // Environmental decorations (bloodSplatters uses circular buffer)
   private bloodSplatters: Array<{ x: number; y: number }> = [];
+  private bloodSplatterIdx = 0;
   private boneFragments: Array<{ x: number; y: number; seed: number }> = [];
   private cobwebPositions: Array<{ x: number; y: number; corner: number }> = [];
   private floorCracks: Array<{ x: number; y: number; seed: number }> = [];
@@ -755,12 +760,14 @@ export class GameRenderer {
   /** Render heat distortion for boss room (subtle horizontal scanline shift) */
   private renderHeatDistortion(ctx: CanvasRenderingContext2D, time: number): void {
     // Very subtle: shift a few scanlines horizontally by 1px based on sine wave
+    // Step size adapts to quality: fewer drawImage calls on lower quality
     const w = this.logicalWidth;
     const h = this.logicalHeight;
+    const step = this.quality === 'high' ? 6 : 10;
     ctx.globalAlpha = 0.04;
-    for (let y = 0; y < h; y += 4) {
+    for (let y = 0; y < h; y += step) {
       const shift = Math.sin(time * 2 + y * 0.15) * 1.5;
-      ctx.drawImage(this.offscreen, 0, y, w, 2, shift, y, w, 2);
+      ctx.drawImage(this.offscreen, 0, y, w, 3, shift, y, w, 3);
     }
     ctx.globalAlpha = 1;
   }
@@ -770,9 +777,12 @@ export class GameRenderer {
   /** Public: add blood splatter when a monster dies (call from game logic) */
   addBloodSplatter(worldX: number, worldY: number): void {
     if (this.bloodSplatters.length >= 50) {
-      this.bloodSplatters.shift();
+      // Overwrite oldest entry instead of shift() — O(1) vs O(n)
+      this.bloodSplatters[this.bloodSplatterIdx] = { x: worldX, y: worldY };
+      this.bloodSplatterIdx = (this.bloodSplatterIdx + 1) % 50;
+    } else {
+      this.bloodSplatters.push({ x: worldX, y: worldY });
     }
-    this.bloodSplatters.push({ x: worldX, y: worldY });
   }
 
   /** Trigger loot pickup screen flash */
@@ -1966,23 +1976,38 @@ export class GameRenderer {
     }
 
     // Radial gradient overlay centered on each player for smooth vision falloff
+    // Use pre-rendered canvas instead of createRadialGradient per player per frame
+    const visionPx = this.currentVisionRadius * TILE_SIZE;
+    const extendedVision = visionPx * 1.2;
+    const falloffSize = Math.ceil(extendedVision * 2);
+
+    // Rebuild vision falloff canvas if radius changed
+    if (!this.visionFalloffCanvas || this.visionFalloffRadius !== falloffSize) {
+      this.visionFalloffRadius = falloffSize;
+      this.visionFalloffCanvas = document.createElement('canvas');
+      this.visionFalloffCanvas.width = falloffSize;
+      this.visionFalloffCanvas.height = falloffSize;
+      const vCtx = this.visionFalloffCanvas.getContext('2d');
+      if (vCtx) {
+        const cx = falloffSize / 2;
+        const cy = falloffSize / 2;
+        const grad = vCtx.createRadialGradient(cx, cy, visionPx * 0.4, cx, cy, extendedVision);
+        grad.addColorStop(0, 'rgba(0,0,0,0)');
+        grad.addColorStop(0.5, 'rgba(0,0,0,0)');
+        grad.addColorStop(0.75, 'rgba(6,8,16,0.1)');
+        grad.addColorStop(1, 'rgba(6,8,16,0.35)');
+        vCtx.fillStyle = grad;
+        vCtx.fillRect(0, 0, falloffSize, falloffSize);
+      }
+    }
+
     for (let i = 0; i < playersArr.length; i++) {
       const p = playersArr[i];
       if (!p.alive) continue;
 
       const pcx = p.position.x * TILE_SIZE + TILE_SIZE / 2 - camX;
       const pcy = p.position.y * TILE_SIZE + TILE_SIZE / 2 - camY;
-      const visionPx = this.currentVisionRadius * TILE_SIZE;
-
-      // Create a radial gradient that darkens at the edges of vision (larger, softer falloff)
-      const extendedVision = visionPx * 1.2;
-      const grad = ctx.createRadialGradient(pcx, pcy, visionPx * 0.4, pcx, pcy, extendedVision);
-      grad.addColorStop(0, 'rgba(0,0,0,0)');
-      grad.addColorStop(0.5, 'rgba(0,0,0,0)');
-      grad.addColorStop(0.75, 'rgba(6,8,16,0.1)');
-      grad.addColorStop(1, 'rgba(6,8,16,0.35)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(pcx - extendedVision, pcy - extendedVision, extendedVision * 2, extendedVision * 2);
+      ctx.drawImage(this.visionFalloffCanvas, pcx - extendedVision, pcy - extendedVision);
     }
   }
 
@@ -2183,6 +2208,7 @@ export class GameRenderer {
     this.fogCacheCanvas = null;
     this.fogCacheCtx = null;
     this.fogGradientCanvas = null;
+    this.visionFalloffCanvas = null;
     this.grainCanvas = null;
     this.fogNoiseCanvas = null;
     this.torchPositions = [];

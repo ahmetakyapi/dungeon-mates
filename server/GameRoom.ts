@@ -175,6 +175,7 @@ export class GameRoom {
   // Reusable buffers to avoid per-tick allocations
   private readonly _roomCountsMap = new Map<number, number>();
   private readonly _monsterTargetsBuf: Array<{ position: { x: number; y: number }; alive: boolean }> = [];
+  private readonly _alivePlayersBuf: Array<{ id: string; position: Vec2; alive: boolean }> = [];
 
   // Damage event batch buffer — accumulated per tick, flushed at end
   private readonly _damageBatch: Array<{ targetId: string; damage: number; sourceId: string }> = [];
@@ -691,12 +692,19 @@ export class GameRoom {
       }
     }
 
-    // Build monster target list for auto-aim (reuse array, avoid spread/map)
+    // Build monster target list for auto-aim (reuse array, reference state directly)
     const monsterTargets = this._monsterTargetsBuf;
-    monsterTargets.length = 0;
+    let mtIdx = 0;
     for (const m of this.monsters.values()) {
-      monsterTargets.push({ position: m.state.position, alive: m.state.alive });
+      if (mtIdx < monsterTargets.length) {
+        monsterTargets[mtIdx].position = m.state.position;
+        monsterTargets[mtIdx].alive = m.state.alive;
+      } else {
+        monsterTargets.push({ position: m.state.position, alive: m.state.alive });
+      }
+      mtIdx++;
     }
+    monsterTargets.length = mtIdx;
 
     // Process player inputs
     for (const [socketId, player] of this.players) {
@@ -770,10 +778,14 @@ export class GameRoom {
       }
     }
 
-    // Update monsters (only in active rooms)
-    const alivePlayers = Array.from(this.players.values())
-      .filter((p) => p.state.alive)
-      .map((p) => ({ id: p.state.id, position: p.state.position, alive: p.state.alive }));
+    // Update monsters (only in active rooms) — reuse buffer to avoid 3 array allocations per tick
+    const alivePlayers = this._alivePlayersBuf;
+    alivePlayers.length = 0;
+    for (const p of this.players.values()) {
+      if (p.state.alive) {
+        alivePlayers.push({ id: p.state.id, position: p.state.position, alive: true });
+      }
+    }
 
     for (const [monsterId, monster] of this.monsters) {
       if (!monster.state.alive) continue;
