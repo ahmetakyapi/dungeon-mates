@@ -486,27 +486,15 @@ const MinimapRoom = memo(function MinimapRoom({
 
   return (
     <g>
-      {/* Room outline */}
+      {/* Room background */}
       <rect
         x={rx}
         y={ry}
         width={room.width}
         height={room.height}
-        fill="none"
-        stroke="#9ca3af"
-        strokeWidth={0.5}
-        opacity={0.4}
-        rx={1}
-      />
-      {/* Room background */}
-      <rect
-        x={rx + 0.3}
-        y={ry + 0.3}
-        width={room.width - 0.6}
-        height={room.height - 0.6}
         fill={fill}
         opacity={opacity}
-        rx={0.8}
+        rx={1}
         className={cssClass}
       />
 
@@ -1075,14 +1063,14 @@ function FloorInfo({
         <span className="text-xs sm:text-sm">🏰</span>
         <div className="flex flex-1 flex-col items-center">
           <span className="font-pixel text-[9px] text-dm-gold sm:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">
-            Kat {floor}/10
+            Kat {floor}/5
           </span>
           {/* Floor dots */}
-          <div className="mt-0.5 flex items-center gap-0.5">
-            {Array.from({ length: 10 }).map((_, i) => (
+          <div className="mt-0.5 flex items-center gap-1">
+            {Array.from({ length: 5 }).map((_, i) => (
               <motion.div
                 key={i}
-                className="h-1 w-1 rounded-full sm:h-1.5 sm:w-1.5"
+                className="h-1.5 w-1.5 rounded-full sm:h-2 sm:w-2"
                 style={{
                   backgroundColor: i < floor ? '#f59e0b' : i === floor - 1 ? '#f59e0b' : '#3f3f46',
                 }}
