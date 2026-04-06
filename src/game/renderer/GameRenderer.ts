@@ -1227,14 +1227,15 @@ export class GameRenderer {
     endY: number,
   ): void {
     const tiles = state.dungeon.tiles;
-    // Reuse Set instance to avoid per-frame allocation
-    const clearedRooms = this._clearedRoomsSet;
-    clearedRooms.clear();
-    for (const room of state.dungeon.rooms) {
-      if (room.cleared) clearedRooms.add(room.id);
+    // Check if current room is cleared (avoid .find() per frame)
+    const rooms = state.dungeon.rooms;
+    let roomCleared = false;
+    for (let i = 0; i < rooms.length; i++) {
+      if (rooms[i].id === state.currentRoomId) {
+        roomCleared = rooms[i].cleared;
+        break;
+      }
     }
-    const currentRoom = state.dungeon.rooms.find(r => r.id === state.currentRoomId);
-    const roomCleared = currentRoom ? currentRoom.cleared : false;
 
     for (let ty = startY; ty < endY; ty++) {
       const row = tiles[ty];
@@ -1287,13 +1288,14 @@ export class GameRenderer {
 
         const dx = ppx - (tx + 0.5);
         const dy = ppy - (ty + 0.5);
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist > HIGHLIGHT_RADIUS) continue;
+        const distSq = dx * dx + dy * dy;
+        if (distSq > HIGHLIGHT_RADIUS * HIGHLIGHT_RADIUS) continue;
 
         const sx = tx * TILE_SIZE - camX;
         const sy = ty * TILE_SIZE - camY;
 
-        // Distance-based alpha falloff
+        // Distance-based alpha falloff (sqrt only for visible interactables — few per frame)
+        const dist = Math.sqrt(distSq);
         const distAlpha = 1 - (dist / HIGHLIGHT_RADIUS);
         const alpha = pulse * distAlpha;
 
@@ -2115,7 +2117,7 @@ export class GameRenderer {
         // Add blood splatter at death location
         this.addBloodSplatter(wx, wy);
         // Boss death = big shake
-        if (m.type === 'boss_demon') {
+        if (m.type.startsWith('boss_')) {
           this.camera.shakeBossSlam();
           this.triggerScreenFlash('#ffffff', 0.7);
           this.freezeFrame(80);

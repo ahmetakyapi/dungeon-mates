@@ -180,6 +180,10 @@ export class GameRoom {
   // Damage event batch buffer — accumulated per tick, flushed at end
   private readonly _damageBatch: Array<{ targetId: string; damage: number; sourceId: string }> = [];
 
+  // Reusable removal buffers (avoids allocation per tick)
+  private readonly _projRemoveBuf: string[] = [];
+  private readonly _lootRemoveBuf: string[] = [];
+
   // Spatial lookup: tileRoomGrid[y][x] = roomId (-1 = no room) — built once per floor
   private tileRoomGrid: Int16Array[] = [];
 
@@ -934,7 +938,8 @@ export class GameRoom {
     }
 
     // Update projectiles
-    const projectilesToRemove: string[] = [];
+    const projectilesToRemove = this._projRemoveBuf;
+    projectilesToRemove.length = 0;
 
     for (const [projId, projectile] of this.projectiles) {
       const alive = projectile.update(this.tiles);
@@ -1022,7 +1027,8 @@ export class GameRoom {
     }
 
     // Loot pickup
-    const lootToRemove: string[] = [];
+    const lootToRemove = this._lootRemoveBuf;
+    lootToRemove.length = 0;
     for (const [lootId, lootItem] of this.loot) {
       for (const player of this.players.values()) {
         if (player.tryPickupLoot(lootItem)) {
