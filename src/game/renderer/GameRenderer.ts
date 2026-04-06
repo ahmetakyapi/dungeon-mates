@@ -125,9 +125,6 @@ export class GameRenderer {
   private redVignetteCanvas: HTMLCanvasElement | null = null;
   private lastRedVignetteIntensity = -1;
 
-  // Reusable Set for cleared rooms (avoid new Set() every frame in renderTiles)
-  private readonly _clearedRoomsSet = new Set<number>();
-
   // Cleanup counter to avoid checking prevHp/prevEntityPositions every frame
   private entityCleanupCounter = 0;
 
@@ -343,9 +340,14 @@ export class GameRenderer {
     const frameStart = now;
 
     // Update vision radius based on darkness modifier
-    this.currentVisionRadius = (state.currentFloorModifiers ?? []).some(m => m.id === 'darkness')
-      ? VISION_RADIUS_DARKNESS
-      : VISION_RADIUS;
+    let hasDarkness = false;
+    const mods = state.currentFloorModifiers;
+    if (mods) {
+      for (let i = 0; i < mods.length; i++) {
+        if (mods[i].id === 'darkness') { hasDarkness = true; break; }
+      }
+    }
+    this.currentVisionRadius = hasDarkness ? VISION_RADIUS_DARKNESS : VISION_RADIUS;
 
     // Cache Object.values() once per frame to avoid repeated array allocations
     const monstersArr = Object.values(state.monsters);
