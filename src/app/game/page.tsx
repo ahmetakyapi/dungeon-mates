@@ -238,7 +238,12 @@ function GamePage() {
   // Track monster kills per floor
   useEffect(() => {
     if (!gameState) return;
-    const currentMonsterCount = Object.values(gameState.monsters).filter(m => m.alive).length;
+    // Count alive monsters without allocating intermediate arrays
+    let currentMonsterCount = 0;
+    const monstersObj = gameState.monsters;
+    for (const id in monstersObj) {
+      if (monstersObj[id].alive) currentMonsterCount++;
+    }
     if (prevMonsterCountRef.current > 0 && currentMonsterCount < prevMonsterCountRef.current) {
       floorKillsRef.current += prevMonsterCountRef.current - currentMonsterCount;
     }

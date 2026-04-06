@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { PlayerState, GameState, DungeonRoom, PlayerClass, MonsterState, TileType, FloorModifier } from '../../../shared/types';
 import { CLASS_STATS, DIFFICULTY_INFO, xpForLevel, totalXpForLevel } from '../../../shared/types';
@@ -441,7 +441,7 @@ function useRoomHasLoot(rooms: DungeonRoom[], loot: Record<string, { position: {
   }, [rooms, loot]);
 }
 
-function MinimapRoom({
+const MinimapRoom = memo(function MinimapRoom({
   room,
   isCurrent,
   monsterCount,
@@ -546,7 +546,7 @@ function MinimapRoom({
       )}
     </g>
   );
-}
+});
 
 function MinimapStairs({ sx, sy, bx, by }: { sx: number; sy: number; bx: number; by: number }) {
   const x = sx - bx;
