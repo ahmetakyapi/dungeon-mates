@@ -7,18 +7,25 @@ import { useSound } from '@/hooks/useSound';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
+type QualityLevel = 'low' | 'medium' | 'high';
+
 type PauseMenuProps = {
   isOpen: boolean;
   isSolo: boolean;
   onResume: () => void;
   onRestart?: () => void;
   onLeave: () => void;
+  quality?: QualityLevel;
+  onQualityChange?: (quality: QualityLevel) => void;
+  showFps?: boolean;
+  onToggleFps?: () => void;
 };
 
 const MENU_ITEMS_MULTIPLAYER = [
   { key: 'resume', label: 'Devam Et', icon: '▶️', variant: 'primary' as const },
   { key: 'controls', label: 'Kontroller', icon: '🎮', variant: 'secondary' as const },
   { key: 'sound', label: 'Ses Ayarları', icon: '🔊', variant: 'secondary' as const },
+  { key: 'graphics', label: 'Grafik Ayarları', icon: '🖥️', variant: 'secondary' as const },
   { key: 'leave', label: 'Çıkış', icon: '🚪', variant: 'danger' as const },
 ] as const;
 
@@ -27,8 +34,74 @@ const MENU_ITEMS_SOLO = [
   { key: 'restart', label: 'Yeniden Başla', icon: '🔄', variant: 'gold' as const },
   { key: 'controls', label: 'Kontroller', icon: '🎮', variant: 'secondary' as const },
   { key: 'sound', label: 'Ses Ayarları', icon: '🔊', variant: 'secondary' as const },
+  { key: 'graphics', label: 'Grafik Ayarları', icon: '🖥️', variant: 'secondary' as const },
   { key: 'leave', label: 'Çıkış', icon: '🚪', variant: 'danger' as const },
 ] as const;
+
+const QUALITY_LABELS: Record<QualityLevel, string> = {
+  low: 'Düşük',
+  medium: 'Orta',
+  high: 'Yüksek',
+};
+
+function GraphicsSettings({
+  quality,
+  onQualityChange,
+  showFps,
+  onToggleFps,
+}: {
+  quality: QualityLevel;
+  onQualityChange: (q: QualityLevel) => void;
+  showFps: boolean;
+  onToggleFps: () => void;
+}) {
+  return (
+    <motion.div
+      className="mt-4 flex flex-col gap-4 rounded border border-dm-border bg-dm-bg/60 p-4"
+      initial={{ height: 0, opacity: 0 }}
+      animate={{ height: 'auto', opacity: 1 }}
+      exit={{ height: 0, opacity: 0 }}
+      transition={{ duration: 0.3, ease: EASE }}
+    >
+      {/* Quality selector */}
+      <div className="flex flex-col gap-2">
+        <span className="font-pixel text-[9px] text-dm-accent lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">Grafik Kalitesi</span>
+        <div className="flex gap-2">
+          {(['low', 'medium', 'high'] as QualityLevel[]).map((q) => (
+            <button
+              key={q}
+              onClick={() => onQualityChange(q)}
+              className={`flex-1 rounded border px-2 py-1.5 font-pixel text-[8px] transition-colors lg:text-[10px] xl:text-[11px] 2xl:text-[13px] ${
+                quality === q
+                  ? 'border-dm-accent/60 bg-dm-accent/20 text-dm-accent'
+                  : 'border-dm-border bg-dm-surface text-zinc-500 hover:border-dm-accent/30 hover:text-zinc-400'
+              }`}
+            >
+              {QUALITY_LABELS[q]}
+            </button>
+          ))}
+        </div>
+        <p className="font-pixel text-[7px] text-zinc-600 lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">
+          {quality === 'low' && 'Partiküller kapalı, basit sis, 15 FPS cap'}
+          {quality === 'medium' && 'Azaltılmış partiküller, 45 FPS cap'}
+          {quality === 'high' && 'Tüm efektler aktif, 60 FPS cap'}
+        </p>
+      </div>
+
+      {/* FPS counter toggle */}
+      <button
+        onClick={onToggleFps}
+        className={`flex items-center justify-center gap-2 rounded border px-3 py-2 font-pixel text-[9px] transition-colors lg:text-[11px] xl:text-[12px] 2xl:text-[14px] ${
+          showFps
+            ? 'border-dm-accent/40 bg-dm-accent/10 text-dm-accent'
+            : 'border-dm-border bg-dm-surface text-zinc-400 hover:border-dm-accent/30 hover:text-zinc-300'
+        }`}
+      >
+        FPS Sayacı: {showFps ? 'Açık' : 'Kapalı'}
+      </button>
+    </motion.div>
+  );
+}
 
 function ControlsInfo() {
   return (
@@ -161,9 +234,14 @@ export function PauseMenu({
   onResume,
   onRestart,
   onLeave,
+  quality = 'high',
+  onQualityChange,
+  showFps = false,
+  onToggleFps,
 }: PauseMenuProps) {
   const [showControls, setShowControls] = useState(false);
   const [showSound, setShowSound] = useState(false);
+  const [showGraphics, setShowGraphics] = useState(false);
 
   const handleAction = useCallback(
     (key: string) => {
@@ -177,10 +255,17 @@ export function PauseMenu({
         case 'controls':
           setShowControls((prev) => !prev);
           setShowSound(false);
+          setShowGraphics(false);
           break;
         case 'sound':
           setShowSound((prev) => !prev);
           setShowControls(false);
+          setShowGraphics(false);
+          break;
+        case 'graphics':
+          setShowGraphics((prev) => !prev);
+          setShowControls(false);
+          setShowSound(false);
           break;
         case 'leave':
           onLeave();
@@ -208,6 +293,7 @@ export function PauseMenu({
     if (!isOpen) {
       setShowControls(false);
       setShowSound(false);
+      setShowGraphics(false);
     }
   }, [isOpen]);
 
@@ -274,6 +360,18 @@ export function PauseMenu({
             {/* Sound settings panel */}
             <AnimatePresence>
               {showSound && <SoundSettings />}
+            </AnimatePresence>
+
+            {/* Graphics settings panel */}
+            <AnimatePresence>
+              {showGraphics && onQualityChange && onToggleFps && (
+                <GraphicsSettings
+                  quality={quality}
+                  onQualityChange={onQualityChange}
+                  showFps={showFps}
+                  onToggleFps={onToggleFps}
+                />
+              )}
             </AnimatePresence>
           </motion.div>
         </motion.div>

@@ -30,6 +30,7 @@ type UseGameLoopReturn = {
   setTouchCooldowns: (attack: number, skill: number) => void;
   setTouchInteractVisible: (visible: boolean) => void;
   setTouchPlayerHp: (hp: number, maxHp: number) => void;
+  rendererRef: React.MutableRefObject<unknown>;
 };
 
 export function useGameLoop({
@@ -326,5 +327,5 @@ export function useGameLoop({
     };
   }, [canvasRef, localPlayerId, onInput]);
 
-  return { fps, isTouchDevice, setTouchCooldowns, setTouchInteractVisible, setTouchPlayerHp };
+  return { fps, isTouchDevice, setTouchCooldowns, setTouchInteractVisible, setTouchPlayerHp, rendererRef };
 }

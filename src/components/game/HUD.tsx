@@ -1124,6 +1124,7 @@ type HUDProps = {
   player: PlayerState;
   gameState: GameState;
   fps: number;
+  showFps?: boolean;
 
   attackCooldownPct?: number;
   abilityCooldownPct?: number;
@@ -1136,7 +1137,7 @@ type HUDProps = {
   floorModifiers?: FloorModifier[];
 };
 
-export function HUD({ player, gameState, fps, attackCooldownPct = 1, abilityCooldownPct = 0, abilityActive = false, playerClass, monsterKillEvents, lootPickupEvents, isTouchDevice = false, bossDialogue, floorModifiers = [] }: HUDProps) {
+export function HUD({ player, gameState, fps, showFps = false, attackCooldownPct = 1, abilityCooldownPct = 0, abilityActive = false, playerClass, monsterKillEvents, lootPickupEvents, isTouchDevice = false, bossDialogue, floorModifiers = [] }: HUDProps) {
   const { toasts, addToast } = useToasts();
   const [killFeedEntries, setKillFeedEntries] = useState<KillFeedEntry[]>([]);
   const [hpFlash, setHpFlash] = useState(false);
@@ -1582,12 +1583,16 @@ export function HUD({ player, gameState, fps, attackCooldownPct = 1, abilityCool
       {/* Kill Feed — bottom center (hidden on touch) */}
       {!isTouchDevice && <KillFeed entries={killFeedEntries} onExpire={handleKillFeedExpire} />}
 
-      {/* FPS counter (debug) */}
-      <div className="absolute bottom-1 left-1/2 -translate-x-1/2">
-        <span className="font-pixel text-[5px] text-zinc-700 sm:text-[6px] lg:text-[7px] xl:text-[8px] 2xl:text-[10px]">
-          {fps} FPS
-        </span>
-      </div>
+      {/* FPS counter (toggled via settings) */}
+      {showFps && (
+        <div className="absolute bottom-1 left-1/2 -translate-x-1/2">
+          <span className={`font-pixel text-[7px] sm:text-[8px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px] ${
+            fps >= 50 ? 'text-green-500' : fps >= 30 ? 'text-yellow-500' : 'text-red-500'
+          }`}>
+            {fps} FPS
+          </span>
+        </div>
+      )}
 
       {/* Combo counter */}
       <AnimatePresence>

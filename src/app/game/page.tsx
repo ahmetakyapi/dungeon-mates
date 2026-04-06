@@ -135,6 +135,8 @@ function GamePage() {
   const [showLoading, setShowLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('Zindan hazırlanıyor');
   const [showPauseMenu, setShowPauseMenu] = useState(false);
+  const [graphicsQuality, setGraphicsQuality] = useState<'low' | 'medium' | 'high'>('high');
+  const [showFps, setShowFps] = useState(false);
   const [showFloorTransition, setShowFloorTransition] = useState(false);
   const [floorTransitionData, setFloorTransitionData] = useState({ completed: 1, next: 2, kills: 0, time: 0 });
   const [showStoryIntro, setShowStoryIntro] = useState(false);
@@ -164,7 +166,7 @@ function GamePage() {
     [phase, sendInput, showPauseMenu],
   );
 
-  const { fps, isTouchDevice, setTouchCooldowns, setTouchInteractVisible, setTouchPlayerHp } = useGameLoop({
+  const { fps, isTouchDevice, setTouchCooldowns, setTouchInteractVisible, setTouchPlayerHp, rendererRef } = useGameLoop({
     canvasRef,
     gameState,
     localPlayerId: playerId,
@@ -555,6 +557,18 @@ function GamePage() {
     setShowPauseMenu(false);
   }, []);
 
+  const handleQualityChange = useCallback((q: 'low' | 'medium' | 'high') => {
+    setGraphicsQuality(q);
+    const renderer = rendererRef.current as { setQuality?: (q: string) => void } | null;
+    if (renderer?.setQuality) {
+      renderer.setQuality(q);
+    }
+  }, [rendererRef]);
+
+  const handleToggleFps = useCallback(() => {
+    setShowFps((prev) => !prev);
+  }, []);
+
   const handlePauseRestart = useCallback(() => {
     window.location.href = '/game?mode=solo&name=Kahraman';
   }, []);
@@ -804,6 +818,7 @@ function GamePage() {
           player={localPlayer}
           gameState={gameState}
           fps={fps}
+          showFps={showFps}
           abilityCooldownPct={abilityCooldownPct}
           abilityActive={localPlayer.abilityActive}
           playerClass={localPlayer.class}
@@ -916,6 +931,10 @@ function GamePage() {
         onResume={handlePauseResume}
         onRestart={isSolo ? handlePauseRestart : undefined}
         onLeave={handlePauseLeave}
+        quality={graphicsQuality}
+        onQualityChange={handleQualityChange}
+        showFps={showFps}
+        onToggleFps={handleToggleFps}
       />
 
       {/* Floor transition */}
