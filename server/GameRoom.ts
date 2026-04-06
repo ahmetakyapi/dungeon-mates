@@ -174,6 +174,7 @@ export class GameRoom {
 
   // Reusable buffers to avoid per-tick allocations
   private readonly _roomCountsMap = new Map<number, number>();
+  private readonly _activeRoomIds = new Set<number>();
   private readonly _monsterTargetsBuf: Array<{ position: { x: number; y: number }; alive: boolean }> = [];
   private readonly _alivePlayersBuf: Array<{ id: string; position: Vec2; alive: boolean }> = [];
 
@@ -664,7 +665,11 @@ export class GameRoom {
   }
 
   private hasModifier(id: string): boolean {
-    return this.currentFloorModifiers.some(m => m.id === id);
+    const mods = this.currentFloorModifiers;
+    for (let i = 0; i < mods.length; i++) {
+      if (mods[i].id === id) return true;
+    }
+    return false;
   }
 
   private gameTick(): void {
@@ -674,7 +679,8 @@ export class GameRoom {
     this.floorAdvancedThisTick = false;
 
     // Single-pass: determine active rooms + find most-populated room
-    const activeRoomIds = new Set<number>();
+    const activeRoomIds = this._activeRoomIds;
+    activeRoomIds.clear();
     const roomCounts = this._roomCountsMap;
     roomCounts.clear();
     for (const player of this.players.values()) {

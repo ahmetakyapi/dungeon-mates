@@ -86,19 +86,7 @@ const WALK_OFFSETS = [0, -1, 0, 1] as const;
 // --- 4-frame smooth leg alternation offsets ---
 const LEG_CYCLE = [0, 1, 2, 1] as const; // smooth stride: neutral, forward, full, back
 
-// --- Death animation state tracking ---
-type DeathAnim = {
-  entityId: string;
-  x: number;
-  y: number;
-  color: string;
-  frame: number; // 0-12: 3 red flashes (6 frames) + fade out (7 frames)
-  type: 'player' | 'monster';
-  spriteKey: string;
-};
-
 export class SpriteRenderer {
-  private readonly deathAnims: DeathAnim[] = [];
   private readonly hitFlashTimers: Map<string, number> = new Map();
 
   /** Register a hit flash for an entity (5 frames for visible feedback) */
