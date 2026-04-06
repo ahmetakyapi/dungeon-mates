@@ -356,26 +356,27 @@ export class Player {
 
   private collidesWithWall(x: number, y: number, tiles: TileType[][]): boolean {
     const r = PLAYER_RADIUS;
-    const checks = [
-      { cx: x - r, cy: y - r },
-      { cx: x + r, cy: y - r },
-      { cx: x - r, cy: y + r },
-      { cx: x + r, cy: y + r },
-    ];
+    const h = tiles.length;
+    const w = tiles[0]?.length ?? 0;
 
-    for (const check of checks) {
-      const tileX = Math.floor(check.cx);
-      const tileY = Math.floor(check.cy);
+    // Check 4 corners without allocating objects
+    const x0 = Math.floor(x - r);
+    const y0 = Math.floor(y - r);
+    const x1 = Math.floor(x + r);
+    const y1 = Math.floor(y + r);
 
-      if (tileY < 0 || tileY >= tiles.length || tileX < 0 || tileX >= tiles[0].length) {
-        return true;
-      }
+    // Early bounds check
+    if (x0 < 0 || y0 < 0 || x1 >= w || y1 >= h) return true;
 
-      const tile = tiles[tileY][tileX];
-      if (tile === 'wall' || tile === 'void') {
-        return true;
-      }
-    }
+    // Check all 4 corners inline (no array/object allocation)
+    const t00 = tiles[y0][x0];
+    if (t00 === 'wall' || t00 === 'void') return true;
+    const t10 = tiles[y0][x1];
+    if (t10 === 'wall' || t10 === 'void') return true;
+    const t01 = tiles[y1][x0];
+    if (t01 === 'wall' || t01 === 'void') return true;
+    const t11 = tiles[y1][x1];
+    if (t11 === 'wall' || t11 === 'void') return true;
 
     return false;
   }
