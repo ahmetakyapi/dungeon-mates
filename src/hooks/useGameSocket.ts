@@ -265,16 +265,19 @@ export function useGameSocket(): UseGameSocketReturn {
       }
     });
 
-    socket.on('game:damage', (data) => {
-      setDamageEvents((prev) => [
-        ...prev.slice(-19),
-        {
-          targetId: data.targetId,
-          value: data.damage,
-          type: 'damage',
-          _ts: Date.now(),
-        },
-      ]);
+    // Batched damage events (single emit per server tick instead of individual emits)
+    socket.on('game:damage_batch', (batch) => {
+      if (batch.length === 0) return;
+      const now = Date.now();
+      setDamageEvents((prev) => {
+        const newEvents = batch.map((d) => ({
+          targetId: d.targetId,
+          value: d.damage,
+          type: 'damage' as const,
+          _ts: now,
+        }));
+        return [...prev.slice(-(20 - newEvents.length)), ...newEvents];
+      });
     });
 
     socket.on('game:loot_pickup', (data) => {

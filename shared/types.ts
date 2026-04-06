@@ -461,6 +461,7 @@ export type ServerEvents = {
   'game:phase_change': (data: { phase: GamePhase }) => void;
   'game:state': (data: GameState) => void;
   'game:damage': (data: { targetId: string; damage: number; sourceId: string }) => void;
+  'game:damage_batch': (data: Array<{ targetId: string; damage: number; sourceId: string }>) => void;
   'game:loot_pickup': (data: { playerId: string; loot: LootState }) => void;
   'game:monster_killed': (data: { monsterId: string; killerId: string; xp: number }) => void;
   'game:player_died': (data: { playerId: string }) => void;

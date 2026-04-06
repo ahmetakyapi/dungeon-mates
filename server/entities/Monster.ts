@@ -300,6 +300,10 @@ export class Monster {
     return r;
   }
 
+  // Wall-stuck counter for simple obstacle avoidance
+  private wallStuckTicks = 0;
+  private wallSlideDir = 0; // -1 or 1 for perpendicular slide direction
+
   private moveToward(target: Vec2, speed: number, tiles: TileType[][]): void {
     const dx = target.x - this.state.position.x;
     const dy = target.y - this.state.position.y;
@@ -308,10 +312,43 @@ export class Monster {
     if (dist < 0.01) return;
 
     const effectiveSpeed = speed * this.slowMultiplier * this.floorSpeedMultiplier;
-    const vx = (dx / dist) * effectiveSpeed / TICK_RATE;
-    const vy = (dy / dist) * effectiveSpeed / TICK_RATE;
+    const ndx = dx / dist;
+    const ndy = dy / dist;
+    let vx = ndx * effectiveSpeed / TICK_RATE;
+    let vy = ndy * effectiveSpeed / TICK_RATE;
+
+    const prevX = this.state.position.x;
+    const prevY = this.state.position.y;
 
     this.tryMove(vx, vy, tiles);
+
+    // Wall avoidance: if didn't move, try sliding along the wall
+    const movedX = Math.abs(this.state.position.x - prevX) > 0.001;
+    const movedY = Math.abs(this.state.position.y - prevY) > 0.001;
+
+    if (!movedX && !movedY) {
+      this.wallStuckTicks++;
+      // After 3 ticks stuck, try perpendicular slide
+      if (this.wallStuckTicks > 3) {
+        if (this.wallStuckTicks === 4) {
+          // Pick slide direction (perpendicular to movement)
+          this.wallSlideDir = Math.random() < 0.5 ? 1 : -1;
+        }
+        // Try perpendicular: rotate 90 degrees
+        const slideVx = -ndy * this.wallSlideDir * effectiveSpeed / TICK_RATE;
+        const slideVy = ndx * this.wallSlideDir * effectiveSpeed / TICK_RATE;
+        this.tryMove(slideVx, slideVy, tiles);
+
+        // If still stuck after 10 ticks, try other direction
+        if (this.wallStuckTicks > 10) {
+          this.wallSlideDir = -this.wallSlideDir;
+          this.wallStuckTicks = 4;
+        }
+      }
+    } else {
+      this.wallStuckTicks = 0;
+    }
+
     this.updateFacing(dx, dy);
   }
 
