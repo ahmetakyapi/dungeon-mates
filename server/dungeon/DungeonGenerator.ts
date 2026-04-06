@@ -28,6 +28,8 @@ type DungeonResult = {
   tiles: TileType[][];
   rooms: DungeonRoom[];
   floorDifficulty: FloorDifficulty;
+  width: number;
+  height: number;
 };
 
 // Player count scaling tables
@@ -155,6 +157,8 @@ export class DungeonGenerator {
       tiles: this.tiles,
       rooms: this.rooms,
       floorDifficulty,
+      width: this.dungeonWidth,
+      height: this.dungeonHeight,
     };
   }
 

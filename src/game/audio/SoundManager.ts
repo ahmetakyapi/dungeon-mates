@@ -94,16 +94,17 @@ export class SoundManager {
     return buffer;
   }
 
-  private playNoise(duration: number, volume: number, filterFreq?: number, filterType?: BiquadFilterType): void {
+  private playNoise(duration: number, volume: number, filterFreq?: number, filterType?: BiquadFilterType, startTime?: number): void {
     const ctx = this.getContext();
     if (!ctx || !this.noiseBuffer || !this.sfxGain) return;
 
+    const t0 = startTime ?? ctx.currentTime;
     const source = ctx.createBufferSource();
     source.buffer = this.noiseBuffer;
 
     const gain = ctx.createGain();
-    gain.gain.setValueAtTime(volume, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    gain.gain.setValueAtTime(volume, t0);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
 
     if (filterFreq !== undefined) {
       const filter = ctx.createBiquadFilter();
@@ -116,8 +117,8 @@ export class SoundManager {
     }
 
     gain.connect(this.sfxGain);
-    source.start(ctx.currentTime);
-    source.stop(ctx.currentTime + duration);
+    source.start(t0);
+    source.stop(t0 + duration);
   }
 
   private playTone(
@@ -201,10 +202,8 @@ export class SoundManager {
     if (!ctx) return;
     // Low rumble ascending
     this.playTone(80 * variation, 0.25, 'sawtooth', 0.2, 400 * variation);
-    // Noise burst mid-way
-    setTimeout(() => {
-      this.playNoise(0.15, 0.15, 800 * variation, 'lowpass');
-    }, 100);
+    // Noise burst mid-way — use Web Audio scheduling instead of setTimeout to avoid drift/pops
+    this.playNoise(0.15, 0.15, 800 * variation, 'lowpass', ctx.currentTime + 0.1);
     // High crackle
     this.playTone(200 * variation, 0.3, 'sawtooth', 0.1, 600 * variation, ctx.currentTime + 0.05);
   }

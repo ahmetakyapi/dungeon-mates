@@ -41,8 +41,9 @@ const tileHash = (tx: number, ty: number): number => {
   return (h ^ (h >> 16)) & 0x7fffffff;
 };
 
-// --- Off-screen sprite cache ---
+// --- Off-screen sprite cache with LRU eviction ---
 type CacheKey = string;
+const SPRITE_CACHE_MAX = 256;
 const spriteCache = new Map<CacheKey, HTMLCanvasElement>();
 
 const getCachedSprite = (
@@ -52,7 +53,19 @@ const getCachedSprite = (
   drawFn: (ctx: CanvasRenderingContext2D) => void,
 ): HTMLCanvasElement => {
   let cached = spriteCache.get(key);
-  if (cached) return cached;
+  if (cached) {
+    // Move to end (most recent) for LRU ordering
+    spriteCache.delete(key);
+    spriteCache.set(key, cached);
+    return cached;
+  }
+
+  // Evict oldest entries if at capacity
+  if (spriteCache.size >= SPRITE_CACHE_MAX) {
+    // Map iterates in insertion order — first key is oldest
+    const oldestKey = spriteCache.keys().next().value;
+    if (oldestKey !== undefined) spriteCache.delete(oldestKey);
+  }
 
   cached = document.createElement('canvas');
   cached.width = width;

@@ -311,20 +311,30 @@ export class Player {
 
   findNearestTarget(monsters: MonsterTarget[]): Vec2 | null {
     const range = CLASS_STATS[this.state.class].attackRange;
-    let closest: { dir: Vec2; dist: number } | null = null;
+    const maxDistSq = (range * 1.5) * (range * 1.5);
+    const minDistSq = 0.0001;
+    let closestDistSq = Infinity;
+    let closestDx = 0;
+    let closestDy = 0;
 
     for (const m of monsters) {
       if (!m.alive) continue;
       const dx = m.position.x - this.state.position.x;
       const dy = m.position.y - this.state.position.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
+      const distSq = dx * dx + dy * dy;
 
-      if (dist <= range * 1.5 && dist > 0.01 && (!closest || dist < closest.dist)) {
-        closest = { dir: { x: dx / dist, y: dy / dist }, dist };
+      // Compare squared distances — avoid sqrt until final result
+      if (distSq <= maxDistSq && distSq > minDistSq && distSq < closestDistSq) {
+        closestDistSq = distSq;
+        closestDx = dx;
+        closestDy = dy;
       }
     }
 
-    return closest?.dir ?? null;
+    if (closestDistSq === Infinity) return null;
+    // Single sqrt only for the final result
+    const dist = Math.sqrt(closestDistSq);
+    return { x: closestDx / dist, y: closestDy / dist };
   }
 
   private applyAimFacing(aimDir: Vec2): void {

@@ -172,6 +172,13 @@ export class GameRoom {
   private currentFloorModifiers: FloorModifier[] = [];
   private bossPhaseTracker: Map<string, number> = new Map();
 
+  // Reusable buffers to avoid per-tick allocations
+  private readonly _roomCountsMap = new Map<number, number>();
+  private readonly _monsterTargetsBuf: Array<{ position: { x: number; y: number }; alive: boolean }> = [];
+
+  // Spatial lookup: tileRoomGrid[y][x] = roomId (-1 = no room) — built once per floor
+  private tileRoomGrid: Int16Array[] = [];
+
   private onEmpty: (code: string) => void;
 
   constructor(io: Server, roomCode: string, onEmpty: (code: string) => void) {
@@ -495,6 +502,9 @@ export class GameRoom {
     this.floorHpMultiplier = dungeon.floorDifficulty.hpMultiplier;
     this.floorAttackMultiplier = dungeon.floorDifficulty.attackMultiplier;
 
+    // Build spatial room lookup grid (O(1) room-at-position instead of O(rooms) linear scan)
+    this.buildTileRoomGrid(dungeon.width, dungeon.height);
+
     // Spawn players in start room
     const startRoom = this.rooms.find((r) => r.isStartRoom);
     if (startRoom) {
@@ -655,26 +665,20 @@ export class GameRoom {
     this.tick += 1;
     this.floorAdvancedThisTick = false;
 
-    // Determine which rooms have players in them
+    // Single-pass: determine active rooms + find most-populated room
     const activeRoomIds = new Set<number>();
+    const roomCounts = this._roomCountsMap;
+    roomCounts.clear();
     for (const player of this.players.values()) {
       if (!player.state.alive) continue;
       const roomId = this.getRoomAtPosition(player.state.position);
       if (roomId !== null) {
         activeRoomIds.add(roomId);
+        const prev = roomCounts.get(roomId) ?? 0;
+        roomCounts.set(roomId, prev + 1);
       }
     }
-
-    // Update current room id to the room most players are in
     if (activeRoomIds.size > 0) {
-      const roomCounts = new Map<number, number>();
-      for (const player of this.players.values()) {
-        if (!player.state.alive) continue;
-        const rid = this.getRoomAtPosition(player.state.position);
-        if (rid !== null) {
-          roomCounts.set(rid, (roomCounts.get(rid) ?? 0) + 1);
-        }
-      }
       let maxCount = 0;
       for (const [rid, count] of roomCounts) {
         if (count > maxCount) {
@@ -684,11 +688,12 @@ export class GameRoom {
       }
     }
 
-    // Build monster target list for auto-aim
-    const monsterTargets = Array.from(this.monsters.values()).map((m) => ({
-      position: { ...m.state.position },
-      alive: m.state.alive,
-    }));
+    // Build monster target list for auto-aim (reuse array, avoid spread/map)
+    const monsterTargets = this._monsterTargetsBuf;
+    monsterTargets.length = 0;
+    for (const m of this.monsters.values()) {
+      monsterTargets.push({ position: m.state.position, alive: m.state.alive });
+    }
 
     // Process player inputs
     for (const [socketId, player] of this.players) {
@@ -1324,18 +1329,30 @@ export class GameRoom {
     }
   }
 
-  private getRoomAtPosition(pos: Vec2): number | null {
+  /** Build spatial lookup grid — called once per floor generation */
+  private buildTileRoomGrid(width: number, height: number): void {
+    this.tileRoomGrid = new Array(height);
+    for (let y = 0; y < height; y++) {
+      this.tileRoomGrid[y] = new Int16Array(width).fill(-1);
+    }
     for (const room of this.rooms) {
-      if (
-        pos.x >= room.x &&
-        pos.x < room.x + room.width &&
-        pos.y >= room.y &&
-        pos.y < room.y + room.height
-      ) {
-        return room.id;
+      for (let ry = room.y; ry < room.y + room.height && ry < height; ry++) {
+        for (let rx = room.x; rx < room.x + room.width && rx < width; rx++) {
+          this.tileRoomGrid[ry][rx] = room.id;
+        }
       }
     }
-    return null;
+  }
+
+  /** O(1) room lookup via pre-built grid */
+  private getRoomAtPosition(pos: Vec2): number | null {
+    const tx = Math.floor(pos.x);
+    const ty = Math.floor(pos.y);
+    if (ty < 0 || ty >= this.tileRoomGrid.length) return null;
+    const row = this.tileRoomGrid[ty];
+    if (!row || tx < 0 || tx >= row.length) return null;
+    const rid = row[tx];
+    return rid === -1 ? null : rid;
   }
 
   private setPhase(phase: GamePhase): void {
