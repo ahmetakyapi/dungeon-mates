@@ -1888,31 +1888,43 @@ export class GameRenderer {
     playersArr: PlayerState[],
   ): void {
     const isSimple = QUALITY_PRESETS[this.quality].fogSimple;
+    const exploredStyle = isSimple ? 'rgba(10,12,30,0.5)' : 'rgba(10,12,30,0.55)';
 
-    // Render basic fog tiles with blue tint
+    // Batch consecutive same-state fog tiles per row into single wider fillRect calls
     for (let ty = startY; ty < endY; ty++) {
       const fogRow = this.fogGrid[ty];
       if (!fogRow) continue;
-      for (let tx = startX; tx < endX; tx++) {
-        const fog = fogRow[tx];
-        if (fog === 2) continue;
+      const sy = ty * TILE_SIZE - camY;
 
-        const sx = tx * TILE_SIZE - camX;
-        const sy = ty * TILE_SIZE - camY;
+      let runStart = -1;
+      let runState: 0 | 1 = 0; // 0 = hidden, 1 = explored
 
-        if (fog === 0) {
-          // Hidden: dark blue-black instead of pure black
-          ctx.fillStyle = '#060810';
-          ctx.fillRect(sx, sy, TILE_SIZE, TILE_SIZE);
-        } else {
-          // Explored but not visible: dark blue-gray
-          ctx.fillStyle = isSimple ? 'rgba(10,12,30,0.5)' : 'rgba(10,12,30,0.55)';
-          ctx.fillRect(sx, sy, TILE_SIZE, TILE_SIZE);
-          // Subtle blue tint layer
-          ctx.globalAlpha = 0.08;
-          ctx.fillStyle = '#1e3a5f';
-          ctx.fillRect(sx, sy, TILE_SIZE, TILE_SIZE);
-          ctx.globalAlpha = 1;
+      for (let tx = startX; tx <= endX; tx++) {
+        const fog = tx < endX ? fogRow[tx] : 2; // sentinel to flush last run
+        if (fog === 2 || (runStart >= 0 && fog !== runState)) {
+          // Flush current run
+          if (runStart >= 0) {
+            const sx = runStart * TILE_SIZE - camX;
+            const runW = (tx - runStart) * TILE_SIZE;
+            if (runState === 0) {
+              ctx.fillStyle = '#060810';
+              ctx.fillRect(sx, sy, runW, TILE_SIZE);
+            } else {
+              ctx.fillStyle = exploredStyle;
+              ctx.fillRect(sx, sy, runW, TILE_SIZE);
+              ctx.globalAlpha = 0.08;
+              ctx.fillStyle = '#1e3a5f';
+              ctx.fillRect(sx, sy, runW, TILE_SIZE);
+              ctx.globalAlpha = 1;
+            }
+            runStart = -1;
+          }
+        }
+        if (fog === 0 || fog === 1) {
+          if (runStart < 0) {
+            runStart = tx;
+            runState = fog as 0 | 1;
+          }
         }
       }
     }
@@ -1935,45 +1947,45 @@ export class GameRenderer {
     endY: number,
     playersArr: PlayerState[],
   ): void {
-    // For each visible tile that borders a non-visible tile, draw a soft gradient
+    // For each visible tile bordering non-visible, draw soft gradient overlay
+    // Check only 4 cardinal neighbors (fast path) + batch consecutive border tiles per row
+    const dw = state.dungeon.width;
+    const dh = state.dungeon.height;
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = '#0a0c1a';
     for (let ty = startY; ty < endY; ty++) {
       const fogRow = this.fogGrid[ty];
       if (!fogRow) continue;
-      for (let tx = startX; tx < endX; tx++) {
-        if (fogRow[tx] !== 2) continue;
+      const rowAbove = ty > 0 ? this.fogGrid[ty - 1] : null;
+      const rowBelow = ty < dh - 1 ? this.fogGrid[ty + 1] : null;
 
-        // Check if any neighbor is not fully visible
-        let hasHiddenNeighbor = false;
-        for (let dy = -1; dy <= 1; dy++) {
-          for (let dx = -1; dx <= 1; dx++) {
-            if (dx === 0 && dy === 0) continue;
-            const ny = ty + dy;
-            const nx = tx + dx;
-            if (ny < 0 || ny >= state.dungeon.height || nx < 0 || nx >= state.dungeon.width) {
-              hasHiddenNeighbor = true;
-              break;
-            }
-            if (this.fogGrid[ny] && this.fogGrid[ny][nx] !== 2) {
-              hasHiddenNeighbor = true;
-              break;
-            }
+      let batchStart = -1;
+      for (let tx = startX; tx <= endX; tx++) {
+        let isBorder = false;
+        if (tx < endX && fogRow[tx] === 2) {
+          // Cardinal neighbor check only (4 instead of 8 — negligible visual difference)
+          if (tx <= 0 || tx >= dw - 1 || ty <= 0 || ty >= dh - 1) {
+            isBorder = true;
+          } else if (
+            fogRow[tx - 1] !== 2 || fogRow[tx + 1] !== 2 ||
+            (rowAbove && rowAbove[tx] !== 2) ||
+            (rowBelow && rowBelow[tx] !== 2)
+          ) {
+            isBorder = true;
           }
-          if (hasHiddenNeighbor) break;
         }
-
-        if (!hasHiddenNeighbor) continue;
-
-        // This is a border tile - draw soft gradient overlay with larger radius
-        const sx = tx * TILE_SIZE - camX;
-        const sy = ty * TILE_SIZE - camY;
-
-        // Softer gradient transition
-        ctx.globalAlpha = 0.12;
-        ctx.fillStyle = '#0a0c1a'; // blue-tinted dark
-        ctx.fillRect(sx, sy, TILE_SIZE, TILE_SIZE);
-        ctx.globalAlpha = 1;
+        if (isBorder) {
+          if (batchStart < 0) batchStart = tx;
+        } else if (batchStart >= 0) {
+          // Flush batch
+          const sx = batchStart * TILE_SIZE - camX;
+          const sy2 = ty * TILE_SIZE - camY;
+          ctx.fillRect(sx, sy2, (tx - batchStart) * TILE_SIZE, TILE_SIZE);
+          batchStart = -1;
+        }
       }
     }
+    ctx.globalAlpha = 1;
 
     // Radial gradient overlay centered on each player for smooth vision falloff
     // Use pre-rendered canvas instead of createRadialGradient per player per frame
