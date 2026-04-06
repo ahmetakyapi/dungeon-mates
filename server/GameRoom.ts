@@ -1394,6 +1394,10 @@ export class GameRoom {
     return record;
   }
 
+  // Cached dungeon object — only rebuilt on floor change (tiles are large & static)
+  private _cachedDungeon: GameState['dungeon'] | null = null;
+  private _cachedDungeonFloor = -1;
+
   private broadcastState(): void {
     // Calculate solo deaths remaining
     let soloDeathsRemaining = 0;
@@ -1404,6 +1408,19 @@ export class GameRoom {
       }
     }
 
+    // Cache dungeon dimensions — tiles are large & only change on floor transitions
+    // Note: rooms are mutable (cleared flag changes) so we always reference this.rooms
+    if (this._cachedDungeonFloor !== this.currentFloor || !this._cachedDungeon) {
+      this._cachedDungeon = {
+        tiles: this.tiles,
+        rooms: this.rooms,
+        width: this.tiles[0]?.length ?? 0,
+        height: this.tiles.length,
+        currentFloor: this.currentFloor,
+      };
+      this._cachedDungeonFloor = this.currentFloor;
+    }
+
     const state: GameState = {
       roomCode: this.roomCode,
       phase: this.phase,
@@ -1412,13 +1429,7 @@ export class GameRoom {
       monsters: this.getMonstersRecord(),
       projectiles: this.getProjectilesRecord(),
       loot: this.getLootRecord(),
-      dungeon: {
-        tiles: this.tiles,
-        rooms: this.rooms,
-        width: this.tiles[0]?.length ?? 0,
-        height: this.tiles.length,
-        currentFloor: this.currentFloor,
-      },
+      dungeon: this._cachedDungeon,
       currentRoomId: this.currentRoomId,
       isSolo: this.isSolo,
       soloDeathsRemaining,

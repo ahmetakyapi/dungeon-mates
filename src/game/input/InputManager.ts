@@ -138,13 +138,11 @@ export class InputManager {
       dy = Math.max(-1, Math.min(1, dy));
     }
 
-    // Normalize diagonal movement (keyboard only produces -1/0/1)
+    // Normalize diagonal movement (keyboard produces -1/0/1, so diagonal mag = sqrt(2))
     if (dx !== 0 && dy !== 0) {
-      const mag = Math.sqrt(dx * dx + dy * dy);
-      if (mag > 1) {
-        dx /= mag;
-        dy /= mag;
-      }
+      const INV_SQRT2 = 0.7071067811865476; // 1/sqrt(2) — constant for keyboard diagonals
+      dx *= INV_SQRT2;
+      dy *= INV_SQRT2;
     }
 
     // Sprint modifier
@@ -152,12 +150,6 @@ export class InputManager {
     if (isSprinting && (dx !== 0 || dy !== 0)) {
       dx *= 1.2;
       dy *= 1.2;
-      // Clamp after sprint
-      const mag = Math.sqrt(dx * dx + dy * dy);
-      if (mag > 1.2) {
-        dx = (dx / mag) * 1.2;
-        dy = (dy / mag) * 1.2;
-      }
     }
 
     // Auto-repeat attack when holding key (debounced)

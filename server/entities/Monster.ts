@@ -269,23 +269,35 @@ export class Monster {
     }
   }
 
+  // Reusable result object for findNearestPlayer — avoids allocation per tick per monster
+  private _nearestResult: { id: string; position: Vec2; distance: number } = { id: '', position: { x: 0, y: 0 }, distance: 0 };
+
   private findNearestPlayer(
     players: ReadonlyArray<{ id: string; position: Vec2; alive: boolean }>,
   ): { id: string; position: Vec2; distance: number } | null {
-    let nearest: { id: string; position: Vec2; distance: number } | null = null;
+    let bestDistSq = Infinity;
+    let bestPlayer: typeof players[number] | null = null;
 
     for (const player of players) {
       if (!player.alive) continue;
       const dx = player.position.x - this.state.position.x;
       const dy = player.position.y - this.state.position.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
+      const distSq = dx * dx + dy * dy;
 
-      if (nearest === null || dist < nearest.distance) {
-        nearest = { id: player.id, position: player.position, distance: dist };
+      if (distSq < bestDistSq) {
+        bestDistSq = distSq;
+        bestPlayer = player;
       }
     }
 
-    return nearest;
+    if (!bestPlayer) return null;
+
+    // Single sqrt only for the result
+    const r = this._nearestResult;
+    r.id = bestPlayer.id;
+    r.position = bestPlayer.position;
+    r.distance = Math.sqrt(bestDistSq);
+    return r;
   }
 
   private moveToward(target: Vec2, speed: number, tiles: TileType[][]): void {
