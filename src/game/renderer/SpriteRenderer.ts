@@ -179,17 +179,24 @@ export class SpriteRenderer {
       return;
     }
 
-    switch (playerClass) {
-      case 'warrior':
-        this.drawWarrior(ctx, x, y + breatheY, facing, attacking, frame);
-        break;
-      case 'mage':
-        this.drawMage(ctx, x, y + breatheY, facing, attacking, frame);
-        break;
-      case 'archer':
-        this.drawArcher(ctx, x, y + breatheY, facing, attacking, frame);
-        break;
-    }
+    // Cache player sprite per animation state — avoids 50+ px() calls per frame
+    const walkFrame = frame % 4;
+    const atkFrame = attacking ? 1 : 0;
+    const cacheKey = `player_${playerClass}_${facing}_${atkFrame}_${walkFrame}`;
+    const cached = getCachedSprite(cacheKey, 16, 16, (sprCtx) => {
+      switch (playerClass) {
+        case 'warrior':
+          this.drawWarrior(sprCtx, 0, 0, facing, attacking, frame);
+          break;
+        case 'mage':
+          this.drawMage(sprCtx, 0, 0, facing, attacking, frame);
+          break;
+        case 'archer':
+          this.drawArcher(sprCtx, 0, 0, facing, attacking, frame);
+          break;
+      }
+    });
+    ctx.drawImage(cached, Math.floor(x), Math.floor(y + breatheY));
 
     // Shield glow overlay for warrior ability
     if (abilityActive && playerClass === 'warrior') {
@@ -771,6 +778,40 @@ export class SpriteRenderer {
       return;
     }
 
+    // Cache monster sprites per animation state (non-boss only — bosses have special rendering)
+    const isBoss = type.startsWith('boss_');
+    if (!isBoss) {
+      const walkFrame = frame % 4;
+      const atkFrame = attacking ? 1 : 0;
+      const mCacheKey = `mon_${type}_${facing}_${atkFrame}_${walkFrame}`;
+      const cachedMon = getCachedSprite(mCacheKey, renderSize, renderSize, (sprCtx) => {
+        this.drawMonsterSprite(sprCtx, 0, 0, type, facing, frame, attacking);
+      });
+      ctx.drawImage(cachedMon, Math.floor(x), Math.floor(y));
+    } else {
+      this.drawMonsterSprite(ctx, x, y, type, facing, frame, attacking);
+    }
+
+    // Elite golden tint overlay (applied on main ctx after cached/direct draw)
+    if (isElite) {
+      ctx.globalAlpha = 0.12 + Math.sin(frame * 0.3) * 0.05;
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillRect(x + 2, y + 2, renderSize - 4, renderSize - 4);
+      ctx.globalAlpha = 1;
+      ctx.restore(); // matches save() at start of drawMonster for elite scaling
+    }
+  }
+
+  /** Internal: draw the actual monster sprite pixels */
+  private drawMonsterSprite(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    type: MonsterType,
+    facing: Direction,
+    frame: number,
+    attacking: boolean,
+  ): void {
     switch (type) {
       case 'skeleton': this.drawSkeleton(ctx, x, y, facing, frame, attacking); break;
       case 'slime': this.drawSlime(ctx, x, y, frame); break;
@@ -789,15 +830,6 @@ export class SpriteRenderer {
       case 'boss_forge_guardian': this.drawBossForgeGuardian(ctx, x, y, facing, frame); break;
       case 'boss_stone_warden': this.drawBossStoneWarden(ctx, x, y, facing, frame); break;
       case 'boss_flame_knight': this.drawBossFlameKnight(ctx, x, y, facing, frame); break;
-    }
-
-    // Elite golden tint overlay
-    if (isElite) {
-      ctx.globalAlpha = 0.12 + Math.sin(frame * 0.3) * 0.05;
-      ctx.fillStyle = '#fbbf24';
-      ctx.fillRect(x + 2, y + 2, renderSize - 4, renderSize - 4);
-      ctx.globalAlpha = 1;
-      ctx.restore();
     }
   }
 
