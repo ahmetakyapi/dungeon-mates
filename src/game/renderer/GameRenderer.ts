@@ -596,12 +596,11 @@ export class GameRenderer {
         this.renderHeatDistortion(ctx, nowSec);
       }
 
-      // Vignette effect during boss fights
+      // Vignette effect — very subtle corner darkening
       if (isBossPhase) {
-        this.renderVignette(ctx, 0.3);
+        this.renderVignette(ctx, 0.2);
       } else {
-        // Subtle vignette always
-        this.renderVignette(ctx, 0.08);
+        this.renderVignette(ctx, 0.05);
       }
 
       // Subtle film grain overlay
@@ -1891,10 +1890,8 @@ export class GameRenderer {
     localPlayerId: string,
     playersArr: PlayerState[],
   ): void {
-    const isSimple = QUALITY_PRESETS[this.quality].fogSimple;
-    const exploredStyle = isSimple ? 'rgba(10,12,30,0.25)' : 'rgba(10,12,30,0.3)';
-
-    // Batch consecutive same-state fog tiles per row into single wider fillRect calls
+    // Fog rendering: hidden = opaque black, explored = light dim, visible = no overlay
+    // Visible tiles (state 2) get NO fog overlay — tiles show at full brightness
     for (let ty = startY; ty < endY; ty++) {
       const fogRow = this.fogGrid[ty];
       if (!fogRow) continue;
@@ -1911,13 +1908,13 @@ export class GameRenderer {
             const sx = runStart * TILE_SIZE - camX;
             const runW = (tx - runStart) * TILE_SIZE;
             if (runState === 0) {
-              ctx.fillStyle = '#080c18';
+              // Hidden: fully opaque dark
+              ctx.fillStyle = '#0a0e1a';
               ctx.fillRect(sx, sy, runW, TILE_SIZE);
             } else {
-              ctx.fillStyle = exploredStyle;
-              ctx.fillRect(sx, sy, runW, TILE_SIZE);
-              ctx.globalAlpha = 0.06;
-              ctx.fillStyle = '#1e3a5f';
+              // Explored: very light dim (tiles still clearly visible)
+              ctx.globalAlpha = 0.2;
+              ctx.fillStyle = '#0a0e1a';
               ctx.fillRect(sx, sy, runW, TILE_SIZE);
               ctx.globalAlpha = 1;
             }
@@ -1933,7 +1930,8 @@ export class GameRenderer {
       }
     }
 
-    // Gradient fog edges (soft transition from visible to fog)
+    // Gradient fog edges (soft transition from visible to fog) — very subtle
+    const isSimple = QUALITY_PRESETS[this.quality].fogSimple;
     if (!isSimple) {
       this.renderFogGradientEdges(ctx, state, camX, camY, startX, startY, endX, endY, playersArr);
     }
@@ -1951,12 +1949,11 @@ export class GameRenderer {
     endY: number,
     playersArr: PlayerState[],
   ): void {
-    // For each visible tile bordering non-visible, draw soft gradient overlay
-    // Check only 4 cardinal neighbors (fast path) + batch consecutive border tiles per row
+    // Very subtle border darkening at visible/non-visible boundary
     const dw = state.dungeon.width;
     const dh = state.dungeon.height;
-    ctx.globalAlpha = 0.05;
-    ctx.fillStyle = '#0a0c1a';
+    ctx.globalAlpha = 0.04;
+    ctx.fillStyle = '#0a0e1a';
     for (let ty = startY; ty < endY; ty++) {
       const fogRow = this.fogGrid[ty];
       if (!fogRow) continue;
@@ -1967,7 +1964,6 @@ export class GameRenderer {
       for (let tx = startX; tx <= endX; tx++) {
         let isBorder = false;
         if (tx < endX && fogRow[tx] === 2) {
-          // Cardinal neighbor check only (4 instead of 8 — negligible visual difference)
           if (tx <= 0 || tx >= dw - 1 || ty <= 0 || ty >= dh - 1) {
             isBorder = true;
           } else if (
@@ -1981,7 +1977,6 @@ export class GameRenderer {
         if (isBorder) {
           if (batchStart < 0) batchStart = tx;
         } else if (batchStart >= 0) {
-          // Flush batch
           const sx = batchStart * TILE_SIZE - camX;
           const sy2 = ty * TILE_SIZE - camY;
           ctx.fillRect(sx, sy2, (tx - batchStart) * TILE_SIZE, TILE_SIZE);
@@ -1991,13 +1986,11 @@ export class GameRenderer {
     }
     ctx.globalAlpha = 1;
 
-    // Radial gradient overlay centered on each player for smooth vision falloff
-    // Use pre-rendered canvas instead of createRadialGradient per player per frame
+    // Very subtle radial vision falloff — almost invisible, just a hint of darkness at edges
     const visionPx = this.currentVisionRadius * TILE_SIZE;
-    const extendedVision = visionPx * 1.2;
+    const extendedVision = visionPx * 1.3;
     const falloffSize = Math.ceil(extendedVision * 2);
 
-    // Rebuild vision falloff canvas if radius changed
     if (!this.visionFalloffCanvas || this.visionFalloffRadius !== falloffSize) {
       this.visionFalloffRadius = falloffSize;
       this.visionFalloffCanvas = document.createElement('canvas');
@@ -2007,11 +2000,11 @@ export class GameRenderer {
       if (vCtx) {
         const cx = falloffSize / 2;
         const cy = falloffSize / 2;
-        const grad = vCtx.createRadialGradient(cx, cy, visionPx * 0.6, cx, cy, extendedVision);
+        const grad = vCtx.createRadialGradient(cx, cy, visionPx * 0.7, cx, cy, extendedVision);
         grad.addColorStop(0, 'rgba(0,0,0,0)');
-        grad.addColorStop(0.7, 'rgba(0,0,0,0)');
-        grad.addColorStop(0.85, 'rgba(6,8,16,0.04)');
-        grad.addColorStop(1, 'rgba(6,8,16,0.12)');
+        grad.addColorStop(0.8, 'rgba(0,0,0,0)');
+        grad.addColorStop(0.95, 'rgba(6,8,16,0.03)');
+        grad.addColorStop(1, 'rgba(6,8,16,0.08)');
         vCtx.fillStyle = grad;
         vCtx.fillRect(0, 0, falloffSize, falloffSize);
       }
@@ -2020,7 +2013,6 @@ export class GameRenderer {
     for (let i = 0; i < playersArr.length; i++) {
       const p = playersArr[i];
       if (!p.alive) continue;
-
       const pcx = p.position.x * TILE_SIZE + TILE_SIZE / 2 - camX;
       const pcy = p.position.y * TILE_SIZE + TILE_SIZE / 2 - camY;
       ctx.drawImage(this.visionFalloffCanvas, pcx - extendedVision, pcy - extendedVision);

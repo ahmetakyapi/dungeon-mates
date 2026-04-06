@@ -2507,162 +2507,146 @@ export class SpriteRenderer {
   private drawFloorTile(ctx: CanvasRenderingContext2D, x: number, y: number, hash: number): void {
     const variation = hash % 5;
 
-    // Base stone floor
-    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#3d3d68');
+    // Base stone floor — clearly visible medium-gray stone
+    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#5a5a7a');
 
-    // Subtle grid lines (mortar)
-    ctx.fillStyle = '#4a4a72';
+    // Grid lines (mortar between stones)
+    ctx.fillStyle = '#6a6a8a';
     ctx.fillRect(x + TILE_SIZE - 1, y, 1, TILE_SIZE);
     ctx.fillRect(x, y + TILE_SIZE - 1, TILE_SIZE, 1);
 
     // Stone tile variation (5 types)
     if (variation === 0) {
-      // Clean stone - subtle color difference
-      px(ctx, x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2, '#42426e');
+      // Clean stone
+      px(ctx, x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2, '#5e5e82');
     } else if (variation === 1) {
-      // Cracked stone with deeper cracks
-      px(ctx, x + 3, y + 5, 1, 4, '#2e2e50');
-      px(ctx, x + 4, y + 8, 1, 3, '#2e2e50');
-      px(ctx, x + 5, y + 10, 1, 2, '#2e2e50');
-      // Deeper crack branching
-      px(ctx, x + 2, y + 6, 1, 1, '#282848');
-      px(ctx, x + 4, y + 9, 1, 1, '#282848');
-      px(ctx, x + 6, y + 11, 1, 1, '#2e2e50');
-      // Secondary crack
-      px(ctx, x + 9, y + 3, 1, 3, '#2e2e50');
-      px(ctx, x + 10, y + 5, 1, 2, '#282848');
+      // Cracked stone
+      px(ctx, x + 3, y + 5, 1, 4, '#484868');
+      px(ctx, x + 4, y + 8, 1, 3, '#484868');
+      px(ctx, x + 5, y + 10, 1, 2, '#484868');
+      px(ctx, x + 2, y + 6, 1, 1, '#404060');
+      px(ctx, x + 4, y + 9, 1, 1, '#404060');
+      px(ctx, x + 9, y + 3, 1, 3, '#484868');
+      px(ctx, x + 10, y + 5, 1, 2, '#404060');
     } else if (variation === 2) {
-      // Moss with small mushroom growth
-      px(ctx, x + 10, y + 3, 2, 1, '#1e3a1e');
-      px(ctx, x + 11, y + 4, 1, 1, '#1e3a1e');
-      px(ctx, x + 4, y + 11, 2, 1, '#1e3a1e');
-      px(ctx, x + 3, y + 12, 1, 1, '#15532a');
-      // Tiny mushroom growth
-      px(ctx, x + 12, y + 5, 1, 1, '#92400e'); // stem
-      px(ctx, x + 11, y + 4, 2, 1, '#a16207'); // cap
-      // Another small mushroom
+      // Moss patches
+      px(ctx, x + 10, y + 3, 2, 1, '#2d5a2d');
+      px(ctx, x + 11, y + 4, 1, 1, '#2d5a2d');
+      px(ctx, x + 4, y + 11, 2, 1, '#2d5a2d');
+      px(ctx, x + 3, y + 12, 1, 1, '#1e7040');
+      // Tiny mushroom
+      px(ctx, x + 12, y + 5, 1, 1, '#b05818');
+      px(ctx, x + 11, y + 4, 2, 1, '#c07020');
       if ((hash >> 4) % 3 === 0) {
-        px(ctx, x + 5, y + 12, 1, 1, '#78350f');
-        px(ctx, x + 4, y + 11, 2, 1, '#a16207');
+        px(ctx, x + 5, y + 12, 1, 1, '#905010');
+        px(ctx, x + 4, y + 11, 2, 1, '#c07020');
       }
     } else if (variation === 3) {
-      // Blood stain (dried, dark red patches)
-      ctx.globalAlpha = 0.4;
-      px(ctx, x + 5, y + 6, 4, 3, '#4a0e0e');
-      px(ctx, x + 6, y + 5, 2, 1, '#3b0a0a');
-      px(ctx, x + 4, y + 8, 2, 1, '#3b0a0a');
-      ctx.globalAlpha = 0.25;
-      px(ctx, x + 8, y + 7, 2, 2, '#4a0e0e');
-      // Splatter dots
-      px(ctx, x + 3, y + 5, 1, 1, '#3b0a0a');
-      px(ctx, x + 10, y + 8, 1, 1, '#3b0a0a');
+      // Dried blood stain
+      ctx.globalAlpha = 0.5;
+      px(ctx, x + 5, y + 6, 4, 3, '#6a1818');
+      px(ctx, x + 6, y + 5, 2, 1, '#581010');
+      px(ctx, x + 4, y + 8, 2, 1, '#581010');
+      ctx.globalAlpha = 0.3;
+      px(ctx, x + 8, y + 7, 2, 2, '#6a1818');
+      px(ctx, x + 3, y + 5, 1, 1, '#581010');
       ctx.globalAlpha = 1;
     } else {
-      // Stone with water puddle (reflective blue-gray, animated shimmer)
-      px(ctx, x + 4, y + 5, 7, 5, '#344868');
-      px(ctx, x + 5, y + 4, 5, 1, '#344868');
-      px(ctx, x + 5, y + 10, 5, 1, '#344868');
-      // Reflective shimmer (using hash-based pseudo-animation since we don't have frame here)
+      // Water puddle
+      px(ctx, x + 4, y + 5, 7, 5, '#4a5878');
+      px(ctx, x + 5, y + 4, 5, 1, '#4a5878');
+      px(ctx, x + 5, y + 10, 5, 1, '#4a5878');
       const shimmerOffset = (hash >> 6) % 4;
-      ctx.globalAlpha = 0.15;
-      px(ctx, x + 5 + shimmerOffset, y + 6, 2, 1, '#60a5fa');
-      px(ctx, x + 7 - shimmerOffset, y + 8, 2, 1, '#60a5fa');
-      ctx.globalAlpha = 0.08;
-      px(ctx, x + 6, y + 7, 3, 1, '#93c5fd');
+      ctx.globalAlpha = 0.2;
+      px(ctx, x + 5 + shimmerOffset, y + 6, 2, 1, '#7db8f0');
+      px(ctx, x + 7 - shimmerOffset, y + 8, 2, 1, '#7db8f0');
+      ctx.globalAlpha = 0.12;
+      px(ctx, x + 6, y + 7, 3, 1, '#a0d0ff');
       ctx.globalAlpha = 1;
     }
 
     // Occasional small stone detail
     if ((hash >> 8) % 5 === 0) {
-      px(ctx, x + 7, y + 7, 2, 2, '#454570');
+      px(ctx, x + 7, y + 7, 2, 2, '#626288');
     }
   }
 
   private drawWallTile(ctx: CanvasRenderingContext2D, x: number, y: number, hash: number): void {
-    // Base wall
-    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#4c35a0');
+    // Base wall — rich purple, clearly distinct from gray floor
+    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#6040b8');
 
-    // Top slightly lighter (implied light from above)
-    px(ctx, x, y, TILE_SIZE, 3, '#5c45b0');
+    // Top lighter (implied light from above)
+    px(ctx, x, y, TILE_SIZE, 3, '#7050c8');
 
-    // Proper brick pattern with mortar lines
-    const mortarColor = '#352470';
-    // Horizontal mortar lines
+    // Brick mortar lines
+    const mortarColor = '#4830a0';
     ctx.fillStyle = mortarColor;
     ctx.fillRect(x, y + 4, TILE_SIZE, 1);
     ctx.fillRect(x, y + 9, TILE_SIZE, 1);
     ctx.fillRect(x, y + 14, TILE_SIZE, 1);
-
-    // Vertical mortar lines (offset per row)
     ctx.fillRect(x + 4, y, 1, 4);
     ctx.fillRect(x + 12, y, 1, 4);
     ctx.fillRect(x + 8, y + 5, 1, 4);
-    ctx.fillRect(x, y + 5, 1, 4); // edge
+    ctx.fillRect(x, y + 5, 1, 4);
     ctx.fillRect(x + 4, y + 10, 1, 4);
     ctx.fillRect(x + 12, y + 10, 1, 4);
 
-    // Individual brick color variation (based on hash bits)
+    // Brick color variation
     const brickVar1 = ((hash >> 2) % 3);
     const brickVar2 = ((hash >> 5) % 3);
     if (brickVar1 === 0) {
-      px(ctx, x + 1, y + 1, 3, 3, '#5538a8');
+      px(ctx, x + 1, y + 1, 3, 3, '#6848c0');
     } else if (brickVar1 === 1) {
-      px(ctx, x + 5, y + 1, 6, 3, '#463095');
+      px(ctx, x + 5, y + 1, 6, 3, '#5840b0');
     }
     if (brickVar2 === 0) {
-      px(ctx, x + 1, y + 5, 7, 4, '#483298');
+      px(ctx, x + 1, y + 5, 7, 4, '#5a42b2');
     } else if (brickVar2 === 2) {
-      px(ctx, x + 9, y + 5, 6, 4, '#5a3cb0');
+      px(ctx, x + 9, y + 5, 6, 4, '#7050c8');
     }
-    // More brick variation in lower rows
     if (((hash >> 7) % 2) === 0) {
-      px(ctx, x + 5, y + 10, 6, 4, '#483298');
+      px(ctx, x + 5, y + 10, 6, 4, '#5a42b2');
     }
 
-    // Brick highlights (subtle)
-    px(ctx, x + 1, y + 1, 2, 1, '#6048b8');
-    px(ctx, x + 6, y + 6, 2, 1, '#6048b8');
-    px(ctx, x + 1, y + 11, 2, 1, '#6048b8');
-    px(ctx, x + 9, y + 1, 2, 1, '#6048b8');
-    px(ctx, x + 13, y + 11, 2, 1, '#6048b8');
+    // Brick highlights
+    px(ctx, x + 1, y + 1, 2, 1, '#7858d0');
+    px(ctx, x + 6, y + 6, 2, 1, '#7858d0');
+    px(ctx, x + 1, y + 11, 2, 1, '#7858d0');
+    px(ctx, x + 9, y + 1, 2, 1, '#7858d0');
+    px(ctx, x + 13, y + 11, 2, 1, '#7858d0');
 
-    // Darker border edges
-    ctx.fillStyle = '#352470';
-    ctx.fillRect(x, y, TILE_SIZE, 1); // top
-    ctx.fillRect(x, y, 1, TILE_SIZE); // left
+    // Border edges
+    ctx.fillStyle = '#4830a0';
+    ctx.fillRect(x, y, TILE_SIZE, 1);
+    ctx.fillRect(x, y, 1, TILE_SIZE);
+    ctx.fillStyle = '#7050c8';
+    ctx.fillRect(x, y + TILE_SIZE - 1, TILE_SIZE, 1);
+    ctx.fillRect(x + TILE_SIZE - 1, y, 1, TILE_SIZE);
 
-    ctx.fillStyle = '#5c45b0';
-    ctx.fillRect(x, y + TILE_SIZE - 1, TILE_SIZE, 1); // bottom highlight
-    ctx.fillRect(x + TILE_SIZE - 1, y, 1, TILE_SIZE); // right highlight
-
-    // Moss/vine on some walls -- more green tones
+    // Moss/vine
     if ((hash >> 4) % 4 === 0) {
-      px(ctx, x + 2, y + 13, 1, 2, '#1e3a1e');
-      px(ctx, x + 3, y + 12, 1, 3, '#15532a');
-      px(ctx, x + 4, y + 14, 1, 1, '#1e3a1e');
-      // Additional vine growth
-      px(ctx, x + 1, y + 14, 1, 1, '#0d3320');
-      px(ctx, x + 5, y + 13, 1, 2, '#15532a');
-      // Hanging vine tendril
-      px(ctx, x + 3, y + 11, 1, 1, '#1e4d2b');
+      px(ctx, x + 2, y + 13, 1, 2, '#2d5a2d');
+      px(ctx, x + 3, y + 12, 1, 3, '#1e7040');
+      px(ctx, x + 4, y + 14, 1, 1, '#2d5a2d');
+      px(ctx, x + 1, y + 14, 1, 1, '#185030');
+      px(ctx, x + 5, y + 13, 1, 2, '#1e7040');
+      px(ctx, x + 3, y + 11, 1, 1, '#2a6838');
     }
-    // Extra moss/vine on other walls
     if ((hash >> 10) % 3 === 0) {
-      px(ctx, x + 12, y + 14, 2, 1, '#1e3a1e');
-      px(ctx, x + 13, y + 13, 1, 1, '#15532a');
+      px(ctx, x + 12, y + 14, 2, 1, '#2d5a2d');
+      px(ctx, x + 13, y + 13, 1, 1, '#1e7040');
     }
 
-    // Skull decoration on some walls (hash based)
+    // Skull decoration
     if ((hash >> 14) % 9 === 0) {
-      // Small skull on wall
       px(ctx, x + 6, y + 10, 4, 3, '#d1d5db');
-      px(ctx, x + 7, y + 10, 2, 1, '#e5e7eb'); // top of skull
-      px(ctx, x + 6, y + 11, 1, 1, '#181830'); // left eye
-      px(ctx, x + 9, y + 11, 1, 1, '#181830'); // right eye
-      px(ctx, x + 7, y + 12, 2, 1, '#b0b0b0'); // jaw
+      px(ctx, x + 7, y + 10, 2, 1, '#e5e7eb');
+      px(ctx, x + 6, y + 11, 1, 1, '#201840');
+      px(ctx, x + 9, y + 11, 1, 1, '#201840');
+      px(ctx, x + 7, y + 12, 2, 1, '#b0b0b0');
     }
 
-    // Torch placement more frequent (1 in 5 walls instead of 1 in 7)
+    // Torch
     if ((hash >> 8) % 5 === 0) {
       this.drawWallTorch(ctx, x + 6, y + 3, hash);
     }
@@ -2689,7 +2673,7 @@ export class SpriteRenderer {
 
   private drawDoorTile(ctx: CanvasRenderingContext2D, x: number, y: number, roomCleared: boolean): void {
     // Floor beneath
-    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#1a1a2e');
+    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#5a5a7a');
 
     if (roomCleared) {
       // Open door: swung open against wall
@@ -2705,8 +2689,8 @@ export class SpriteRenderer {
       px(ctx, x + 1, y + 4, 3, 1, '#6b7280');
       px(ctx, x + 1, y + 10, 3, 1, '#6b7280');
 
-      // Passage visible -- darker
-      px(ctx, x + 4, y + 2, TILE_SIZE - 6, TILE_SIZE - 3, '#0f0f1e');
+      // Passage visible -- slightly darker
+      px(ctx, x + 4, y + 2, TILE_SIZE - 6, TILE_SIZE - 3, '#3a3a5a');
 
       // Torch light from beyond the door
       ctx.globalAlpha = 0.12;
@@ -2757,8 +2741,8 @@ export class SpriteRenderer {
   }
 
   private drawStairsTile(ctx: CanvasRenderingContext2D, x: number, y: number): void {
-    // Dark background
-    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#0f0f1e');
+    // Dark background (stairs descend into darkness)
+    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#2a2a48');
 
     // Spiral staircase going down -- more step detail
     const stairColor = '#78716c';
@@ -2822,7 +2806,7 @@ export class SpriteRenderer {
 
   private drawChestTile(ctx: CanvasRenderingContext2D, x: number, y: number, opened: boolean): void {
     // Floor beneath
-    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#1a1a2e');
+    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#5a5a7a');
 
     if (opened) {
       // Open chest with golden glow -- radial glow effect
