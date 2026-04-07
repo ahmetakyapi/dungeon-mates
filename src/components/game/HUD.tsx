@@ -132,12 +132,30 @@ function HPBar({
 }) {
   const percentage = Math.max(0, Math.min((value / max) * 100, 100));
   const isLow = percentage < 25;
+  const isCritical = percentage < 10 && percentage > 0;
 
-  // Gradient: green -> yellow -> red based on percentage
+  // Delayed damage ghost bar (Dark Souls style)
+  const prevPercentRef = useRef(percentage);
+  const [ghostPercent, setGhostPercent] = useState(percentage);
+
+  useEffect(() => {
+    if (percentage < prevPercentRef.current) {
+      // Took damage: show ghost bar at previous level, then shrink after delay
+      setGhostPercent(prevPercentRef.current);
+      const timer = setTimeout(() => setGhostPercent(percentage), 600);
+      prevPercentRef.current = percentage;
+      return () => clearTimeout(timer);
+    }
+    prevPercentRef.current = percentage;
+    setGhostPercent(percentage);
+  }, [percentage]);
+
+  // Gradient: green -> yellow -> orange -> red based on percentage
   const gradientColor = useMemo(() => {
     if (percentage > 60) return 'linear-gradient(90deg, #22c55e, #4ade80)';
     if (percentage > 30) return 'linear-gradient(90deg, #eab308, #facc15)';
-    return 'linear-gradient(90deg, #dc2626, #ef4444)';
+    if (percentage > 10) return 'linear-gradient(90deg, #dc2626, #ef4444)';
+    return 'linear-gradient(90deg, #991b1b, #dc2626)';
   }, [percentage]);
 
   return (
@@ -145,8 +163,16 @@ function HPBar({
       <div
         className={`relative h-4 overflow-hidden rounded-sm border border-zinc-700/80 bg-zinc-900 sm:h-4 lg:h-4 2xl:h-5 ${
           isFlashing ? 'hp-flash' : ''
-        }`}
+        } ${isCritical ? 'animate-pulse' : ''}`}
       >
+        {/* Ghost bar (delayed damage feedback) */}
+        {ghostPercent > percentage && (
+          <motion.div
+            className="absolute inset-y-0 left-0 rounded-sm bg-red-400/40"
+            animate={{ width: `${ghostPercent}%` }}
+            transition={{ duration: 0.8, ease: EASE }}
+          />
+        )}
         <motion.div
           className="absolute inset-y-0 left-0 rounded-sm"
           style={{ background: gradientColor }}
@@ -155,6 +181,14 @@ function HPBar({
         />
         {/* Shine overlay */}
         <div className="absolute inset-0 rounded-sm bg-gradient-to-b from-white/10 to-transparent" style={{ height: '50%' }} />
+        {/* Segment markers for easier HP reading */}
+        {max > 50 && (
+          <div className="absolute inset-0">
+            {[25, 50, 75].map(seg => (
+              <div key={seg} className="absolute inset-y-0 w-px bg-black/20" style={{ left: `${seg}%` }} />
+            ))}
+          </div>
+        )}
         {showNumbers && (
           <span className="absolute inset-0 flex items-center justify-center font-pixel text-[7px] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">
             {Math.ceil(value)}/{max} HP
@@ -924,6 +958,7 @@ const ACTION_ICONS: Record<PlayerClass, string> = {
   warrior: '⚔',
   mage: '🔮',
   archer: '🏹',
+  healer: '✨',
 } as const;
 
 function ActionInfo({
@@ -974,6 +1009,7 @@ const ABILITY_META: Record<PlayerClass, { icon: string; label: string }> = {
   warrior: { icon: '🛡', label: 'Kalkan' },
   mage: { icon: '❄', label: 'Buz' },
   archer: { icon: '🏹', label: 'Oklar' },
+  healer: { icon: '💚', label: 'Şifa' },
 } as const;
 
 function AbilityInfo({

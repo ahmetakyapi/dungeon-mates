@@ -226,11 +226,17 @@ export class Camera {
     }
     s.elapsed += dt * 1000;
     const progress = s.elapsed / s.duration;
-    // Exponential decay for more natural shake
-    const fadeOut = (1 - progress) * (1 - progress);
+    // Cubic ease-out for smoother shake decay
+    const fadeOut = 1 - progress * progress * progress;
     const currentIntensity = s.intensity * fadeOut;
-    s.offsetX = (Math.random() * 2 - 1) * currentIntensity;
-    s.offsetY = (Math.random() * 2 - 1) * currentIntensity;
+    // Sinusoidal shake for more organic feel (instead of pure random)
+    const freq = 25; // oscillation frequency
+    const t = s.elapsed * 0.001;
+    const baseX = Math.sin(t * freq) * currentIntensity;
+    const baseY = Math.cos(t * freq * 1.3) * currentIntensity;
+    // Add slight randomness for non-mechanical feel
+    s.offsetX = baseX + (Math.random() - 0.5) * currentIntensity * 0.3;
+    s.offsetY = baseY + (Math.random() - 0.5) * currentIntensity * 0.3;
   }
 
   private clamp(): void {

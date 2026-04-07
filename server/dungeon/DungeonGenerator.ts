@@ -324,6 +324,7 @@ export class DungeonGenerator {
       centerY: Math.floor(y + height / 2),
       isBossRoom: false,
       isStartRoom: false,
+      category: 'normal',
       cleared: false,
       monsterIds: [],
     });
@@ -385,6 +386,7 @@ export class DungeonGenerator {
 
     // First room is start room
     this.rooms[0].isStartRoom = true;
+    this.rooms[0].category = 'start';
     this.rooms[0].cleared = true;
 
     // Find farthest room from start for boss room
@@ -406,6 +408,38 @@ export class DungeonGenerator {
 
     if (hasBoss) {
       this.rooms[bossRoomIndex].isBossRoom = true;
+      this.rooms[bossRoomIndex].category = 'boss';
+    }
+
+    // Assign special room categories to some normal rooms
+    // Skip start room (index 0) and boss room
+    const normalRooms: number[] = [];
+    for (let i = 1; i < this.rooms.length; i++) {
+      if (i === bossRoomIndex) continue;
+      normalRooms.push(i);
+    }
+    // Fisher-Yates shuffle for random assignment
+    for (let i = normalRooms.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = normalRooms[i]; normalRooms[i] = normalRooms[j]; normalRooms[j] = tmp;
+    }
+
+    let specialIdx = 0;
+    // Treasure room: extra loot, fewer monsters (1 per 5+ rooms)
+    if (normalRooms.length >= 3 && specialIdx < normalRooms.length) {
+      this.rooms[normalRooms[specialIdx]].category = 'treasure';
+      specialIdx++;
+    }
+    // Rest room: healing fountain, no monsters (1 per 6+ rooms)
+    if (normalRooms.length >= 4 && specialIdx < normalRooms.length) {
+      this.rooms[normalRooms[specialIdx]].category = 'rest';
+      this.rooms[normalRooms[specialIdx]].cleared = true; // No monsters to clear
+      specialIdx++;
+    }
+    // Trap room: spike traps + reward, tougher (1 per 7+ rooms)
+    if (normalRooms.length >= 5 && specialIdx < normalRooms.length) {
+      this.rooms[normalRooms[specialIdx]].category = 'trap';
+      specialIdx++;
     }
 
     // Place doors at room edges where corridors connect

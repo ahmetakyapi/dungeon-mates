@@ -13,18 +13,20 @@ import {
 const EASE = [0.22, 1, 0.36, 1] as const;
 const COUNTDOWN_SECONDS = 15;
 
-const CLASSES: PlayerClass[] = ['warrior', 'mage', 'archer'] as const;
+const CLASSES: PlayerClass[] = ['warrior', 'mage', 'archer', 'healer'] as const;
 
 const CLASS_GRADIENTS: Record<PlayerClass, string> = {
   warrior: 'from-red-900/30 via-transparent to-red-800/10',
   mage: 'from-purple-900/30 via-transparent to-purple-800/10',
   archer: 'from-emerald-900/30 via-transparent to-emerald-800/10',
+  healer: 'from-amber-900/30 via-transparent to-amber-800/10',
 } as const;
 
 const CLASS_ABILITIES: Record<PlayerClass, string> = {
   warrior: 'Kalkan Duvarı: 4 saniye boyunca hasarı %70 azaltır (E tuşu)',
   mage: 'Buz Fırtınası: Çevredeki düşmanlara hasar verir ve yavaşlatır (E tuşu)',
   archer: 'Ok Yağmuru: Yelpaze şeklinde 5 ok fırlatır (E tuşu)',
+  healer: 'Şifa Dalgası: Yakındaki tüm takım arkadaşlarını iyileştirir (E tuşu)',
 } as const;
 
 const POPULAR_CLASS: PlayerClass = 'warrior';
@@ -33,6 +35,7 @@ const CLASS_ROLES: Record<PlayerClass, string> = {
   warrior: 'tank',
   mage: 'hasar',
   archer: 'hasar',
+  healer: 'destek',
 } as const;
 
 type StatBarProps = {

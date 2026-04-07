@@ -169,6 +169,9 @@ export class GameRenderer {
   private freezeFrameMs = 0;
   private prevEntityPositions: Map<string, { x: number; y: number }> = new Map();
 
+  // Fog invalidation hash (tracks all player positions + vision radius)
+  private _fogHash = 0;
+
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     const ctx = canvas.getContext('2d');
@@ -536,17 +539,17 @@ export class GameRenderer {
     this.renderLoot(ctx, lootArr, camX, camY);
 
     // 5. Render monsters
-    this.renderMonsters(ctx, monstersArr, camX, camY);
+    this.renderMonsters(ctx, monstersArr, camX, camY, dt);
 
     // 6. Render projectiles
     this.renderProjectiles(ctx, projectilesArr, camX, camY);
 
     // 7. Render players
-    this.renderPlayers(ctx, playersArr, state, camX, camY, localPlayerId);
+    this.renderPlayers(ctx, playersArr, state, camX, camY, localPlayerId, dt);
 
     // 8. Render particles
     if (preset.particles) {
-      this.particles.render(ctx, camX, camY);
+      this.particles.render(ctx, camX, camY, this.logicalWidth, this.logicalHeight);
     }
 
     // 9. Render damage numbers
@@ -978,8 +981,8 @@ export class GameRenderer {
       if (sx < -30 || sx > this.logicalWidth + 30 || sy < -30 || sy > this.logicalHeight + 30) continue;
 
       // Warm-colored light circle — use cached torch light canvas
-      const lightRadius = 24;
-      const flicker = 1 + Math.sin(this.animFrame * 0.7 + i * 1.3) * 0.08;
+      const lightRadius = 30;
+      const flicker = 1 + Math.sin(this.animFrame * 0.7 + i * 1.3) * 0.1;
       const r = lightRadius * flicker;
       if (!this._torchLightCanvas) {
         this._torchLightCanvas = document.createElement('canvas');
@@ -989,9 +992,10 @@ export class GameRenderer {
         const tlCtx = this._torchLightCanvas.getContext('2d');
         if (tlCtx) {
           const gr = tlCtx.createRadialGradient(tlSize / 2, tlSize / 2, 0, tlSize / 2, tlSize / 2, tlSize / 2);
-          gr.addColorStop(0, 'rgba(255,180,80,0.15)');
-          gr.addColorStop(0.3, 'rgba(255,150,50,0.10)');
-          gr.addColorStop(0.6, 'rgba(255,120,30,0.04)');
+          gr.addColorStop(0, 'rgba(255,190,90,0.22)');
+          gr.addColorStop(0.25, 'rgba(255,160,60,0.14)');
+          gr.addColorStop(0.5, 'rgba(255,130,40,0.07)');
+          gr.addColorStop(0.75, 'rgba(255,110,25,0.02)');
           gr.addColorStop(1, 'rgba(255,100,20,0)');
           tlCtx.fillStyle = gr;
           tlCtx.fillRect(0, 0, tlSize, tlSize);
@@ -1366,6 +1370,7 @@ export class GameRenderer {
     monsters: MonsterState[],
     camX: number,
     camY: number,
+    dt: number,
   ): void {
     const isFrozen = this.freezeFrameMs > 0;
     for (let i = 0; i < monsters.length; i++) {
@@ -1380,17 +1385,19 @@ export class GameRenderer {
         monRenderX = prevMonPos.x;
         monRenderY = prevMonPos.y;
       } else {
-        monRenderX = monster.position.x;
-        monRenderY = monster.position.y;
+        const targetX = monster.position.x;
+        const targetY = monster.position.y;
         if (prevMonPos) {
-          monRenderX = prevMonPos.x + (monster.position.x - prevMonPos.x) * 0.35;
-          monRenderY = prevMonPos.y + (monster.position.y - prevMonPos.y) * 0.35;
-        }
-        if (prevMonPos) {
+          // dt-aware exponential smoothing: 1 - (1-base)^(dt*60)
+          const t = 1 - Math.pow(0.35, dt * 60);
+          monRenderX = prevMonPos.x + (targetX - prevMonPos.x) * t;
+          monRenderY = prevMonPos.y + (targetY - prevMonPos.y) * t;
           prevMonPos.x = monRenderX;
           prevMonPos.y = monRenderY;
         } else {
-          this.prevEntityPositions.set(monster.id, { x: monRenderX, y: monRenderY });
+          monRenderX = targetX;
+          monRenderY = targetY;
+          this.prevEntityPositions.set(monster.id, { x: targetX, y: targetY });
         }
       }
 
@@ -1425,7 +1432,7 @@ export class GameRenderer {
         ctx.restore();
       }
 
-      this.sprites.drawMonster(ctx, sx, sy, monster.type, monster.facing, this.animFrame, flashWhite, isAttacking, monster.isElite);
+      this.sprites.drawMonster(ctx, sx, sy, monster.type, monster.facing, this.animFrame, flashWhite, isAttacking, monster.isElite, monster.shieldActive, monster.phased, monster.enraged);
 
       // Elite crown indicator above sprite
       if (monster.isElite && !flashWhite) {
@@ -1496,6 +1503,7 @@ export class GameRenderer {
     camX: number,
     camY: number,
     localPlayerId: string,
+    dt: number,
   ): void {
     const isFrozen = this.freezeFrameMs > 0;
     for (let i = 0; i < players.length; i++) {
@@ -1510,17 +1518,18 @@ export class GameRenderer {
         plrRenderX = prevPlrPos.x;
         plrRenderY = prevPlrPos.y;
       } else {
-        plrRenderX = player.position.x;
-        plrRenderY = player.position.y;
+        const targetX = player.position.x;
+        const targetY = player.position.y;
         if (prevPlrPos) {
-          plrRenderX = prevPlrPos.x + (player.position.x - prevPlrPos.x) * 0.35;
-          plrRenderY = prevPlrPos.y + (player.position.y - prevPlrPos.y) * 0.35;
-        }
-        if (prevPlrPos) {
+          const t = 1 - Math.pow(0.35, dt * 60);
+          plrRenderX = prevPlrPos.x + (targetX - prevPlrPos.x) * t;
+          plrRenderY = prevPlrPos.y + (targetY - prevPlrPos.y) * t;
           prevPlrPos.x = plrRenderX;
           prevPlrPos.y = plrRenderY;
         } else {
-          this.prevEntityPositions.set(player.id, { x: plrRenderX, y: plrRenderY });
+          plrRenderX = targetX;
+          plrRenderY = targetY;
+          this.prevEntityPositions.set(player.id, { x: targetX, y: targetY });
         }
       }
 
@@ -1533,6 +1542,23 @@ export class GameRenderer {
 
       const prevHp = this.prevHp.get(player.id);
       const flashWhite = prevHp !== undefined && prevHp > player.hp;
+
+      // Local player pulsing ground indicator (subtle golden circle)
+      if (player.id === localPlayerId) {
+        const indicatorPulse = 0.08 + Math.sin(this.animFrame * 0.2) * 0.04;
+        ctx.globalAlpha = indicatorPulse;
+        ctx.beginPath();
+        ctx.arc(sx + TILE_SIZE / 2, sy + TILE_SIZE - 1, 6, 0, Math.PI * 2);
+        ctx.fillStyle = '#fbbf24';
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+
+      // Footstep dust particles when player is moving
+      const isMoving = Math.abs(player.velocity.x) + Math.abs(player.velocity.y) > 0.02;
+      if (isMoving && QUALITY_PRESETS[this.quality].particles && this.animFrame % 3 === 0) {
+        this.particles.emitFootstepDust(wx + TILE_SIZE / 2, wy + TILE_SIZE);
+      }
 
       // Ice storm ground circle for mage ability
       if (player.abilityActive && player.class === 'mage') {
@@ -1562,6 +1588,10 @@ export class GameRenderer {
         this.animFrame,
         flashWhite,
         player.abilityActive,
+        player.shieldActive,
+        player.poisoned,
+        player.slowed,
+        player.stunTicks,
       );
 
       // Shield shimmer particles for warrior ability
@@ -1569,12 +1599,25 @@ export class GameRenderer {
         this.particles.emitShieldShimmer(wx + TILE_SIZE / 2, wy + TILE_SIZE / 2);
       }
 
+      // Healing wave glow for healer ability
+      if (player.abilityActive && player.class === 'healer') {
+        const cx = sx + TILE_SIZE / 2;
+        const cy = sy + TILE_SIZE / 2;
+        const pulse = 0.15 + Math.sin(this.animFrame * 0.4) * 0.08;
+        ctx.globalAlpha = pulse;
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath();
+        ctx.arc(cx, cy, TILE_SIZE * 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+
       // Speed boost trail particles
       if (player.speedBoosted) {
         this.particles.emitSpeedTrail(wx + TILE_SIZE / 2, wy + TILE_SIZE / 2);
       }
 
-      this.drawNameTag(ctx, sx + TILE_SIZE / 2, sy - 6, player.name, player.id === localPlayerId);
+      this.drawNameTag(ctx, sx + TILE_SIZE / 2, sy - 6, player.name, player.id === localPlayerId, player.level);
       this.drawHealthBar(ctx, sx, sy + TILE_SIZE + 1, TILE_SIZE, player.hp, player.maxHp, player.id);
       this.drawManaBar(ctx, sx, sy + TILE_SIZE + 5, TILE_SIZE, player.mana, player.maxMana);
 
@@ -1594,17 +1637,27 @@ export class GameRenderer {
     y: number,
     name: string,
     isLocal: boolean,
+    level?: number,
   ): void {
     ctx.font = '4px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
 
-    const textWidth = ctx.measureText(name).width;
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(Math.floor(x - textWidth / 2 - 1), Math.floor(y - 5), Math.ceil(textWidth + 2), 6);
+    const displayText = level && level > 1 ? `${name} Lv${level}` : name;
+    const textWidth = ctx.measureText(displayText).width;
+    const bgX = Math.floor(x - textWidth / 2 - 2);
+    const bgY = Math.floor(y - 5);
+    const bgW = Math.ceil(textWidth + 4);
 
+    // Background pill with subtle border
+    ctx.fillStyle = isLocal ? 'rgba(251,191,36,0.15)' : 'rgba(0,0,0,0.55)';
+    ctx.fillRect(bgX, bgY, bgW, 6);
+    ctx.fillStyle = isLocal ? 'rgba(251,191,36,0.3)' : 'rgba(148,163,184,0.15)';
+    ctx.fillRect(bgX, bgY, bgW, 1); // top border highlight
+
+    // Name text
     ctx.fillStyle = isLocal ? '#fbbf24' : '#e5e7eb';
-    ctx.fillText(name, Math.floor(x), Math.floor(y));
+    ctx.fillText(displayText, Math.floor(x), Math.floor(y));
   }
 
   private drawHealthBar(
@@ -1673,8 +1726,27 @@ export class GameRenderer {
     ctx: CanvasRenderingContext2D,
     monsters: MonsterState[],
   ): void {
-    const boss = monsters.find(m => m.type === 'boss_demon' && m.alive);
+    // Find ANY alive boss monster (not just boss_demon)
+    const boss = monsters.find(m => m.type.startsWith('boss_') && m.alive);
     if (!boss) return;
+
+    // Boss display names
+    const BOSS_NAMES: Record<string, string> = {
+      boss_spider_queen: 'ÖRÜMCEK KRALİÇE',
+      boss_demon: 'MOR\'KHAN',
+      boss_forge_guardian: 'DEMİR KORUYUCU',
+      boss_stone_warden: 'TAŞ MUHAFIZ',
+      boss_flame_knight: 'ALEV ŞÖVALYESİ',
+    };
+    const BOSS_COLORS: Record<string, string> = {
+      boss_spider_queen: '#a855f7',
+      boss_demon: '#ef4444',
+      boss_forge_guardian: '#f97316',
+      boss_stone_warden: '#78716c',
+      boss_flame_knight: '#ef4444',
+    };
+    const bossName = BOSS_NAMES[boss.type] ?? boss.type.toUpperCase();
+    const bossColor = BOSS_COLORS[boss.type] ?? '#ef4444';
 
     const barWidth = Math.floor(this.logicalWidth * 0.5);
     const barHeight = 6;
@@ -1682,14 +1754,25 @@ export class GameRenderer {
     const barY = 8;
     const ratio = Math.max(0, boss.hp / boss.maxHp);
 
-    // Name label
+    // Boss phase indicator (small dots under name)
+    if (boss.bossPhase > 0) {
+      const phaseCount = boss.bossPhase;
+      const dotSpacing = 6;
+      const dotsX = this.logicalWidth / 2 - ((phaseCount - 1) * dotSpacing) / 2;
+      for (let p = 0; p < phaseCount; p++) {
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillRect(dotsX + p * dotSpacing - 1, barY - 5, 2, 2);
+      }
+    }
+
+    // Name label with boss-specific color
     ctx.font = 'bold 5px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
     ctx.fillStyle = '#000000';
-    ctx.fillText('MOR\'KHAN', this.logicalWidth / 2 + 1, barY - 2 + 1);
-    ctx.fillStyle = '#ef4444';
-    ctx.fillText('MOR\'KHAN', this.logicalWidth / 2, barY - 2);
+    ctx.fillText(bossName, this.logicalWidth / 2 + 1, barY - 2 + 1);
+    ctx.fillStyle = bossColor;
+    ctx.fillText(bossName, this.logicalWidth / 2, barY - 2);
 
     // 1px black outline
     ctx.fillStyle = '#000000';
@@ -1774,18 +1857,23 @@ export class GameRenderer {
     for (let i = 0; i < this.damageNumbers.length; i++) {
       const dn = this.damageNumbers[i];
       const progress = 1 - dn.life / dn.maxLife;
-      const floatY = progress * 16;
 
-      // Scale-up animation: start at scale, shrink to 1x
+      // Non-linear float: fast at start, decelerating
+      const floatY = Math.pow(progress, 0.6) * 20;
+
+      // Scale-up animation: overshoot then settle
       const scaleProgress = Math.min(1, progress * 5); // first 20% of life
-      const currentScale = dn.scale + (1 - dn.scale) * scaleProgress;
+      const overshoot = scaleProgress < 0.5 ? 1 + scaleProgress * 0.3 : 1;
+      const currentScale = dn.scale + (1 - dn.scale) * scaleProgress * overshoot;
 
-      // Alpha: fade out in last 40%
-      const alpha = progress < 0.6 ? 1 : Math.max(0, 1 - (progress - 0.6) / 0.4);
+      // Alpha: fade out in last 30%
+      const alpha = progress < 0.7 ? 1 : Math.max(0, 1 - (progress - 0.7) / 0.3);
       ctx.globalAlpha = alpha;
 
       // Font size based on kind
-      const baseSize = dn.kind === 'critical' ? 7 : 6;
+      const isCrit = dn.kind === 'critical';
+      const isHeal = dn.kind === 'heal';
+      const baseSize = isCrit ? 8 : isHeal ? 6 : 6;
       const fontSize = Math.round(baseSize * currentScale);
       ctx.font = `bold ${fontSize}px monospace`;
 
@@ -1799,11 +1887,26 @@ export class GameRenderer {
       ctx.fillText(dn.text, dx + 1, dy - 1);
       ctx.fillText(dn.text, dx - 1, dy + 1);
 
+      // Critical: pulsing glow halo
+      if (isCrit && progress < 0.4) {
+        ctx.globalAlpha = alpha * (0.4 - progress);
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillText(dn.text, dx, dy - 1);
+        ctx.fillText(dn.text, dx, dy + 1);
+        ctx.globalAlpha = alpha;
+      }
+
       // Main color
       ctx.fillStyle = dn.color;
       ctx.fillText(dn.text, dx, dy);
 
-      // Critical hit screen shake (triggered in addDamageNumber caller)
+      // Heal: upward green sparkle
+      if (isHeal && progress < 0.3) {
+        ctx.globalAlpha = alpha * 0.5;
+        ctx.fillStyle = '#86efac';
+        ctx.fillRect(dx - 1, dy - 3 - progress * 8, 2, 1);
+        ctx.globalAlpha = alpha;
+      }
     }
     ctx.globalAlpha = 1;
   }
@@ -1828,7 +1931,7 @@ export class GameRenderer {
     const dw = state.dungeon.width;
     const dh = state.dungeon.height;
 
-    if (this.fogGrid.length !== dh || (this.fogGrid[0] && this.fogGrid[0].length !== dw)) {
+    if (this.fogGrid.length !== dh || !this.fogGrid[0] || this.fogGrid[0].length !== dw) {
       this.fogGrid = [];
       for (let y = 0; y < dh; y++) {
         this.fogGrid[y] = new Array<FogState>(dw).fill(0);
@@ -1845,17 +1948,25 @@ export class GameRenderer {
       }
     }
 
-    // Check if player has moved (for fog cache invalidation)
+    // Fog cache invalidation: check ALL players + vision radius changes
+    // Build a simple hash from all player tile positions + vision radius
+    let fogHash = this.currentVisionRadius * 10000;
+    for (let i = 0; i < playersArr.length; i++) {
+      const p = playersArr[i];
+      if (!p.alive) continue;
+      fogHash += Math.floor(p.position.x) * 31 + Math.floor(p.position.y) * 997 + i * 7919;
+    }
     const localPlayer = state.players[localPlayerId];
     if (localPlayer) {
       const ptx = Math.floor(localPlayer.position.x);
       const pty = Math.floor(localPlayer.position.y);
-      if (ptx !== this.fogCachePlayerTileX || pty !== this.fogCachePlayerTileY) {
+      if (ptx !== this.fogCachePlayerTileX || pty !== this.fogCachePlayerTileY || fogHash !== this._fogHash) {
         this.fogCacheDirty = true;
         this.fogCachePlayerTileX = ptx;
         this.fogCachePlayerTileY = pty;
       }
     }
+    this._fogHash = fogHash;
 
     // Reveal around players
     for (let i = 0; i < playersArr.length; i++) {
@@ -1891,7 +2002,7 @@ export class GameRenderer {
     playersArr: PlayerState[],
   ): void {
     const isSimple = QUALITY_PRESETS[this.quality].fogSimple;
-    const exploredStyle = isSimple ? 'rgba(10,12,30,0.3)' : 'rgba(10,12,30,0.35)';
+    const exploredStyle = isSimple ? 'rgba(10,12,30,0.25)' : 'rgba(10,12,30,0.30)';
 
     // Batch consecutive same-state fog tiles per row into single wider fillRect calls
     for (let ty = startY; ty < endY; ty++) {

@@ -17,6 +17,7 @@ const PROJECTILE_CONFIG = {
   arrow: { speed: 8, lifetime: 1.2, radius: 0.2, aoe: false },
   fireball: { speed: 5, lifetime: 1.5, radius: 0.3, aoe: true, aoeRadius: 1.5 },
   sword_slash: { speed: 0, lifetime: 0.15, radius: 1.2, aoe: false },
+  holy_bolt: { speed: 6, lifetime: 1.3, radius: 0.25, aoe: false },
 } as const;
 
 export class Projectile {

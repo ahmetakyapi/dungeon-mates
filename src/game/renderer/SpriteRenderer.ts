@@ -158,6 +158,10 @@ export class SpriteRenderer {
     frame: number,
     flashWhite = false,
     abilityActive = false,
+    shieldActive = false,
+    poisoned = false,
+    slowed = false,
+    stunTicks = 0,
   ): void {
     // Elliptical shadow beneath
     this.drawEntityShadow(ctx, x, y, 16, 16);
@@ -185,6 +189,9 @@ export class SpriteRenderer {
         case 'archer':
           this.drawArcher(sprCtx, 0, 0, facing, attacking, frame);
           break;
+        case 'healer':
+          this.drawHealer(sprCtx, 0, 0, facing, attacking, frame);
+          break;
       }
     });
     ctx.drawImage(cached, Math.floor(x), Math.floor(y + breatheY));
@@ -206,6 +213,45 @@ export class SpriteRenderer {
       ctx.fillStyle = '#67e8f9';
       ctx.fill();
       ctx.globalAlpha = 1;
+    }
+
+    // Poison status — green tint + dripping particles
+    if (poisoned) {
+      ctx.globalAlpha = 0.15 + Math.sin(frame * 0.4) * 0.05;
+      ctx.fillStyle = '#22c55e';
+      ctx.fillRect(x + 2, y + 2, 12, 12);
+      ctx.globalAlpha = 1;
+      // Poison drip particles
+      const dripY = (frame * 2) % 8;
+      ctx.globalAlpha = 0.7 - dripY * 0.08;
+      px(ctx, x + 4 + (frame % 3) * 3, y + 12 + dripY, 1, 2, '#4ade80');
+      ctx.globalAlpha = 1;
+    }
+
+    // Slow status — ice crystals around feet
+    if (slowed) {
+      ctx.globalAlpha = 0.5;
+      const iceShimmer = Math.sin(frame * 0.6) * 0.15;
+      px(ctx, x + 2, y + 14, 2, 1, '#93c5fd');
+      px(ctx, x + 12, y + 14, 2, 1, '#93c5fd');
+      px(ctx, x + 7, y + 15, 2, 1, '#bfdbfe');
+      ctx.globalAlpha = 0.3 + iceShimmer;
+      px(ctx, x + 1, y + 13, 1, 2, '#dbeafe');
+      px(ctx, x + 14, y + 13, 1, 2, '#dbeafe');
+      ctx.globalAlpha = 1;
+    }
+
+    // Stun status — spinning stars above head
+    if (stunTicks > 0) {
+      for (let i = 0; i < 3; i++) {
+        const angle = (frame * 0.25) + (i * Math.PI * 2 / 3);
+        const starX = x + 8 + Math.cos(angle) * 5;
+        const starY = y - 3 + Math.sin(angle) * 2;
+        ctx.globalAlpha = 0.8;
+        px(ctx, starX, starY, 1, 1, '#fbbf24');
+        px(ctx, starX - 1, starY, 1, 1, '#fde68a');
+        ctx.globalAlpha = 1;
+      }
     }
   }
 
@@ -729,6 +775,119 @@ export class SpriteRenderer {
     this.drawSpriteOutline(ctx, x, y);
   }
 
+  private drawHealer(
+    ctx: CanvasRenderingContext2D,
+    x: number, y: number,
+    facing: Direction,
+    attacking: boolean,
+    frame: number,
+  ): void {
+    const walkY = WALK_OFFSETS[frame % 4];
+    const facingRight = facing === 'right';
+
+    // White-gold robe (long, flowing)
+    px(ctx, x + 3, y + 7 + walkY, 10, 6, '#fef3c7');
+    px(ctx, x + 2, y + 10 + walkY, 12, 3, '#fde68a');
+    px(ctx, x + 4, y + 13, 3, 2, '#f59e0b');
+    px(ctx, x + 9, y + 13, 3, 2, '#f59e0b');
+    // Robe edge
+    px(ctx, x + 2, y + 12 + walkY, 1, 1, '#d97706');
+    px(ctx, x + 13, y + 12 + walkY, 1, 1, '#d97706');
+
+    // Holy symbol patterns on robe
+    const symbolShift = (frame % 12) < 6 ? 0 : 1;
+    px(ctx, x + 6 + symbolShift, y + 9 + walkY, 1, 1, '#ffffff');
+    px(ctx, x + 8 - symbolShift, y + 10 + walkY, 1, 1, '#ffffff');
+    // Cross pattern on chest
+    px(ctx, x + 7, y + 8 + walkY, 2, 1, '#f59e0b');
+    px(ctx, x + 7, y + 7 + walkY, 1, 3, '#f59e0b');
+
+    // Healing aura glow (subtle)
+    const auraPulse = 0.15 + Math.sin(frame * 0.2) * 0.1;
+    ctx.globalAlpha = auraPulse;
+    px(ctx, x + 1, y + 5 + walkY, 14, 10, '#fef3c7');
+    ctx.globalAlpha = 1;
+
+    // Body
+    px(ctx, x + 4, y + 5 + walkY, 8, 3, '#fde68a');
+    px(ctx, x + 5, y + 5 + walkY, 6, 1, '#fef3c7'); // collar
+
+    // Arms
+    px(ctx, x + 2, y + 6 + walkY, 2, 4, '#fef3c7');
+    px(ctx, x + 12, y + 6 + walkY, 2, 4, '#fef3c7');
+
+    // Staff with holy crystal
+    const staffX = facingRight ? x + 13 : x + 1;
+    const crystalPulse = 0.5 + Math.sin(frame * 0.35) * 0.5;
+    const crystalGlow = crystalPulse > 0.7;
+    if (attacking) {
+      // Staff raised, healing circle beneath
+      px(ctx, staffX, y - 2, 1, 14, '#92400e');
+      px(ctx, staffX - 1, y - 3, 3, 3, '#fbbf24');
+      px(ctx, staffX, y - 2, 1, 1, crystalGlow ? '#ffffff' : '#fef3c7');
+      // Healing circle
+      ctx.globalAlpha = 0.5 + Math.sin(frame * 0.5) * 0.2;
+      px(ctx, x + 1, y + 13, 14, 1, '#fbbf24');
+      px(ctx, x + 2, y + 14, 12, 1, '#f59e0b');
+      ctx.globalAlpha = 1;
+    } else {
+      px(ctx, staffX, y + 1, 1, 12, '#92400e');
+      px(ctx, staffX - 1, y + 0, 3, 2, '#fbbf24');
+      px(ctx, staffX, y + 0, 1, 1, crystalGlow ? '#ffffff' : '#fef3c7');
+      if (crystalGlow) {
+        ctx.globalAlpha = 0.3;
+        px(ctx, staffX - 1, y - 1, 3, 1, '#fde68a');
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // Healing particles when moving
+    if (walkY !== 0) {
+      ctx.globalAlpha = 0.4;
+      const trailX = x + 6 + Math.sin(frame * 0.7) * 3;
+      const trailY = y + 14 + Math.cos(frame * 0.5) * 1;
+      px(ctx, trailX, trailY, 1, 1, '#fde68a');
+      px(ctx, trailX + 2, trailY - 1, 1, 1, '#fbbf24');
+      ctx.globalAlpha = 1;
+    }
+
+    // Head
+    px(ctx, x + 5, y + 2, 6, 4, '#fcd5b4');
+
+    // Eyes
+    if (facing !== 'up') {
+      const eyeColor = crystalGlow ? '#fde68a' : '#92400e';
+      px(ctx, x + 6, y + 3, 1, 1, eyeColor);
+      px(ctx, x + 9, y + 3, 1, 1, eyeColor);
+    }
+
+    // Hood/cowl (amber tones)
+    px(ctx, x + 4, y + 1, 8, 2, '#f59e0b');
+    px(ctx, x + 5, y + 0, 6, 1, '#d97706');
+    px(ctx, x + 6, y - 1, 4, 1, '#b45309');
+    px(ctx, x + 7, y - 2, 2, 1, '#92400e');
+    // Hood band
+    px(ctx, x + 4, y + 0, 8, 1, '#78350f');
+    // Gem on hood
+    px(ctx, x + 7, y + 0, 2, 1, crystalGlow ? '#ffffff' : '#fef3c7');
+
+    // Staff crystal sparkle orbit
+    if (!attacking) {
+      const sparkleAngle1 = frame * 0.2;
+      const sparkleAngle2 = frame * 0.2 + Math.PI;
+      const orbitR = 2.5;
+      const scx = facingRight ? x + 14 : x + 2;
+      const scy = y + 0;
+      ctx.globalAlpha = 0.5 + Math.sin(frame * 0.35) * 0.3;
+      px(ctx, scx + Math.cos(sparkleAngle1) * orbitR, scy + Math.sin(sparkleAngle1) * orbitR, 1, 1, '#fef3c7');
+      ctx.globalAlpha = 0.3 + Math.sin(frame * 0.25) * 0.2;
+      px(ctx, scx + Math.cos(sparkleAngle2) * orbitR, scy + Math.sin(sparkleAngle2) * orbitR, 1, 1, '#fbbf24');
+      ctx.globalAlpha = 1;
+    }
+
+    this.drawSpriteOutline(ctx, x, y);
+  }
+
   // ===== MONSTER SPRITES =====
 
   /** Draw a monster sprite */
@@ -742,6 +901,9 @@ export class SpriteRenderer {
     flashWhite = false,
     attacking = false,
     isElite = false,
+    shieldActive = false,
+    phased = false,
+    enraged = false,
   ): void {
     const stats = MONSTER_STATS[type];
     const renderSize = Math.floor(TILE_SIZE * stats.size);
@@ -760,6 +922,11 @@ export class SpriteRenderer {
     // Elliptical shadow beneath
     this.drawEntityShadow(ctx, x, y, renderSize, renderSize);
 
+    // Phased monsters (wraith) — ghostly transparency
+    if (phased) {
+      ctx.globalAlpha = 0.3 + Math.sin(frame * 0.4) * 0.15;
+    }
+
     if (flashWhite) {
       // White silhouette with red tint
       px(ctx, x + 2, y + 2, renderSize - 4, renderSize - 4, '#ff8888');
@@ -769,18 +936,63 @@ export class SpriteRenderer {
       return;
     }
 
-    // Cache monster sprites per animation state (non-boss only — bosses have special rendering)
-    const isBoss = type.startsWith('boss_');
-    if (!isBoss) {
-      const walkFrame = frame % 4;
-      const atkFrame = attacking ? 1 : 0;
-      const mCacheKey = `mon_${type}_${facing}_${atkFrame}_${walkFrame}`;
-      const cachedMon = getCachedSprite(mCacheKey, renderSize, renderSize, (sprCtx) => {
-        this.drawMonsterSprite(sprCtx, 0, 0, type, facing, frame, attacking);
-      });
-      ctx.drawImage(cachedMon, Math.floor(x), Math.floor(y));
-    } else {
-      this.drawMonsterSprite(ctx, x, y, type, facing, frame, attacking);
+    // Cache monster sprites per animation state (including bosses now)
+    const walkFrame = frame % 4;
+    const atkFrame = attacking ? 1 : 0;
+    const bossFrame = type.startsWith('boss_') ? (frame % 8) : walkFrame;
+    const mCacheKey = `mon_${type}_${facing}_${atkFrame}_${bossFrame}`;
+    const cachedMon = getCachedSprite(mCacheKey, renderSize, renderSize, (sprCtx) => {
+      this.drawMonsterSprite(sprCtx, 0, 0, type, facing, frame, attacking);
+    });
+    ctx.drawImage(cachedMon, Math.floor(x), Math.floor(y));
+
+    // Reset phase transparency
+    if (phased) {
+      ctx.globalAlpha = 1;
+    }
+
+    // Shield visual overlay (Stone Warden)
+    if (shieldActive) {
+      const shieldPulse = Math.sin(frame * 0.3) * 0.08;
+      const cx = x + renderSize / 2;
+      const cy = y + renderSize / 2;
+      ctx.globalAlpha = 0.25 + shieldPulse;
+      ctx.beginPath();
+      ctx.arc(cx, cy, renderSize * 0.55, 0, Math.PI * 2);
+      ctx.fillStyle = '#a3a3a3';
+      ctx.fill();
+      ctx.globalAlpha = 0.5;
+      ctx.strokeStyle = '#737373';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      // Rock fragments orbiting shield
+      for (let i = 0; i < 4; i++) {
+        const angle = (frame * 0.08) + (i * Math.PI / 2);
+        const orbitR = renderSize * 0.5;
+        const rx = cx + Math.cos(angle) * orbitR;
+        const ry = cy + Math.sin(angle) * orbitR * 0.6;
+        px(ctx, rx - 1, ry - 1, 2, 2, '#78716c');
+        px(ctx, rx, ry, 1, 1, '#a8a29e');
+      }
+    }
+
+    // Enraged visual (Forge Guardian) — red-hot glow
+    if (enraged) {
+      const enragePulse = Math.sin(frame * 0.5) * 0.06;
+      ctx.globalAlpha = 0.15 + enragePulse;
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(x + 1, y + 1, renderSize - 2, renderSize - 2);
+      ctx.globalAlpha = 1;
+      // Ember particles from body
+      for (let i = 0; i < 3; i++) {
+        const ex = x + 3 + ((frame * 7 + i * 11) % (renderSize - 6));
+        const ey = y - 1 - ((frame + i * 5) % 4);
+        const ea = 0.6 - ((frame + i * 5) % 4) * 0.15;
+        ctx.globalAlpha = Math.max(0, ea);
+        px(ctx, ex, ey, 1, 1, i % 2 === 0 ? '#f97316' : '#fbbf24');
+      }
+      ctx.globalAlpha = 1;
     }
 
     // Elite golden tint overlay (applied on main ctx after cached/direct draw)
@@ -2476,8 +2688,8 @@ export class SpriteRenderer {
     _mapHeight?: number,
     _animFrame?: number,
   ): void {
-    // Use tile position for deterministic variation
-    const hash = tileHash(Math.floor(x / TILE_SIZE + 1000), Math.floor(y / TILE_SIZE + 1000));
+    // Use tile grid position for deterministic variation (not screen coords)
+    const hash = tileHash(tileX + 1000, tileY + 1000);
 
     // Cache each tile as an offscreen canvas — tiles are fully deterministic per hash
     // Use only bits that affect visual output (bits 0-10 cover all tile drawing branches)
@@ -2892,7 +3104,7 @@ export class SpriteRenderer {
     ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
-    type: 'arrow' | 'fireball' | 'sword_slash',
+    type: 'arrow' | 'fireball' | 'sword_slash' | 'holy_bolt',
     frame: number,
     vx = 0,
     vy = 0,
@@ -2903,6 +3115,7 @@ export class SpriteRenderer {
       case 'arrow': this.drawArrowProjectile(ctx, x, y, vx, vy); break;
       case 'fireball': this.drawFireballProjectile(ctx, x, y, frame); break;
       case 'sword_slash': this.drawSwordSlashProjectile(ctx, x, y, frame, dirX, dirY); break;
+      case 'holy_bolt': this.drawHolyBoltProjectile(ctx, x, y, frame, vx, vy); break;
     }
   }
 
@@ -3043,6 +3256,42 @@ export class SpriteRenderer {
       px(ctx, x - 1, y - 1, 3, 3, '#ffffff');
     }
 
+    ctx.globalAlpha = 1;
+  }
+
+  private drawHolyBoltProjectile(ctx: CanvasRenderingContext2D, x: number, y: number, frame: number, vx: number, vy: number): void {
+    const phase = frame % 3;
+    const angle = Math.atan2(vy, vx);
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+
+    // Outer glow (golden)
+    ctx.globalAlpha = 0.2;
+    px(ctx, x - 4, y - 4, 8, 8, '#fbbf24');
+    ctx.globalAlpha = 1;
+
+    // Core (white-gold, animated)
+    if (phase === 0) {
+      px(ctx, x - 2, y - 2, 4, 4, '#fef3c7');
+      px(ctx, x - 1, y - 1, 2, 2, '#ffffff');
+    } else if (phase === 1) {
+      px(ctx, x - 2, y - 1, 4, 3, '#fef3c7');
+      px(ctx, x - 1, y - 2, 2, 4, '#fef3c7');
+      px(ctx, x, y, 1, 1, '#ffffff');
+    } else {
+      px(ctx, x - 1, y - 2, 3, 5, '#fef3c7');
+      px(ctx, x - 1, y - 1, 3, 2, '#ffffff');
+    }
+
+    // Trailing sparkles
+    ctx.globalAlpha = 0.4;
+    const t1x = Math.floor(x - cos * 5);
+    const t1y = Math.floor(y - sin * 5);
+    px(ctx, t1x, t1y, 1, 1, '#fde68a');
+    ctx.globalAlpha = 0.2;
+    const t2x = Math.floor(x - cos * 8);
+    const t2y = Math.floor(y - sin * 8);
+    px(ctx, t2x, t2y, 1, 1, '#f59e0b');
     ctx.globalAlpha = 1;
   }
 

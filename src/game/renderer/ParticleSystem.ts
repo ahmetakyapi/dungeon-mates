@@ -609,6 +609,25 @@ export class ParticleSystem {
     });
   }
 
+  /** Subtle dust puff at player feet when walking */
+  emitFootstepDust(x: number, y: number): void {
+    this.emit({
+      x: x + (Math.random() - 0.5) * 4,
+      y,
+      count: 2,
+      color: ['#78716c', '#a8a29e'],
+      speedMin: 2, speedMax: 6,
+      sizeMin: 1, sizeMax: 1,
+      lifeMin: 0.2, lifeMax: 0.4,
+      gravity: -3,
+      friction: 0.92,
+      fadeOut: true,
+      priority: 0,
+      angleMin: -Math.PI * 0.85,
+      angleMax: -Math.PI * 0.15,
+    });
+  }
+
   /** torch_flame: 3-5 flame particles rising + smoke wisps */
   emitTorchFlame(x: number, y: number): void {
     // Main flame particles (more colors, slight horizontal drift)
@@ -1025,6 +1044,103 @@ export class ParticleSystem {
     this.emitDeathExplosion(x, y, color);
   }
 
+  /** Stone Warden shield break — rock fragments exploding outward */
+  emitShieldBreak(x: number, y: number): void {
+    this.emit({
+      x, y,
+      count: 16,
+      color: ['#78716c', '#a8a29e', '#d6d3d1', '#57534e'],
+      speedMin: 60, speedMax: 140,
+      sizeMin: 2, sizeMax: 4,
+      lifeMin: 0.4, lifeMax: 0.9,
+      gravity: 120,
+      friction: 0.88,
+      shrink: true,
+      priority: 2,
+    });
+    // Dust cloud
+    this.emit({
+      x, y,
+      count: 8,
+      color: ['#d6d3d1', '#e7e5e4'],
+      speedMin: 15, speedMax: 40,
+      sizeMin: 3, sizeMax: 5,
+      lifeMin: 0.5, lifeMax: 1.0,
+      gravity: 0,
+      friction: 0.92,
+      fadeOut: true,
+      priority: 1,
+    });
+  }
+
+  /** Enrage fire eruption — flames bursting from monster */
+  emitEnrageFlare(x: number, y: number): void {
+    this.emit({
+      x, y,
+      count: 12,
+      color: ['#ef4444', '#f97316', '#fbbf24', '#dc2626'],
+      speedMin: 40, speedMax: 100,
+      sizeMin: 1, sizeMax: 3,
+      lifeMin: 0.3, lifeMax: 0.7,
+      gravity: -60,
+      friction: 0.9,
+      shrink: true,
+      angleMin: -Math.PI * 0.8,
+      angleMax: -Math.PI * 0.2,
+      priority: 2,
+    });
+  }
+
+  /** Stun stars — sparkling circles above entity */
+  emitStunStars(x: number, y: number): void {
+    this.emit({
+      x, y: y - 8,
+      count: 2,
+      color: ['#fbbf24', '#fde68a', '#ffffff'],
+      speedMin: 8, speedMax: 20,
+      sizeMin: 1, sizeMax: 1,
+      lifeMin: 0.4, lifeMax: 0.7,
+      gravity: -15,
+      friction: 0.95,
+      fadeOut: true,
+      priority: 0,
+    });
+  }
+
+  /** Dodge afterimage — ghostly duplicate fading away */
+  emitDodge(x: number, y: number, color: string): void {
+    this.emit({
+      x, y,
+      count: 6,
+      color: [color, '#ffffff'],
+      speedMin: 20, speedMax: 50,
+      sizeMin: 1, sizeMax: 2,
+      lifeMin: 0.15, lifeMax: 0.35,
+      gravity: 0,
+      friction: 0.85,
+      fadeOut: true,
+      shrink: true,
+      priority: 1,
+    });
+  }
+
+  /** Floor transition sparkle — magical portal particles */
+  emitFloorTransition(x: number, y: number): void {
+    this.emit({
+      x, y,
+      count: 20,
+      color: ['#a78bfa', '#c4b5fd', '#7c3aed', '#fbbf24', '#ffffff'],
+      speedMin: 30, speedMax: 90,
+      sizeMin: 1, sizeMax: 3,
+      lifeMin: 0.5, lifeMax: 1.2,
+      gravity: -30,
+      friction: 0.93,
+      fadeOut: true,
+      shrink: true,
+      priority: 2,
+    });
+  }
+
   /** Update all active particles */
   update(dt: number): void {
     for (let i = 0; i < MAX_PARTICLES; i++) {
@@ -1058,7 +1174,7 @@ export class ParticleSystem {
   }
 
   /** Render all active particles */
-  render(ctx: CanvasRenderingContext2D, cameraX: number, cameraY: number): void {
+  render(ctx: CanvasRenderingContext2D, cameraX: number, cameraY: number, viewW = 480, viewH = 270): void {
     for (let i = 0; i < MAX_PARTICLES; i++) {
       const p = this.pool[i];
       if (!p.active) continue;
@@ -1066,8 +1182,8 @@ export class ParticleSystem {
       const sx = Math.floor(p.x - cameraX);
       const sy = Math.floor(p.y - cameraY);
 
-      // Skip off-screen particles
-      if (sx < -10 || sx > 330 || sy < -10 || sy > 250) continue;
+      // Skip off-screen particles (dynamic viewport bounds)
+      if (sx < -10 || sx > viewW + 10 || sy < -10 || sy > viewH + 10) continue;
 
       const progress = 1 - p.life / p.maxLife;
 

@@ -20,6 +20,8 @@ const CLASS_DESCRIPTIONS: Record<PlayerClass, string> = {
     'Uzak mesafeden güçlü büyüler savurur. Ateş topu ile alan hasarı verir ama canı düşüktür.',
   archer:
     'Hızlı ve çevik. Uzak mesafeden ok yağdırır, en hızlı saldırı hızına sahiptir.',
+  healer:
+    'Takım arkadaşlarını iyileştirir ve kutsal ışık ile düşmanlara hasar verir. Takımın can damarı.',
 } as const;
 
 const STAT_LABELS = [

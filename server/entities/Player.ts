@@ -23,11 +23,16 @@ import { Projectile } from './Projectile';
 export type ServerAbilityResult =
   | { type: 'shield_wall' }
   | { type: 'ice_storm'; position: Vec2; damage: number; radius: number }
-  | { type: 'arrow_rain'; projectiles: Projectile[] };
+  | { type: 'arrow_rain'; projectiles: Projectile[] }
+  | { type: 'healing_wave'; position: Vec2; healAmount: number; radius: number };
 
 const LOOT_PICKUP_RADIUS = 0.8;
 const PLAYER_RADIUS = 0.4;
 const RESPAWN_DELAY_TICKS = 5 * TICK_RATE;
+const DODGE_SPEED_MULT = 3.5;
+const DODGE_DURATION_TICKS = 6; // ~0.3 seconds
+const DODGE_COOLDOWN_TICKS = 30; // ~1.5 seconds
+const DODGE_MANA_COST = 5;
 
 const SOLO_MANA_REGEN = 0.06;
 const SOLO_HP_REGEN = 0.01;
@@ -60,6 +65,11 @@ export class Player {
   private slowMultiplier: number;
   private slowTicks: number;
   private attackAnimTicks: number;
+  // Dodge/roll state
+  private dodging: boolean;
+  private dodgeTicks: number;
+  private dodgeCooldownTicks: number;
+  private dodgeDir: Vec2;
   // Dükkan bonusları (kalıcı)
   private shopBonuses: { maxHp: number; maxMana: number; attack: number; defense: number; speed: number };
 
@@ -77,6 +87,10 @@ export class Player {
     this.slowMultiplier = 1;
     this.slowTicks = 0;
     this.attackAnimTicks = 0;
+    this.dodging = false;
+    this.dodgeTicks = 0;
+    this.dodgeCooldownTicks = 0;
+    this.dodgeDir = { x: 0, y: 1 };
     this.talentBonuses = {
       maxHp: 0, maxMana: 0, attack: 0, defense: 0, speed: 0,
       lifesteal: 0, manaCostReduction: 0, abilityDamageBonus: 0,
@@ -114,7 +128,12 @@ export class Player {
       talents: [],
       talentBranch: null,
       pendingTalentChoice: false,
+      dodging: false,
+      dodgeCooldownTicks: 0,
       stunTicks: 0,
+      shieldActive: false,
+      poisoned: false,
+      slowed: false,
     };
   }
 
@@ -199,13 +218,49 @@ export class Player {
       return null;
     }
 
+    // Dodge cooldown tick
+    if (this.dodgeCooldownTicks > 0) this.dodgeCooldownTicks--;
+    this.state.dodgeCooldownTicks = this.dodgeCooldownTicks;
+
+    // Dodge initiation
+    if (input.dodge && !this.dodging && this.dodgeCooldownTicks <= 0 && this.state.mana >= DODGE_MANA_COST) {
+      this.dodging = true;
+      this.dodgeTicks = DODGE_DURATION_TICKS;
+      this.dodgeCooldownTicks = DODGE_COOLDOWN_TICKS;
+      this.state.mana -= DODGE_MANA_COST;
+      // Dodge in movement direction, or facing direction if standing still
+      if (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1) {
+        this.dodgeDir = { x: dx, y: dy };
+      } else {
+        const dirMap: Record<string, Vec2> = {
+          up: { x: 0, y: -1 }, down: { x: 0, y: 1 },
+          left: { x: -1, y: 0 }, right: { x: 1, y: 0 },
+        };
+        this.dodgeDir = dirMap[this.state.facing] ?? { x: 0, y: 1 };
+      }
+    }
+
+    // During dodge: invincible, fast movement in dodge direction
+    if (this.dodging) {
+      this.dodgeTicks--;
+      this.state.dodging = true;
+      if (this.dodgeTicks <= 0) {
+        this.dodging = false;
+        this.state.dodging = false;
+      }
+    }
+
     // Movement with collision
     const classStats = CLASS_STATS[this.state.class];
     const totalSpeed = classStats.speed + this.getShopSpeedBonus();
-    const speed = totalSpeed * PLAYER_SPEED * this.speedBoostMultiplier * this.slowMultiplier / TICK_RATE;
+    const dodgeMult = this.dodging ? DODGE_SPEED_MULT : 1;
+    const speed = totalSpeed * PLAYER_SPEED * this.speedBoostMultiplier * this.slowMultiplier * dodgeMult / TICK_RATE;
 
-    const newX = this.state.position.x + dx * speed;
-    const newY = this.state.position.y + dy * speed;
+    // During dodge, use dodge direction; otherwise use input
+    const moveX = this.dodging ? this.dodgeDir.x : dx;
+    const moveY = this.dodging ? this.dodgeDir.y : dy;
+    const newX = this.state.position.x + moveX * speed;
+    const newY = this.state.position.y + moveY * speed;
 
     // Check X movement
     if (!this.collidesWithWall(newX, this.state.position.y, tiles)) {
@@ -216,7 +271,7 @@ export class Player {
       this.state.position.y = newY;
     }
 
-    this.state.velocity = { x: dx * speed, y: dy * speed };
+    this.state.velocity = { x: moveX * speed, y: moveY * speed };
 
     // Attack
     let projectile: Projectile | null = null;
@@ -306,6 +361,18 @@ export class Player {
           'fireball',
         );
       }
+      case 'healer': {
+        const manaCost = 8;
+        if (this.state.mana < manaCost) return null;
+        this.state.mana -= manaCost;
+        return new Projectile(
+          this.state.id,
+          spawnPos,
+          dir,
+          this.state.attack,
+          'holy_bolt',
+        );
+      }
     }
   }
 
@@ -384,9 +451,12 @@ export class Player {
   takeDamage(damage: number): { effectiveDamage: number; thornsDamage: number; dodged: boolean } {
     if (!this.state.alive) return { effectiveDamage: 0, thornsDamage: 0, dodged: false };
 
+    // Dodge roll invincibility
+    if (this.dodging) return { effectiveDamage: 0, thornsDamage: 0, dodged: true };
+
     this.ticksSinceLastDamage = 0;
 
-    // Dodge kontrolü
+    // Talent dodge chance kontrolü
     if (this.talentBonuses.dodgeChance > 0 && Math.random() < this.talentBonuses.dodgeChance) {
       return { effectiveDamage: 0, thornsDamage: 0, dodged: true };
     }
@@ -422,6 +492,27 @@ export class Player {
 
   getSoloDeathsRemaining(): number {
     return Math.max(0, SOLO_MAX_DEATHS - this.totalDeaths);
+  }
+
+  /** Check if player can be revived by a teammate standing nearby */
+  canBeRevived(): boolean {
+    return !this.state.alive && this.respawnTimer > 0;
+  }
+
+  /** Revive this player (co-op mechanic) — reviver must channel for ~3 seconds */
+  revive(): void {
+    if (this.state.alive) return;
+    this.state.alive = true;
+    this.state.hp = Math.floor(this.state.maxHp * 0.3); // Revive with 30% HP
+    this.state.mana = Math.floor(this.state.maxMana * 0.2);
+    this.slowMultiplier = 1;
+    this.slowTicks = 0;
+    this.respawnTimer = 0;
+  }
+
+  /** Get remaining respawn ticks (for revive progress display) */
+  getRespawnTimer(): number {
+    return this.respawnTimer;
   }
 
   private respawn(): void {
@@ -671,6 +762,20 @@ export class Player {
         }
         return { type: 'arrow_rain', projectiles: arrows };
       }
+      case 'healer': {
+        const cost = Math.floor(30 * costReduction);
+        if (this.state.mana < cost) return null;
+        this.state.mana -= cost;
+        this.abilityActiveTicks = 15; // visual feedback
+        this.abilityCooldownTicks = 360;
+        const healAmount = Math.floor((20 + this.state.attack * 0.5) * abilityDmgMult);
+        return {
+          type: 'healing_wave',
+          position: { ...this.state.position },
+          healAmount,
+          radius: 4,
+        };
+      }
     }
   }
 
@@ -698,6 +803,9 @@ export class Player {
       abilityActive: this.shieldActive || this.abilityActiveTicks > 0,
       abilityCooldownTicks: this.abilityCooldownTicks,
       speedBoosted: this.speedBoostMultiplier > 1,
+      shieldActive: this.shieldActive,
+      poisoned: false, // will be set by GameRoom if poison aura active
+      slowed: this.slowTicks > 0,
     };
   }
 }

@@ -23,6 +23,7 @@ import { TalentSelect } from '@/components/game/TalentSelect';
 import { ShopScreen } from '@/components/game/ShopScreen';
 import { PixelButton } from '@/components/ui/PixelButton';
 import { PixelHero } from '@/components/game/PixelHero';
+import { GameErrorBoundary } from '@/components/game/ErrorBoundary';
 import type { PlayerInput, GamePhase } from '../../../shared/types';
 import { CLASS_STATS, DIFFICULTY_INFO, ABILITY_MAX_COOLDOWNS } from '../../../shared/types';
 
@@ -64,9 +65,11 @@ function LobbyParticles() {
 
 export default function GamePageWrapper() {
   return (
-    <Suspense fallback={<div className="flex h-dvh items-center justify-center bg-dm-bg font-pixel text-dm-accent">Yükleniyor...</div>}>
-      <GamePage />
-    </Suspense>
+    <GameErrorBoundary>
+      <Suspense fallback={<div className="flex h-dvh items-center justify-center bg-dm-bg font-pixel text-dm-accent">Yükleniyor...</div>}>
+        <GamePage />
+      </Suspense>
+    </GameErrorBoundary>
   );
 }
 

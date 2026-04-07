@@ -362,9 +362,10 @@ export class GameRoom {
     }
 
     // Check if all players are ready
-    const allReady = Array.from(this.readyStates.values()).every(
-      (rs) => rs.classSelected && rs.ready,
-    );
+    let allReady = true;
+    for (const rs of this.readyStates.values()) {
+      if (!rs.classSelected || !rs.ready) { allReady = false; break; }
+    }
 
     if (allReady && this.players.size >= 1) {
       this.startGame();
@@ -381,6 +382,7 @@ export class GameRoom {
       existing.toggleMap = input.toggleMap;
       // Preserve one-shot flags that haven't been processed yet
       existing.interact = input.interact || existing.interact;
+      existing.dodge = input.dodge || existing.dodge;
       // Don't overwrite attack/ability — they're set via separate events
     } else {
       this.playerInputs.set(socketId, { ...input });
@@ -761,6 +763,24 @@ export class GameRoom {
               }
               break;
             }
+            case 'healing_wave': {
+              // Heal all alive allies (including self) within radius
+              for (const [, ally] of this.players) {
+                if (!ally.state.alive) continue;
+                const dx = ally.state.position.x - abilityResult.position.x;
+                const dy = ally.state.position.y - abilityResult.position.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist <= abilityResult.radius) {
+                  const prevHp = ally.state.hp;
+                  ally.state.hp = Math.min(ally.state.maxHp, ally.state.hp + abilityResult.healAmount);
+                  const healed = ally.state.hp - prevHp;
+                  if (healed > 0) {
+                    this.queueDamage(ally.state.id, -healed, player.state.id); // negative = heal
+                  }
+                }
+              }
+              break;
+            }
           }
         }
       }
@@ -1051,6 +1071,34 @@ export class GameRoom {
       this.loot.delete(lootId);
     }
 
+    // Co-op revive: alive player near dead player with interact key → revive
+    if (!this.isSolo) {
+      const REVIVE_RADIUS = 1.8;
+      for (const [socketId, player] of this.players) {
+        if (!player.state.alive) continue;
+        const input = this.playerInputs.get(socketId);
+        if (!input?.interact) continue;
+
+        for (const [deadId, deadPlayer] of this.players) {
+          if (deadId === socketId || deadPlayer.state.alive) continue;
+          if (!deadPlayer.canBeRevived()) continue;
+
+          const rdx = player.state.position.x - deadPlayer.state.position.x;
+          const rdy = player.state.position.y - deadPlayer.state.position.y;
+          if (rdx * rdx + rdy * rdy <= REVIVE_RADIUS * REVIVE_RADIUS) {
+            deadPlayer.revive();
+            input.interact = false;
+            this.io.to(this.roomCode).emit('chat:message', {
+              playerId: socketId,
+              name: 'Sistem',
+              text: `${player.state.name}, ${deadPlayer.state.name} oyuncusunu canlandırdı!`,
+            });
+            break;
+          }
+        }
+      }
+    }
+
     // Sandık ve merdiven etkileşimi (R tuşu ile, 1.5 tile yarıçapında)
     const INTERACT_RADIUS = 1.5;
     for (const [socketId, player] of this.players) {
@@ -1164,7 +1212,7 @@ export class GameRoom {
         if (availableTalents.length > 0) {
           this.io.to(this.roomCode).emit('game:talent_choice', {
             playerId: killerId,
-            talents: availableTalents as unknown as typeof availableTalents,
+            talents: availableTalents,
           });
         }
       }
@@ -1270,10 +1318,14 @@ export class GameRoom {
     this.currentFloorModifiers = [];
     if (this.currentFloor >= 4) {
       const allModIds = Object.keys(FLOOR_MODIFIERS) as Array<keyof typeof FLOOR_MODIFIERS>;
-      const shuffled = allModIds.sort(() => Math.random() - 0.5);
+      // Fisher-Yates shuffle
+      for (let i = allModIds.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = allModIds[i]; allModIds[i] = allModIds[j]; allModIds[j] = tmp;
+      }
       const count = this.currentFloor >= 7 ? 2 : 1;
-      for (let i = 0; i < count && i < shuffled.length; i++) {
-        this.currentFloorModifiers.push(FLOOR_MODIFIERS[shuffled[i]]);
+      for (let i = 0; i < count && i < allModIds.length; i++) {
+        this.currentFloorModifiers.push(FLOOR_MODIFIERS[allModIds[i]]);
       }
       this.io.to(this.roomCode).emit('game:floor_modifier', { modifiers: this.currentFloorModifiers });
     }
@@ -1289,7 +1341,7 @@ export class GameRoom {
   private checkGameEnd(): void {
     if (this.isSolo) {
       // Solo defeat: player has died 3 times total
-      const soloPlayer = Array.from(this.players.values())[0];
+      const soloPlayer = this.players.values().next().value ?? null;
       if (soloPlayer && soloPlayer.getSoloDeathsRemaining() <= 0 && !soloPlayer.state.alive) {
         this.setPhase('defeat');
         this.io.to(this.roomCode).emit('game:defeat');
@@ -1298,7 +1350,10 @@ export class GameRoom {
       }
     } else {
       // Co-op defeat: all players dead simultaneously
-      const anyAlive = Array.from(this.players.values()).some((p) => p.state.alive);
+      let anyAlive = false;
+      for (const p of this.players.values()) {
+        if (p.state.alive) { anyAlive = true; break; }
+      }
       if (!anyAlive && this.players.size > 0) {
         this.setPhase('defeat');
         this.io.to(this.roomCode).emit('game:defeat');

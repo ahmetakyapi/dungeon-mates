@@ -257,6 +257,54 @@ body {
 }
 .chat-pulse { animation: chat-pulse 0.5s ease-out; }
 
+/* Shield active shimmer */
+@keyframes shield-shimmer {
+  0%, 100% { box-shadow: 0 0 4px 1px rgba(34, 211, 238, 0.3); }
+  50% { box-shadow: 0 0 8px 2px rgba(34, 211, 238, 0.6), 0 0 16px 4px rgba(34, 211, 238, 0.2); }
+}
+.shield-shimmer { animation: shield-shimmer 1.5s ease-in-out infinite; }
+
+/* Poison drip */
+@keyframes poison-pulse {
+  0%, 100% { border-color: rgba(34, 197, 94, 0.2); }
+  50% { border-color: rgba(34, 197, 94, 0.5); }
+}
+.poison-pulse { animation: poison-pulse 1s ease-in-out infinite; }
+
+/* XP bar fill shimmer */
+@keyframes xp-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.xp-shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: xp-shimmer 2s ease-in-out infinite;
+}
+
+/* Level up celebration */
+@keyframes level-up-glow {
+  0% { text-shadow: 0 0 5px rgba(251, 191, 36, 0.5); transform: scale(1); }
+  50% { text-shadow: 0 0 20px rgba(251, 191, 36, 0.9), 0 0 40px rgba(251, 191, 36, 0.4); transform: scale(1.1); }
+  100% { text-shadow: 0 0 5px rgba(251, 191, 36, 0.5); transform: scale(1); }
+}
+.level-up-glow { animation: level-up-glow 0.8s ease-out; }
+
+/* Combo counter bounce */
+@keyframes combo-bounce {
+  0% { transform: scale(1.4); }
+  50% { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+.combo-bounce { animation: combo-bounce 0.3s ease-out; }
+
+/* Damage indicator flash for HP bar */
+@keyframes damage-flash {
+  0% { background-color: rgba(239, 68, 68, 0.4); }
+  100% { background-color: transparent; }
+}
+.damage-flash { animation: damage-flash 0.5s ease-out; }
+
 /* Safe area padding for notched phones */
 .safe-area-padding {
   padding-top: env(safe-area-inset-top, 0);
