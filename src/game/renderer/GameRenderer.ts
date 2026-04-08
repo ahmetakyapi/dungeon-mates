@@ -51,8 +51,8 @@ const PERF_SAMPLE_COUNT = 30;
 const PERF_CHECK_INTERVAL = 2000; // ms
 
 // Vision radius for fog (reduced with darkness modifier)
-const VISION_RADIUS = 8;
-const VISION_RADIUS_DARKNESS = 4;
+const VISION_RADIUS = 10;
+const VISION_RADIUS_DARKNESS = 6;
 
 export class GameRenderer {
   private readonly canvas: HTMLCanvasElement;
@@ -532,33 +532,33 @@ export class GameRenderer {
       this.renderTorchLights(ctx, camX, camY);
     }
 
-    // 2c. Highlight interactable tiles (chests, stairs) with pulsing glow
+    // 3. Fog of war BEFORE entities — tiles/decor get fogged, entities stay bright
+    this.renderFog(ctx, state, camX, camY, startTileX, startTileY, endTileX, endTileY, localPlayerId, playersArr);
+
+    // 4. Highlight interactable tiles (chests, stairs) with pulsing glow — after fog so they pop
     this.renderInteractableHighlights(ctx, state, camX, camY, localPlayerId);
 
-    // 3. Render loot
+    // 5. Render loot
     this.renderLoot(ctx, lootArr, camX, camY);
 
-    // 5. Render monsters
+    // 6. Render monsters — drawn after fog so they are always visible
     this.renderMonsters(ctx, monstersArr, camX, camY, dt);
 
-    // 6. Render projectiles
+    // 7. Render projectiles
     this.renderProjectiles(ctx, projectilesArr, camX, camY);
 
-    // 7. Render players
+    // 8. Render players — drawn after fog so they are always bright and visible
     this.renderPlayers(ctx, playersArr, state, camX, camY, localPlayerId, dt);
 
-    // 8. Render particles
+    // 9. Render particles
     if (preset.particles) {
       this.particles.render(ctx, camX, camY, this.logicalWidth, this.logicalHeight);
     }
 
-    // 9. Render damage numbers
+    // 10. Render damage numbers
     this.renderDamageNumbers(ctx, camX, camY);
 
-    // 10. Render fog of war (with gradient edges)
-    this.renderFog(ctx, state, camX, camY, startTileX, startTileY, endTileX, endTileY, localPlayerId, playersArr);
-
-    // 10b. Boss health bar at top of screen (after fog so it's always visible)
+    // 10b. Boss health bar at top of screen
     if (isBossPhase) {
       this.drawBossHealthBar(ctx, monstersArr);
     }
@@ -585,12 +585,12 @@ export class GameRenderer {
         }
       }
 
-      // Boss room dramatic lighting (darker with red tint)
+      // Boss room dramatic lighting (subtle red tint without excessive darkening)
       if (isBossPhase) {
-        ctx.globalAlpha = 0.12;
+        ctx.globalAlpha = 0.06;
         ctx.fillStyle = '#000000';
         ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
-        ctx.globalAlpha = 0.06;
+        ctx.globalAlpha = 0.04;
         ctx.fillStyle = '#7f1d1d';
         ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
         ctx.globalAlpha = 1;
@@ -601,9 +601,9 @@ export class GameRenderer {
 
       // Vignette effect
       if (isBossPhase) {
-        this.renderVignette(ctx, 0.25);
+        this.renderVignette(ctx, 0.18);
       } else {
-        this.renderVignette(ctx, 0.08);
+        this.renderVignette(ctx, 0.04);
       }
 
       // Subtle film grain overlay
@@ -724,7 +724,7 @@ export class GameRenderer {
       this.grainPhase -= 0.1;
       this.createGrainCanvas(); // regenerate noise
     }
-    ctx.globalAlpha = 0.03; // very subtle
+    ctx.globalAlpha = 0.015; // very subtle
     ctx.drawImage(this.grainCanvas, 0, 0, this.logicalWidth, this.logicalHeight);
     ctx.globalAlpha = 1;
   }
@@ -992,10 +992,10 @@ export class GameRenderer {
         const tlCtx = this._torchLightCanvas.getContext('2d');
         if (tlCtx) {
           const gr = tlCtx.createRadialGradient(tlSize / 2, tlSize / 2, 0, tlSize / 2, tlSize / 2, tlSize / 2);
-          gr.addColorStop(0, 'rgba(255,190,90,0.22)');
-          gr.addColorStop(0.25, 'rgba(255,160,60,0.14)');
-          gr.addColorStop(0.5, 'rgba(255,130,40,0.07)');
-          gr.addColorStop(0.75, 'rgba(255,110,25,0.02)');
+          gr.addColorStop(0, 'rgba(255,200,100,0.30)');
+          gr.addColorStop(0.2, 'rgba(255,170,70,0.20)');
+          gr.addColorStop(0.45, 'rgba(255,140,50,0.10)');
+          gr.addColorStop(0.7, 'rgba(255,120,35,0.03)');
           gr.addColorStop(1, 'rgba(255,100,20,0)');
           tlCtx.fillStyle = gr;
           tlCtx.fillRect(0, 0, tlSize, tlSize);
@@ -1157,8 +1157,8 @@ export class GameRenderer {
     const cy = size / 2;
     const gradient = fCtx.createRadialGradient(cx, cy, 0, cx, cy, size / 2);
     gradient.addColorStop(0, 'rgba(0,0,0,0)');
-    gradient.addColorStop(0.6, 'rgba(0,0,0,0.3)');
-    gradient.addColorStop(1, 'rgba(0,0,0,0.8)');
+    gradient.addColorStop(0.6, 'rgba(0,0,0,0.15)');
+    gradient.addColorStop(1, 'rgba(0,0,0,0.5)');
     fCtx.fillStyle = gradient;
     fCtx.fillRect(0, 0, size, size);
   }
@@ -1543,14 +1543,21 @@ export class GameRenderer {
       const prevHp = this.prevHp.get(player.id);
       const flashWhite = prevHp !== undefined && prevHp > player.hp;
 
-      // Local player pulsing ground indicator (subtle golden circle)
+      // Local player pulsing ground indicator (bright golden circle)
       if (player.id === localPlayerId) {
-        const indicatorPulse = 0.08 + Math.sin(this.animFrame * 0.2) * 0.04;
+        const indicatorPulse = 0.15 + Math.sin(this.animFrame * 0.2) * 0.06;
         ctx.globalAlpha = indicatorPulse;
         ctx.beginPath();
-        ctx.arc(sx + TILE_SIZE / 2, sy + TILE_SIZE - 1, 6, 0, Math.PI * 2);
+        ctx.arc(sx + TILE_SIZE / 2, sy + TILE_SIZE - 1, 7, 0, Math.PI * 2);
         ctx.fillStyle = '#fbbf24';
         ctx.fill();
+        // Thin ring for extra visibility
+        ctx.globalAlpha = indicatorPulse * 1.5;
+        ctx.beginPath();
+        ctx.arc(sx + TILE_SIZE / 2, sy + TILE_SIZE - 1, 7, 0, Math.PI * 2);
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
         ctx.globalAlpha = 1;
       }
 
@@ -1580,6 +1587,20 @@ export class GameRenderer {
         this.particles.emitIceStorm(wx + TILE_SIZE / 2, wy + TILE_SIZE / 2);
       }
 
+      // Dodge roll visual: semi-transparent + afterimage trail
+      if (player.dodging) {
+        ctx.globalAlpha = 0.3;
+        // Afterimage behind (opposite of facing direction)
+        const trailOffX = player.facing === 'left' ? 3 : player.facing === 'right' ? -3 : 0;
+        const trailOffY = player.facing === 'up' ? 3 : player.facing === 'down' ? -3 : 0;
+        this.sprites.drawPlayer(
+          ctx, sx + trailOffX, sy + trailOffY,
+          player.class, player.facing, false, this.animFrame,
+          false, false, false, false, false, 0,
+        );
+        ctx.globalAlpha = 0.6;
+      }
+
       this.sprites.drawPlayer(
         ctx, sx, sy,
         player.class,
@@ -1593,6 +1614,15 @@ export class GameRenderer {
         player.slowed,
         player.stunTicks,
       );
+
+      if (player.dodging) {
+        ctx.globalAlpha = 1;
+        // Dodge dust particles
+        if (QUALITY_PRESETS[this.quality].particles && this.animFrame % 2 === 0) {
+          this.particles.emitFootstepDust(wx + TILE_SIZE / 2, wy + TILE_SIZE);
+          this.particles.emitFootstepDust(wx + TILE_SIZE / 2, wy + TILE_SIZE);
+        }
+      }
 
       // Shield shimmer particles for warrior ability
       if (player.abilityActive && player.class === 'warrior') {
@@ -2002,7 +2032,7 @@ export class GameRenderer {
     playersArr: PlayerState[],
   ): void {
     const isSimple = QUALITY_PRESETS[this.quality].fogSimple;
-    const exploredStyle = isSimple ? 'rgba(10,12,30,0.25)' : 'rgba(10,12,30,0.30)';
+    const exploredStyle = isSimple ? 'rgba(10,12,30,0.15)' : 'rgba(10,12,30,0.18)';
 
     // Batch consecutive same-state fog tiles per row into single wider fillRect calls
     for (let ty = startY; ty < endY; ty++) {
@@ -2021,12 +2051,12 @@ export class GameRenderer {
             const sx = runStart * TILE_SIZE - camX;
             const runW = (tx - runStart) * TILE_SIZE;
             if (runState === 0) {
-              ctx.fillStyle = '#060810';
+              ctx.fillStyle = '#0a0e1a';
               ctx.fillRect(sx, sy, runW, TILE_SIZE);
             } else {
               ctx.fillStyle = exploredStyle;
               ctx.fillRect(sx, sy, runW, TILE_SIZE);
-              ctx.globalAlpha = 0.08;
+              ctx.globalAlpha = 0.04;
               ctx.fillStyle = '#1e3a5f';
               ctx.fillRect(sx, sy, runW, TILE_SIZE);
               ctx.globalAlpha = 1;
@@ -2065,7 +2095,7 @@ export class GameRenderer {
     // Check only 4 cardinal neighbors (fast path) + batch consecutive border tiles per row
     const dw = state.dungeon.width;
     const dh = state.dungeon.height;
-    ctx.globalAlpha = 0.06;
+    ctx.globalAlpha = 0.03;
     ctx.fillStyle = '#0a0c1a';
     for (let ty = startY; ty < endY; ty++) {
       const fogRow = this.fogGrid[ty];
@@ -2117,11 +2147,11 @@ export class GameRenderer {
       if (vCtx) {
         const cx = falloffSize / 2;
         const cy = falloffSize / 2;
-        const grad = vCtx.createRadialGradient(cx, cy, visionPx * 0.5, cx, cy, extendedVision);
+        const grad = vCtx.createRadialGradient(cx, cy, visionPx * 0.6, cx, cy, extendedVision);
         grad.addColorStop(0, 'rgba(0,0,0,0)');
-        grad.addColorStop(0.6, 'rgba(0,0,0,0)');
-        grad.addColorStop(0.85, 'rgba(6,8,16,0.06)');
-        grad.addColorStop(1, 'rgba(6,8,16,0.18)');
+        grad.addColorStop(0.7, 'rgba(0,0,0,0)');
+        grad.addColorStop(0.9, 'rgba(6,8,16,0.03)');
+        grad.addColorStop(1, 'rgba(6,8,16,0.10)');
         vCtx.fillStyle = grad;
         vCtx.fillRect(0, 0, falloffSize, falloffSize);
       }

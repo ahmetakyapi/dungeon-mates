@@ -394,31 +394,41 @@ export function Minimap({
             </g>
           )}
 
-          {/* Alive monsters - small red dots */}
+          {/* Alive monsters - red dots */}
           {Object.values(monsters).filter((m) => m.alive).map((monster) => (
             <circle
               key={`mm_${monster.id}`}
               cx={monster.position.x - bounds.minX}
               cy={monster.position.y - bounds.minY}
-              r={0.6}
+              r={0.8}
               fill="#ef4444"
-              opacity={0.8}
+              opacity={0.9}
               className="minimap-enemy-pulse"
             />
           ))}
 
-          {/* Teammate dots - class-colored */}
+          {/* Teammate dots - class-colored with outline */}
           {Object.values(players).filter((p) => p.id !== localPlayerId && p.alive).map((mate) => {
             const mateColor = CLASS_STATS[mate.class]?.color ?? '#4ade80';
             return (
-              <circle
-                key={`mt_${mate.id}`}
-                cx={mate.position.x - bounds.minX}
-                cy={mate.position.y - bounds.minY}
-                r={1.0}
-                fill={mateColor}
-                opacity={0.9}
-              />
+              <g key={`mt_${mate.id}`}>
+                <circle
+                  cx={mate.position.x - bounds.minX}
+                  cy={mate.position.y - bounds.minY}
+                  r={1.3}
+                  fill="none"
+                  stroke="#ffffff"
+                  strokeWidth={0.3}
+                  opacity={0.5}
+                />
+                <circle
+                  cx={mate.position.x - bounds.minX}
+                  cy={mate.position.y - bounds.minY}
+                  r={1.1}
+                  fill={mateColor}
+                  opacity={0.95}
+                />
+              </g>
             );
           })}
 
@@ -428,16 +438,16 @@ export function Minimap({
               <circle
                 cx={localPlayer.position.x - bounds.minX}
                 cy={localPlayer.position.y - bounds.minY}
-                r={1.4}
+                r={1.8}
                 fill="none"
                 stroke="#ffffff"
-                strokeWidth={0.4}
-                opacity={0.6}
+                strokeWidth={0.5}
+                opacity={0.7}
               />
               <circle
                 cx={localPlayer.position.x - bounds.minX}
                 cy={localPlayer.position.y - bounds.minY}
-                r={1.0}
+                r={1.2}
                 fill={CLASS_STATS[localPlayer.class]?.color ?? '#ffffff'}
                 className="minimap-blink"
               />

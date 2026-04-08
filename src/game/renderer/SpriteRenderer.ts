@@ -2719,80 +2719,80 @@ export class SpriteRenderer {
   private drawFloorTile(ctx: CanvasRenderingContext2D, x: number, y: number, hash: number): void {
     const variation = hash % 5;
 
-    // Base stone floor — brighter gray-blue
-    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#2e2e48');
+    // Base stone floor — bright enough to be visible through fog
+    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#3e3e5c');
 
     // Grid lines (mortar)
-    ctx.fillStyle = '#383850';
+    ctx.fillStyle = '#4a4a68';
     ctx.fillRect(x + TILE_SIZE - 1, y, 1, TILE_SIZE);
     ctx.fillRect(x, y + TILE_SIZE - 1, TILE_SIZE, 1);
 
     // Stone tile variation (5 types)
     if (variation === 0) {
       // Clean stone
-      px(ctx, x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2, '#303050');
+      px(ctx, x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2, '#424266');
     } else if (variation === 1) {
       // Cracked stone
-      px(ctx, x + 3, y + 5, 1, 4, '#242438');
-      px(ctx, x + 4, y + 8, 1, 3, '#242438');
-      px(ctx, x + 5, y + 10, 1, 2, '#242438');
-      px(ctx, x + 2, y + 6, 1, 1, '#1e1e30');
-      px(ctx, x + 4, y + 9, 1, 1, '#1e1e30');
-      px(ctx, x + 6, y + 11, 1, 1, '#242438');
-      px(ctx, x + 9, y + 3, 1, 3, '#242438');
-      px(ctx, x + 10, y + 5, 1, 2, '#1e1e30');
+      px(ctx, x + 3, y + 5, 1, 4, '#32324c');
+      px(ctx, x + 4, y + 8, 1, 3, '#32324c');
+      px(ctx, x + 5, y + 10, 1, 2, '#32324c');
+      px(ctx, x + 2, y + 6, 1, 1, '#2c2c44');
+      px(ctx, x + 4, y + 9, 1, 1, '#2c2c44');
+      px(ctx, x + 6, y + 11, 1, 1, '#32324c');
+      px(ctx, x + 9, y + 3, 1, 3, '#32324c');
+      px(ctx, x + 10, y + 5, 1, 2, '#2c2c44');
     } else if (variation === 2) {
       // Moss with mushroom
-      px(ctx, x + 10, y + 3, 2, 1, '#2a4e2a');
-      px(ctx, x + 11, y + 4, 1, 1, '#2a4e2a');
-      px(ctx, x + 4, y + 11, 2, 1, '#2a4e2a');
-      px(ctx, x + 3, y + 12, 1, 1, '#1e6838');
-      px(ctx, x + 12, y + 5, 1, 1, '#a85010');
-      px(ctx, x + 11, y + 4, 2, 1, '#b86e10');
+      px(ctx, x + 10, y + 3, 2, 1, '#3a6e3a');
+      px(ctx, x + 11, y + 4, 1, 1, '#3a6e3a');
+      px(ctx, x + 4, y + 11, 2, 1, '#3a6e3a');
+      px(ctx, x + 3, y + 12, 1, 1, '#2e8848');
+      px(ctx, x + 12, y + 5, 1, 1, '#c87020');
+      px(ctx, x + 11, y + 4, 2, 1, '#d88e20');
       if ((hash >> 4) % 3 === 0) {
-        px(ctx, x + 5, y + 12, 1, 1, '#884812');
-        px(ctx, x + 4, y + 11, 2, 1, '#b86e10');
+        px(ctx, x + 5, y + 12, 1, 1, '#a86822');
+        px(ctx, x + 4, y + 11, 2, 1, '#d88e20');
       }
     } else if (variation === 3) {
       // Blood stain
       ctx.globalAlpha = 0.5;
-      px(ctx, x + 5, y + 6, 4, 3, '#5a1414');
-      px(ctx, x + 6, y + 5, 2, 1, '#4a0e0e');
-      px(ctx, x + 4, y + 8, 2, 1, '#4a0e0e');
+      px(ctx, x + 5, y + 6, 4, 3, '#6a2424');
+      px(ctx, x + 6, y + 5, 2, 1, '#5a1818');
+      px(ctx, x + 4, y + 8, 2, 1, '#5a1818');
       ctx.globalAlpha = 0.3;
-      px(ctx, x + 8, y + 7, 2, 2, '#5a1414');
-      px(ctx, x + 3, y + 5, 1, 1, '#4a0e0e');
-      px(ctx, x + 10, y + 8, 1, 1, '#4a0e0e');
+      px(ctx, x + 8, y + 7, 2, 2, '#6a2424');
+      px(ctx, x + 3, y + 5, 1, 1, '#5a1818');
+      px(ctx, x + 10, y + 8, 1, 1, '#5a1818');
       ctx.globalAlpha = 1;
     } else {
       // Water puddle
-      px(ctx, x + 4, y + 5, 7, 5, '#283848');
-      px(ctx, x + 5, y + 4, 5, 1, '#283848');
-      px(ctx, x + 5, y + 10, 5, 1, '#283848');
+      px(ctx, x + 4, y + 5, 7, 5, '#384858');
+      px(ctx, x + 5, y + 4, 5, 1, '#384858');
+      px(ctx, x + 5, y + 10, 5, 1, '#384858');
       const shimmerOffset = (hash >> 6) % 4;
-      ctx.globalAlpha = 0.2;
-      px(ctx, x + 5 + shimmerOffset, y + 6, 2, 1, '#70b0f0');
-      px(ctx, x + 7 - shimmerOffset, y + 8, 2, 1, '#70b0f0');
-      ctx.globalAlpha = 0.1;
-      px(ctx, x + 6, y + 7, 3, 1, '#a0c8ff');
+      ctx.globalAlpha = 0.3;
+      px(ctx, x + 5 + shimmerOffset, y + 6, 2, 1, '#80c0ff');
+      px(ctx, x + 7 - shimmerOffset, y + 8, 2, 1, '#80c0ff');
+      ctx.globalAlpha = 0.15;
+      px(ctx, x + 6, y + 7, 3, 1, '#b0d8ff');
       ctx.globalAlpha = 1;
     }
 
     // Occasional stone detail
     if ((hash >> 8) % 5 === 0) {
-      px(ctx, x + 7, y + 7, 2, 2, '#323250');
+      px(ctx, x + 7, y + 7, 2, 2, '#464666');
     }
   }
 
   private drawWallTile(ctx: CanvasRenderingContext2D, x: number, y: number, hash: number): void {
-    // Base wall — brighter purple
-    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#3d2880');
+    // Base wall — vibrant purple, clearly distinct from floor
+    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#5038a0');
 
     // Top slightly lighter
-    px(ctx, x, y, TILE_SIZE, 3, '#4d3890');
+    px(ctx, x, y, TILE_SIZE, 3, '#6048b0');
 
     // Brick mortar lines
-    const mortarColor = '#2a1858';
+    const mortarColor = '#3a2878';
     // Horizontal mortar lines
     ctx.fillStyle = mortarColor;
     ctx.fillRect(x, y + 4, TILE_SIZE, 1);
@@ -2811,31 +2811,31 @@ export class SpriteRenderer {
     const brickVar1 = ((hash >> 2) % 3);
     const brickVar2 = ((hash >> 5) % 3);
     if (brickVar1 === 0) {
-      px(ctx, x + 1, y + 1, 3, 3, '#422a88');
+      px(ctx, x + 1, y + 1, 3, 3, '#5838a8');
     } else if (brickVar1 === 1) {
-      px(ctx, x + 5, y + 1, 6, 3, '#362075');
+      px(ctx, x + 5, y + 1, 6, 3, '#483095');
     }
     if (brickVar2 === 0) {
-      px(ctx, x + 1, y + 5, 7, 4, '#38207a');
+      px(ctx, x + 1, y + 5, 7, 4, '#4a2e9a');
     } else if (brickVar2 === 2) {
-      px(ctx, x + 9, y + 5, 6, 4, '#442c8a');
+      px(ctx, x + 9, y + 5, 6, 4, '#5a3caa');
     }
     if (((hash >> 7) % 2) === 0) {
-      px(ctx, x + 5, y + 10, 6, 4, '#38207a');
+      px(ctx, x + 5, y + 10, 6, 4, '#4a2e9a');
     }
 
     // Brick highlights
-    px(ctx, x + 1, y + 1, 2, 1, '#4a3090');
-    px(ctx, x + 6, y + 6, 2, 1, '#4a3090');
-    px(ctx, x + 1, y + 11, 2, 1, '#4a3090');
-    px(ctx, x + 9, y + 1, 2, 1, '#4a3090');
-    px(ctx, x + 13, y + 11, 2, 1, '#4a3090');
+    px(ctx, x + 1, y + 1, 2, 1, '#6040b0');
+    px(ctx, x + 6, y + 6, 2, 1, '#6040b0');
+    px(ctx, x + 1, y + 11, 2, 1, '#6040b0');
+    px(ctx, x + 9, y + 1, 2, 1, '#6040b0');
+    px(ctx, x + 13, y + 11, 2, 1, '#6040b0');
 
     // Border edges
-    ctx.fillStyle = '#2a1858';
+    ctx.fillStyle = '#3a2878';
     ctx.fillRect(x, y, TILE_SIZE, 1);
     ctx.fillRect(x, y, 1, TILE_SIZE);
-    ctx.fillStyle = '#4d3890';
+    ctx.fillStyle = '#6048b0';
     ctx.fillRect(x, y + TILE_SIZE - 1, TILE_SIZE, 1);
     ctx.fillRect(x + TILE_SIZE - 1, y, 1, TILE_SIZE);
 
@@ -2889,7 +2889,7 @@ export class SpriteRenderer {
 
   private drawDoorTile(ctx: CanvasRenderingContext2D, x: number, y: number, roomCleared: boolean): void {
     // Floor beneath
-    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#2e2e48');
+    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#3e3e5c');
 
     if (roomCleared) {
       // Open door: swung open against wall
@@ -2905,8 +2905,8 @@ export class SpriteRenderer {
       px(ctx, x + 1, y + 4, 3, 1, '#6b7280');
       px(ctx, x + 1, y + 10, 3, 1, '#6b7280');
 
-      // Passage visible -- darker
-      px(ctx, x + 4, y + 2, TILE_SIZE - 6, TILE_SIZE - 3, '#1e1e38');
+      // Passage visible
+      px(ctx, x + 4, y + 2, TILE_SIZE - 6, TILE_SIZE - 3, '#2a2a48');
 
       // Torch light from beyond the door
       ctx.globalAlpha = 0.12;
@@ -2957,8 +2957,8 @@ export class SpriteRenderer {
   }
 
   private drawStairsTile(ctx: CanvasRenderingContext2D, x: number, y: number): void {
-    // Dark background (stairs descend into darkness)
-    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#1a1a30');
+    // Background (stairs descend into shadow)
+    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#252540');
 
     // Spiral staircase going down -- more step detail
     const stairColor = '#78716c';
@@ -3022,7 +3022,7 @@ export class SpriteRenderer {
 
   private drawChestTile(ctx: CanvasRenderingContext2D, x: number, y: number, opened: boolean): void {
     // Floor beneath
-    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#2e2e48');
+    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#3e3e5c');
 
     if (opened) {
       // Open chest with golden glow -- radial glow effect
