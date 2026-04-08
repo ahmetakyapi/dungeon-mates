@@ -513,6 +513,9 @@ export class GameRoom {
     this.floorHpMultiplier = dungeon.floorDifficulty.hpMultiplier;
     this.floorAttackMultiplier = dungeon.floorDifficulty.attackMultiplier;
 
+    // Invalidate dungeon cache — tiles/rooms references changed
+    this._cachedDungeon = null;
+
     // Build spatial room lookup grid (O(1) room-at-position instead of O(rooms) linear scan)
     this.buildTileRoomGrid(dungeon.width, dungeon.height);
 
