@@ -299,7 +299,9 @@ export function WaitingScreen({ connectionState, reconnectAttempt, error, onRetr
         )}
         {error && (
           <motion.p
-            className="mt-2 font-body text-[11px] text-dm-health sm:text-xs lg:text-sm 2xl:text-base"
+            className={`mt-2 font-body text-[11px] sm:text-xs lg:text-sm 2xl:text-base ${
+              connectionState === 'disconnected' ? 'text-dm-health' : 'text-amber-400/80'
+            }`}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
           >
@@ -309,7 +311,7 @@ export function WaitingScreen({ connectionState, reconnectAttempt, error, onRetr
       </motion.div>
 
       {/* ── Retry / Back buttons ── */}
-      {(connectionState === 'disconnected' || reconnectAttempt >= 3) && (
+      {(connectionState === 'disconnected' || reconnectAttempt >= 5) && (
         <motion.div
           className="mb-4 flex gap-3"
           initial={{ opacity: 0, y: 10 }}

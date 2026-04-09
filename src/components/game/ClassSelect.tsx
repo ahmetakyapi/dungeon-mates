@@ -142,6 +142,61 @@ function ClassPreview({ cls, isSelected }: { cls: PlayerClass; isSelected: boole
     );
   }
 
+  if (cls === 'healer') {
+    const healOrbIndices = [0, 1, 2, 3] as const;
+    return (
+      <div className="relative flex h-16 w-full items-center justify-center overflow-hidden sm:h-20">
+        <motion.div
+          className="relative z-10 h-8 w-6 rounded-sm sm:h-10 sm:w-8"
+          style={{ backgroundColor: stats.color }}
+          animate={isSelected ? { y: [0, -3, 0] } : { y: 0 }}
+          transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        {/* Healing aura ring */}
+        {isSelected && (
+          <motion.div
+            className="absolute h-14 w-14 rounded-full border-2 border-amber-400/40 sm:h-16 sm:w-16"
+            animate={{
+              scale: [0.8, 1.2, 0.8],
+              opacity: [0.2, 0.6, 0.2],
+            }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+          />
+        )}
+        {/* Healing orbs */}
+        {isSelected &&
+          healOrbIndices.map((i) => (
+            <motion.div
+              key={i}
+              className="absolute h-1.5 w-1.5 rounded-full bg-amber-300 sm:h-2 sm:w-2"
+              style={{
+                boxShadow: '0 0 6px rgba(251, 191, 36, 0.7)',
+              }}
+              animate={{
+                x: [
+                  Math.cos((i * Math.PI) / 2) * 20,
+                  Math.cos((i * Math.PI) / 2 + Math.PI) * 20,
+                  Math.cos((i * Math.PI) / 2 + 2 * Math.PI) * 20,
+                ],
+                y: [
+                  Math.sin((i * Math.PI) / 2) * 14,
+                  Math.sin((i * Math.PI) / 2 + Math.PI) * 14,
+                  Math.sin((i * Math.PI) / 2 + 2 * Math.PI) * 14,
+                ],
+                opacity: [0.5, 1, 0.5],
+                scale: [0.8, 1.3, 0.8],
+              }}
+              transition={{
+                duration: 2.5,
+                repeat: Infinity,
+                ease: 'linear',
+              }}
+            />
+          ))}
+      </div>
+    );
+  }
+
   // Archer
   return (
     <div className="relative flex h-16 w-full items-center justify-center overflow-hidden sm:h-20">

@@ -114,6 +114,7 @@ export function useGameSocket(): UseGameSocketReturn {
   const roomJoinedRef = useRef(false);
   const roomCodeRef = useRef('');
   const pendingEmitRef = useRef(false);
+  const connectErrorCountRef = useRef(0);
 
   // Helper: execute room intent on a connected socket
   const executeRoomIntent = useCallback((socket: Socket<ServerEvents, ClientEvents>) => {
@@ -157,6 +158,7 @@ export function useGameSocket(): UseGameSocketReturn {
       setConnectionState('connected');
       setError('');
       setReconnectAttempt(0);
+      connectErrorCountRef.current = 0;
 
       // Replay room intent if we haven't joined a room yet
       executeRoomIntent(socket);
@@ -177,8 +179,17 @@ export function useGameSocket(): UseGameSocketReturn {
 
     socket.on('connect_error', (err) => {
       // Don't set 'disconnected' — Socket.IO reconnection loop is still active
-      // Only show the error message, connectionState stays 'connecting'
-      setError(err.message === 'timeout' ? 'Sunucu yanıt vermiyor' : 'Sunucuya ulaşılamıyor');
+      // Only show error after enough time has passed (suppress early errors)
+      // reconnectAttempt is 0-based on first connect, use a ref to track total errors
+      connectErrorCountRef.current += 1;
+      if (connectErrorCountRef.current >= 3) {
+        // Only show error after 3+ failed attempts (~3-5 seconds)
+        setError(
+          err.message === 'timeout'
+            ? 'Sunucu yanıt vermiyor — otomatik yeniden deneniyor...'
+            : 'Sunucuya ulaşılamıyor — otomatik yeniden deneniyor...',
+        );
+      }
     });
 
     socket.io.on('reconnect_attempt', (attempt) => {
@@ -189,6 +200,7 @@ export function useGameSocket(): UseGameSocketReturn {
     socket.io.on('reconnect', () => {
       setReconnectAttempt(0);
       setError('');
+      connectErrorCountRef.current = 0;
     });
 
     socket.io.on('reconnect_failed', () => {

@@ -729,6 +729,231 @@ function ArcherSprite({ scale }: { scale: number }) {
   );
 }
 
+// ─── HEALER ───────────────────────────────────────────────
+function HealerSprite({ scale }: { scale: number }) {
+  const skin = '#fcd5b4';
+  const skinMid = '#f0c49e';
+  const skinShd = '#dea67a';
+  const skinHi = '#ffe8d0';
+
+  const amberHi = '#fde68a';
+  const amber = '#f59e0b';
+  const amberMid = '#d97706';
+  const amberDk = '#b45309';
+  const amberDeep = '#92400e';
+  const amberAbyss = '#78350f';
+
+  const white = '#fefce8';
+  const whiteHi = '#ffffff';
+  const whiteMid = '#fef9c3';
+  const whiteShd = '#fef3c7';
+  const whiteDk = '#fde68a';
+
+  const gold = '#fbbf24';
+  const goldHi = '#fde68a';
+  const goldShd = '#d97706';
+  const goldDk = '#b45309';
+
+  const staff = '#92400e';
+  const staffHi = '#a16207';
+  const staffDk = '#78350f';
+
+  const crystalHi = '#ffffff';
+  const crystal = '#fef3c7';
+  const crystalMid = '#fde68a';
+  const crystalDk = '#fbbf24';
+
+  const eye = '#92400e';
+  const eyeGlow = '#fbbf24';
+
+  const hair = '#f5f0e1';
+
+  return (
+    <>
+      {/* ── HALO ── */}
+      <P x={12} y={-2} w={8} h={1} color={goldHi} scale={scale} o={0.5} />
+      <P x={10} y={-1} w={12} h={1} color={gold} scale={scale} o={0.35} />
+      <P x={10} y={-1} w={1} h={1} color={goldHi} scale={scale} o={0.25} />
+      <P x={21} y={-1} w={1} h={1} color={goldHi} scale={scale} o={0.25} />
+      <P x={13} y={-3} w={6} h={1} color={amberHi} scale={scale} o={0.3} />
+
+      {/* ── HOOD/COWL ── */}
+      <P x={12} y={0} w={8} h={3} color={white} scale={scale} />
+      <P x={13} y={0} w={6} h={1} color={whiteHi} scale={scale} />
+      <P x={11} y={2} w={10} h={2} color={whiteMid} scale={scale} />
+      <P x={10} y={3} w={12} h={3} color={whiteShd} scale={scale} />
+      <P x={10} y={5} w={1} h={1} color={whiteDk} scale={scale} />
+      <P x={21} y={5} w={1} h={1} color={whiteDk} scale={scale} />
+      {/* Hood inner shadow */}
+      <P x={11} y={5} w={10} h={1} color={amberHi} scale={scale} o={0.3} />
+      {/* Hood holy gem */}
+      <P x={15} y={1} w={2} h={2} color={gold} scale={scale} />
+      <P x={15} y={1} w={1} h={1} color={goldHi} scale={scale} />
+      <P x={16} y={2} w={1} h={1} color={goldShd} scale={scale} />
+      {/* Hood trim */}
+      <P x={10} y={5} w={12} h={1} color={gold} scale={scale} />
+      <P x={11} y={5} w={10} h={1} color={goldHi} scale={scale} o={0.5} />
+
+      {/* ── FACE ── */}
+      <P x={12} y={6} w={8} h={7} color={skin} scale={scale} />
+      <P x={12} y={6} w={8} h={1} color={skinHi} scale={scale} />
+      <P x={12} y={6} w={1} h={7} color={skinShd} scale={scale} />
+      <P x={19} y={6} w={1} h={7} color={skinShd} scale={scale} />
+      <P x={13} y={7} w={6} h={1} color={skinHi} scale={scale} />
+      {/* Hair strands */}
+      <P x={11} y={6} w={2} h={2} color={hair} scale={scale} />
+      <P x={19} y={6} w={2} h={2} color={hair} scale={scale} />
+      {/* Eyes — warm amber glow */}
+      <P x={13} y={8} w={2} h={2} color={eye} scale={scale} />
+      <P x={13} y={8} w={1} h={1} color={eyeGlow} scale={scale} />
+      <P x={17} y={8} w={2} h={2} color={eye} scale={scale} />
+      <P x={17} y={8} w={1} h={1} color={eyeGlow} scale={scale} />
+      {/* Eye glow */}
+      <P x={12} y={8} w={1} h={2} color={amberHi} scale={scale} o={0.25} />
+      <P x={19} y={8} w={1} h={2} color={amberHi} scale={scale} o={0.25} />
+      {/* Nose */}
+      <P x={15} y={9} w={2} h={2} color={skinMid} scale={scale} />
+      <P x={16} y={9} w={1} h={1} color={skinHi} scale={scale} />
+      {/* Gentle mouth */}
+      <P x={14} y={11} w={4} h={1} color={skinShd} scale={scale} />
+      <P x={15} y={11} w={2} h={1} color='#e8a88a' scale={scale} />
+
+      {/* ── NECK ── */}
+      <P x={14} y={13} w={4} h={1} color={skinShd} scale={scale} />
+
+      {/* ── COLLAR — ornate gold ── */}
+      <P x={10} y={14} w={12} h={3} color={gold} scale={scale} />
+      <P x={11} y={14} w={10} h={1} color={goldHi} scale={scale} />
+      <P x={10} y={16} w={12} h={1} color={goldShd} scale={scale} />
+      {/* Collar gem */}
+      <P x={15} y={14} w={2} h={2} color={crystalHi} scale={scale} />
+      <P x={15} y={14} w={1} h={1} color={crystalHi} scale={scale} />
+      <P x={16} y={15} w={1} h={1} color={crystalMid} scale={scale} />
+      {/* Collar wings */}
+      <P x={10} y={14} w={2} h={1} color={goldDk} scale={scale} />
+      <P x={20} y={14} w={2} h={1} color={goldDk} scale={scale} />
+
+      {/* ── ROBE BODY — white-gold gradient ── */}
+      <P x={9} y={17} w={14} h={12} color={white} scale={scale} />
+      <P x={9} y={17} w={1} h={12} color={whiteDk} scale={scale} />
+      <P x={22} y={17} w={1} h={12} color={whiteDk} scale={scale} />
+      <P x={10} y={17} w={12} h={1} color={whiteHi} scale={scale} />
+      {/* Robe center seam */}
+      <P x={15} y={18} w={2} h={10} color={whiteShd} scale={scale} />
+      {/* Holy cross pattern on chest */}
+      <P x={15} y={19} w={2} h={4} color={gold} scale={scale} />
+      <P x={13} y={20} w={6} h={2} color={gold} scale={scale} />
+      <P x={15} y={19} w={1} h={1} color={goldHi} scale={scale} />
+      <P x={18} y={20} w={1} h={1} color={goldShd} scale={scale} />
+      {/* Holy symbol glint */}
+      <P x={14} y={20} w={1} h={1} color={goldHi} scale={scale} o={0.7} />
+      {/* Robe side runes */}
+      <P x={11} y={21} w={1} h={2} color={amberHi} scale={scale} o={0.4} />
+      <P x={20} y={21} w={1} h={2} color={amberHi} scale={scale} o={0.4} />
+      <P x={11} y={25} w={1} h={1} color={amberHi} scale={scale} o={0.3} />
+      <P x={20} y={25} w={1} h={1} color={amberHi} scale={scale} o={0.3} />
+
+      {/* ── SASH ── */}
+      <P x={10} y={27} w={12} h={2} color={amber} scale={scale} />
+      <P x={11} y={27} w={10} h={1} color={amberHi} scale={scale} />
+      <P x={10} y={28} w={12} h={1} color={amberMid} scale={scale} />
+      {/* Sash gem */}
+      <P x={14} y={27} w={4} h={2} color={gold} scale={scale} />
+      <P x={15} y={27} w={2} h={1} color={goldHi} scale={scale} />
+
+      {/* ── SLEEVES ── */}
+      <P x={5} y={17} w={4} h={8} color={white} scale={scale} />
+      <P x={5} y={17} w={1} h={8} color={whiteDk} scale={scale} />
+      <P x={8} y={17} w={1} h={4} color={whiteShd} scale={scale} />
+      <P x={6} y={17} w={2} h={2} color={whiteHi} scale={scale} />
+      <P x={23} y={17} w={4} h={8} color={white} scale={scale} />
+      <P x={26} y={17} w={1} h={8} color={whiteShd} scale={scale} />
+      <P x={23} y={17} w={1} h={4} color={whiteDk} scale={scale} />
+      <P x={24} y={17} w={2} h={2} color={whiteHi} scale={scale} />
+      {/* Sleeve trim */}
+      <P x={5} y={23} w={4} h={1} color={gold} scale={scale} />
+      <P x={23} y={23} w={4} h={1} color={gold} scale={scale} />
+      {/* Hands */}
+      <P x={5} y={24} w={4} h={3} color={skin} scale={scale} />
+      <P x={5} y={24} w={1} h={3} color={skinShd} scale={scale} />
+      <P x={6} y={24} w={2} h={1} color={skinHi} scale={scale} />
+      <P x={23} y={24} w={4} h={3} color={skin} scale={scale} />
+      <P x={26} y={24} w={1} h={3} color={skinShd} scale={scale} />
+      <P x={24} y={24} w={2} h={1} color={skinHi} scale={scale} />
+
+      {/* ── ROBE SKIRT ── */}
+      <P x={8} y={29} w={16} h={5} color={whiteShd} scale={scale} />
+      <P x={8} y={29} w={1} h={5} color={whiteDk} scale={scale} />
+      <P x={23} y={29} w={1} h={5} color={whiteDk} scale={scale} />
+      <P x={9} y={29} w={14} h={1} color={white} scale={scale} />
+      {/* Skirt trim */}
+      <P x={8} y={33} w={16} h={1} color={gold} scale={scale} />
+      {/* Skirt folds */}
+      <P x={8} y={34} w={7} h={4} color={whiteDk} scale={scale} />
+      <P x={17} y={34} w={7} h={4} color={whiteDk} scale={scale} />
+      <P x={8} y={37} w={7} h={1} color={amberHi} scale={scale} o={0.3} />
+      <P x={17} y={37} w={7} h={1} color={amberHi} scale={scale} o={0.3} />
+      {/* Feet */}
+      <P x={10} y={38} w={4} h={2} color={amberDeep} scale={scale} />
+      <P x={18} y={38} w={4} h={2} color={amberDeep} scale={scale} />
+      <P x={11} y={38} w={2} h={1} color={amberDk} scale={scale} />
+      <P x={19} y={38} w={2} h={1} color={amberDk} scale={scale} />
+
+      {/* ── HEALING STAFF ── */}
+      <P x={29} y={5} w={2} h={24} color={staff} scale={scale} />
+      <P x={29} y={5} w={1} h={24} color={staffHi} scale={scale} />
+      <P x={30} y={5} w={1} h={24} color={staffDk} scale={scale} />
+      {/* Staff cross-piece */}
+      <P x={26} y={2} w={8} h={2} color={gold} scale={scale} />
+      <P x={26} y={2} w={8} h={1} color={goldHi} scale={scale} />
+      <P x={26} y={3} w={1} h={1} color={goldShd} scale={scale} />
+      <P x={33} y={3} w={1} h={1} color={goldShd} scale={scale} />
+      {/* Staff vertical top */}
+      <P x={29} y={-2} w={2} h={7} color={gold} scale={scale} />
+      <P x={29} y={-2} w={1} h={2} color={goldHi} scale={scale} />
+      {/* Holy crystal at top */}
+      <P x={28} y={-5} w={4} h={4} color={crystal} scale={scale} />
+      <P x={28} y={-5} w={2} h={2} color={crystalHi} scale={scale} />
+      <P x={28} y={-5} w={1} h={1} color={whiteHi} scale={scale} o={0.8} />
+      <P x={31} y={-2} w={1} h={1} color={crystalDk} scale={scale} />
+      <P x={29} y={-6} w={2} h={1} color={crystal} scale={scale} />
+      {/* Crystal glow rays */}
+      <P x={27} y={-4} w={1} h={2} color={crystalMid} scale={scale} o={0.35} />
+      <P x={32} y={-4} w={1} h={2} color={crystalMid} scale={scale} o={0.35} />
+      <P x={29} y={-7} w={2} h={1} color={crystalHi} scale={scale} o={0.3} />
+      <P x={29} y={-1} w={2} h={1} color={crystalMid} scale={scale} o={0.2} />
+      {/* Staff rings */}
+      <P x={28} y={10} w={4} h={1} color={gold} scale={scale} />
+      <P x={28} y={17} w={4} h={1} color={gold} scale={scale} />
+      <P x={28} y={24} w={4} h={1} color={gold} scale={scale} />
+
+      {/* ── FLOATING HEAL ORB ── */}
+      <P x={1} y={12} w={4} h={4} color={crystalMid} scale={scale} />
+      <P x={0} y={13} w={1} h={2} color={crystalDk} scale={scale} />
+      <P x={5} y={13} w={1} h={2} color={crystalDk} scale={scale} />
+      <P x={2} y={11} w={2} h={1} color={crystalDk} scale={scale} />
+      <P x={2} y={16} w={2} h={1} color={amberMid} scale={scale} />
+      {/* Orb inner light — cross shape */}
+      <P x={2} y={13} w={2} h={1} color={crystalHi} scale={scale} />
+      <P x={2} y={12} w={1} h={3} color={crystalHi} scale={scale} />
+      <P x={1} y={12} w={1} h={1} color={whiteHi} scale={scale} o={0.6} />
+      <P x={4} y={15} w={1} h={1} color={crystalDk} scale={scale} />
+      {/* Orb sparkles */}
+      <P x={0} y={10} w={1} h={1} color={crystalHi} scale={scale} o={0.6} />
+      <P x={5} y={10} w={1} h={1} color={crystalHi} scale={scale} o={0.4} />
+      <P x={3} y={9} w={1} h={1} color={whiteHi} scale={scale} o={0.3} />
+      <P x={-1} y={14} w={1} h={1} color={crystalMid} scale={scale} o={0.35} />
+      <P x={6} y={12} w={1} h={1} color={crystalMid} scale={scale} o={0.25} />
+
+      {/* ── HOLY AURA PARTICLES ── */}
+      <P x={7} y={3} w={1} h={1} color={goldHi} scale={scale} o={0.3} />
+      <P x={24} y={5} w={1} h={1} color={goldHi} scale={scale} o={0.25} />
+      <P x={5} y={30} w={1} h={1} color={amberHi} scale={scale} o={0.2} />
+      <P x={26} y={32} w={1} h={1} color={amberHi} scale={scale} o={0.2} />
+    </>
+  );
+}
+
 export function PixelHero({ playerClass, size = 'md', animate = true, glow = true }: PixelHeroProps) {
   const scale = SIZES[size];
   const stats = CLASS_STATS[playerClass];
@@ -740,6 +965,7 @@ export function PixelHero({ playerClass, size = 'md', animate = true, glow = tru
       {playerClass === 'warrior' && <WarriorSprite scale={scale} />}
       {playerClass === 'mage' && <MageSprite scale={scale} />}
       {playerClass === 'archer' && <ArcherSprite scale={scale} />}
+      {playerClass === 'healer' && <HealerSprite scale={scale} />}
     </div>
   );
 
@@ -799,7 +1025,7 @@ export function PixelHero({ playerClass, size = 'md', animate = true, glow = tru
 }
 
 export function HeroParade({ size = 'lg' }: { size?: 'sm' | 'md' | 'lg' | 'xl' }) {
-  const classes: PlayerClass[] = ['warrior', 'mage', 'archer'];
+  const classes: PlayerClass[] = ['warrior', 'mage', 'archer', 'healer'];
 
   return (
     <div className="flex items-end justify-center gap-8 sm:gap-14">
