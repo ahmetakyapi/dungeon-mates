@@ -17,19 +17,19 @@ const LOGICAL_HEIGHT_DESKTOP = 270;
 const LOGICAL_WIDTH_MOBILE = 360;
 const LOGICAL_HEIGHT_MOBILE = 240;
 
-// Quality presets
+// Quality presets — tuned for smooth 60fps / minimal eye strain
 const QUALITY_PRESETS = {
   low: {
-    particles: false, fogSimple: true, fpsCap: 15, particleMax: 0, effects: false,
+    particles: false, fogSimple: true, fpsCap: 30, particleMax: 0, effects: false,
     bloom: 0, colorGrade: false, torchFlicker: false, shadowDynamic: false,
   },
   medium: {
-    particles: true, fogSimple: false, fpsCap: 60, particleMax: 512, effects: true,
-    bloom: 0.32, colorGrade: true, torchFlicker: true, shadowDynamic: false,
+    particles: true, fogSimple: false, fpsCap: 60, particleMax: 384, effects: true,
+    bloom: 0.22, colorGrade: true, torchFlicker: true, shadowDynamic: false,
   },
   high: {
-    particles: true, fogSimple: false, fpsCap: 120, particleMax: 1400, effects: true,
-    bloom: 0.5, colorGrade: true, torchFlicker: true, shadowDynamic: true,
+    particles: true, fogSimple: false, fpsCap: 120, particleMax: 1024, effects: true,
+    bloom: 0.38, colorGrade: true, torchFlicker: true, shadowDynamic: true,
   },
 } as const;
 
@@ -46,6 +46,7 @@ type DamageNumber = {
   y: number;
   vy: number; // upward velocity
   text: string;
+  rawValue: number;     // accumulated numeric value (for merging)
   color: string;
   glow: string;
   life: number;
@@ -53,21 +54,25 @@ type DamageNumber = {
   kind: DamageNumberKind;
   scale: number;
   shake: number; // small x-wobble for crit
+  mergeBumpTimer: number; // brief 0..1 bump when merged
 };
 
-const DAMAGE_NUMBER_DURATION = 0.9;
-const MAX_DAMAGE_NUMBERS = 24;
+const DAMAGE_NUMBER_DURATION = 0.75;
+const MAX_DAMAGE_NUMBERS = 14;
+// Merge window: if a new damage number is <8px + same entity within 200ms → add to existing
+const DMG_MERGE_RADIUS = 8;
+const DMG_MERGE_WINDOW = 0.20;
 
-// Color palette per damage type — matches server-side DamageType
+// Color palette per damage type — softened for eye comfort (lower saturation, less glow)
 const DMG_COLOR: Record<DamageNumberKind, { color: string; glow: string; prefix: string; suffix: string }> = {
-  damage:   { color: '#ffffff', glow: 'rgba(255,255,255,0.55)', prefix: '', suffix: '' },
-  critical: { color: '#fbbf24', glow: 'rgba(251,191,36,0.9)',   prefix: '', suffix: '!' },
-  heal:     { color: '#4ade80', glow: 'rgba(74,222,128,0.7)',   prefix: '+', suffix: '' },
-  gold:     { color: '#fcd34d', glow: 'rgba(252,211,77,0.7)',   prefix: '+', suffix: 'g' },
-  fire:     { color: '#ff7a3a', glow: 'rgba(255,122,58,0.8)',   prefix: '', suffix: '' },
-  ice:      { color: '#7dd3fc', glow: 'rgba(125,211,252,0.8)',  prefix: '', suffix: '' },
-  poison:   { color: '#a78bfa', glow: 'rgba(167,139,250,0.8)',  prefix: '', suffix: '' },
-  holy:     { color: '#fde68a', glow: 'rgba(253,230,138,0.85)', prefix: '', suffix: '✦' },
+  damage:   { color: '#f5f5f5', glow: 'rgba(245,245,245,0.4)',  prefix: '', suffix: '' },
+  critical: { color: '#fcd34d', glow: 'rgba(252,211,77,0.7)',   prefix: '', suffix: '!' },
+  heal:     { color: '#86efac', glow: 'rgba(134,239,172,0.55)', prefix: '+', suffix: '' },
+  gold:     { color: '#fde68a', glow: 'rgba(253,230,138,0.55)', prefix: '+', suffix: 'g' },
+  fire:     { color: '#fb923c', glow: 'rgba(251,146,60,0.6)',   prefix: '', suffix: '' },
+  ice:      { color: '#bae6fd', glow: 'rgba(186,230,253,0.6)',  prefix: '', suffix: '' },
+  poison:   { color: '#c4b5fd', glow: 'rgba(196,181,253,0.6)',  prefix: '', suffix: '' },
+  holy:     { color: '#fef3c7', glow: 'rgba(254,243,199,0.65)', prefix: '', suffix: '' },
 };
 
 // Fog of war tile cache
@@ -429,10 +434,29 @@ export class GameRenderer {
 
     const resolvedKind: DamageNumberKind = kind ?? (isHealing ? 'heal' : 'damage');
     const palette = DMG_COLOR[resolvedKind];
-    const scale = resolvedKind === 'critical' ? 1.55 : resolvedKind === 'holy' || resolvedKind === 'fire' ? 1.15 : 1;
+
+    // Merge window: if a fresh number of same kind is very close, add to its value
+    // (reduces clutter on rapid hits while keeping visual feedback)
+    const mergeAge = DAMAGE_NUMBER_DURATION - DMG_MERGE_WINDOW;
+    for (let i = 0; i < this.damageNumbers.length; i++) {
+      const dn = this.damageNumbers[i];
+      if (dn.kind !== resolvedKind) continue;
+      if (dn.life < mergeAge) continue;
+      const dx = Math.abs(dn.x - x);
+      const dy = Math.abs(dn.y - y);
+      if (dx < DMG_MERGE_RADIUS && dy < DMG_MERGE_RADIUS) {
+        dn.rawValue += rounded;
+        dn.text = `${palette.prefix}${dn.rawValue}${palette.suffix}`;
+        dn.life = DAMAGE_NUMBER_DURATION; // refresh
+        dn.mergeBumpTimer = 1;            // trigger bump
+        return;
+      }
+    }
+
+    const scale = resolvedKind === 'critical' ? 1.45 : resolvedKind === 'holy' || resolvedKind === 'fire' ? 1.1 : 1;
     const text = `${palette.prefix}${rounded}${palette.suffix}`;
 
-    // Stack nearby numbers: offset Y if another number is very close
+    // Stack nearby (different kind) numbers: offset Y
     for (let i = 0; i < this.damageNumbers.length; i++) {
       const dn = this.damageNumbers[i];
       const dx = Math.abs(dn.x - x);
@@ -447,13 +471,15 @@ export class GameRenderer {
       y,
       vy: resolvedKind === 'critical' ? -55 : -42,
       text,
+      rawValue: rounded,
       color: palette.color,
       glow: palette.glow,
       life: DAMAGE_NUMBER_DURATION,
       maxLife: DAMAGE_NUMBER_DURATION,
       kind: resolvedKind,
       scale,
-      shake: resolvedKind === 'critical' ? 1.5 : 0,
+      shake: resolvedKind === 'critical' ? 1.2 : 0,
+      mergeBumpTimer: 0,
     });
   }
 
@@ -552,9 +578,10 @@ export class GameRenderer {
     };
     const color = classColor[playerClass] ?? '#ffffff';
 
-    this.triggerScreenFlash(color, 0.55);
-    this.freezeFrame(140);
-    this.camera.shake(7, 450);
+    // Softened from 0.55 → 0.28 for eye comfort
+    this.triggerScreenFlash(color, 0.28);
+    this.freezeFrame(110);
+    this.camera.shake(4, 300);
     this.particles.emitCriticalHit(wx, wy);
     this.particles.emitLevelUp(wx, wy); // reuse — rune+star burst
 
@@ -579,13 +606,14 @@ export class GameRenderer {
 
   /** Trigger boss phase transition visual — red flash + enrage particles at boss */
   triggerBossPhase(wx: number, wy: number, phase: number): void {
-    this.triggerScreenFlash('#dc2626', 0.55);
-    this.freezeFrame(160);
+    // Softened from 0.55 → 0.3
+    this.triggerScreenFlash('#dc2626', 0.3);
+    this.freezeFrame(130);
     this.camera.shakeBossSlam();
     this.particles.emitBossSlam(wx, wy);
     this.particles.emitBurnFlare(wx, wy);
     if (phase >= 3) {
-      // Final enrage — extra dramatic
+      // Final enrage — extra dramatic but still softened
       this.particles.emitDeathSoul(wx, wy, '#dc2626');
       this.particles.emitCriticalHit(wx, wy);
     }
@@ -866,20 +894,20 @@ export class GameRenderer {
 
     // 11. Post-processing effects (drawn on top of everything)
     if (preset.effects) {
-      // Low HP (<25%): strong pulsing red vignette overlay
+      // Low HP — gentler pulsing red vignette (reduced from 0.4 → 0.25 max)
       if (localPlayer && localPlayer.alive) {
         const hpRatio = localPlayer.hp / localPlayer.maxHp;
         if (hpRatio < 0.25) {
-          this.lowHpPulseTimer += dt * 3.5;
-          const pulse = 0.5 + Math.sin(this.lowHpPulseTimer) * 0.5; // 0..1 pulse
-          const baseIntensity = (1 - hpRatio / 0.25) * 0.4; // max 0.4 at 0 hp
-          const intensity = baseIntensity * (0.5 + pulse * 0.5); // pulsing between 50%-100%
+          this.lowHpPulseTimer += dt * 2.5;
+          const pulse = 0.5 + Math.sin(this.lowHpPulseTimer) * 0.5;
+          const baseIntensity = (1 - hpRatio / 0.25) * 0.25;
+          const intensity = baseIntensity * (0.6 + pulse * 0.4);
           this.renderRedVignette(ctx, intensity);
         } else if (hpRatio < 0.5) {
-          // Subtle warning between 25-50%
-          this.lowHpPulseTimer += dt * 2;
+          // Subtle warning between 25-50% (reduced)
+          this.lowHpPulseTimer += dt * 1.5;
           const pulse = 0.5 + Math.sin(this.lowHpPulseTimer) * 0.5;
-          const baseIntensity = (1 - hpRatio / 0.5) * 0.15;
+          const baseIntensity = (1 - hpRatio / 0.5) * 0.08;
           this.renderRedVignette(ctx, baseIntensity * (0.7 + pulse * 0.3));
         } else {
           this.lowHpPulseTimer = 0;
@@ -1532,16 +1560,35 @@ export class GameRenderer {
     for (let i = 0; i < this.frameTimes.length; i++) sum += this.frameTimes[i];
     const avg = sum / this.frameTimes.length;
 
-    if (avg > 20 && this.quality === 'high') {
+    // Adaptive quality — quick downgrade on jank, slow upgrade on stable perf
+    // High → Medium: avg > 22ms (~45fps sustained)
+    // Medium → Low: avg > 33ms (~30fps sustained)
+    // Low → Medium: avg < 18ms (~55fps stable)
+    // Medium → High: avg < 11ms (~90fps stable — only on powerful hardware)
+    if (avg > 22 && this.quality === 'high') {
       this.setQuality('medium');
-    } else if (avg > 30 && this.quality === 'medium') {
+      this.goodSamples = 0;
+    } else if (avg > 33 && this.quality === 'medium') {
       this.setQuality('low');
-    } else if (avg < 10 && this.quality === 'medium') {
-      this.setQuality('high');
-    } else if (avg < 16 && this.quality === 'low') {
-      this.setQuality('medium');
+      this.goodSamples = 0;
+    } else if (avg < 11 && this.quality === 'medium') {
+      this.goodSamples++;
+      if (this.goodSamples >= 3) { // require 3 good checks before upgrading
+        this.setQuality('high');
+        this.goodSamples = 0;
+      }
+    } else if (avg < 18 && this.quality === 'low') {
+      this.goodSamples++;
+      if (this.goodSamples >= 2) {
+        this.setQuality('medium');
+        this.goodSamples = 0;
+      }
+    } else {
+      this.goodSamples = 0;
     }
   }
+
+  private goodSamples = 0;
 
   private renderTiles(
     ctx: CanvasRenderingContext2D,
@@ -1984,34 +2031,38 @@ export class GameRenderer {
         this.sprites.setCurrentLightSource(null);
       }
 
-      // Co-op aura rings — one ring per active aura source, class-colored
+      // Co-op aura rings — softer, slower rotation, single ring at a time fused per source
       const auraFrom = (player as PlayerState & { auraFrom?: string }).auraFrom ?? '';
       if (auraFrom.length > 0) {
         const fcx = sx + TILE_SIZE / 2;
         const fcy = sy + TILE_SIZE / 2 + 1;
-        const sources = auraFrom.split(',');
-        const auraColors: Record<string, string> = {
-          warrior: '#ef4444',
-          mage: '#a78bfa',
-          archer: '#22c55e',
-          healer: '#fde68a',
-        };
-        const baseR = TILE_SIZE * 0.55;
-        for (let ai = 0; ai < sources.length; ai++) {
-          const c = auraColors[sources[ai]];
-          if (!c) continue;
-          const phase = this.animFrame * 0.08 + ai * 1.5;
-          const pulse = Math.sin(phase) * 0.12;
-          const r = baseR + ai * 2 + pulse * 3;
+        // Viewport cull — only draw if within view
+        if (fcx >= -20 && fcx <= this.logicalWidth + 20 && fcy >= -20 && fcy <= this.logicalHeight + 20) {
+          const sources = auraFrom.split(',');
+          const auraColors: Record<string, string> = {
+            warrior: '#f87171',
+            mage: '#c4b5fd',
+            archer: '#86efac',
+            healer: '#fde68a',
+          };
+          const baseR = TILE_SIZE * 0.55;
           ctx.save();
-          ctx.globalAlpha = 0.35 + pulse * 0.15;
-          ctx.strokeStyle = c;
-          ctx.lineWidth = 1;
-          ctx.setLineDash([3, 2]);
-          ctx.lineDashOffset = -this.animFrame * 0.7;
-          ctx.beginPath();
-          ctx.arc(fcx, fcy, r, 0, Math.PI * 2);
-          ctx.stroke();
+          for (let ai = 0; ai < sources.length; ai++) {
+            const c = auraColors[sources[ai]];
+            if (!c) continue;
+            const phase = this.animFrame * 0.05 + ai * 1.5; // slower pulse
+            const pulse = Math.sin(phase) * 0.08;
+            const r = baseR + ai * 1.6 + pulse * 2;
+            // Softer: alpha reduced 0.35→0.22 and no dash animation jitter
+            ctx.globalAlpha = 0.22 + pulse * 0.08;
+            ctx.strokeStyle = c;
+            ctx.lineWidth = 1;
+            ctx.setLineDash([2, 3]);
+            ctx.lineDashOffset = -this.animFrame * 0.35; // slower
+            ctx.beginPath();
+            ctx.arc(fcx, fcy, r, 0, Math.PI * 2);
+            ctx.stroke();
+          }
           ctx.setLineDash([]);
           ctx.restore();
         }
@@ -2325,7 +2376,9 @@ export class GameRenderer {
       // Scale-up animation: overshoot then settle
       const scaleProgress = Math.min(1, progress * 5); // first 20% of life
       const overshoot = scaleProgress < 0.5 ? 1 + scaleProgress * 0.35 : 1;
-      const currentScale = dn.scale + (1 - dn.scale) * scaleProgress * overshoot;
+      const baseScale = dn.scale + (1 - dn.scale) * scaleProgress * overshoot;
+      // Merge bump: +15% scale pulse when value increases
+      const currentScale = baseScale * (1 + dn.mergeBumpTimer * 0.15);
 
       // Alpha: fade out in last 30%
       const alpha = progress < 0.7 ? 1 : Math.max(0, 1 - (progress - 0.7) / 0.3);
@@ -2344,12 +2397,12 @@ export class GameRenderer {
       const dx = Math.floor(dn.x - camX + wobble);
       const dy = Math.floor(dn.y - camY - floatY);
 
-      // Soft outer glow (additive) — only in first 60% of life for performance
-      if (progress < 0.6) {
-        const glowAlpha = alpha * (1 - progress / 0.6) * (isCrit ? 0.9 : 0.6);
+      // Soft outer glow (additive) — only in first 50% of life, reduced intensity
+      if (progress < 0.5) {
+        const glowAlpha = alpha * (1 - progress / 0.5) * (isCrit ? 0.55 : 0.35);
         ctx.globalAlpha = glowAlpha;
         ctx.shadowColor = dn.glow;
-        ctx.shadowBlur = isCrit ? 12 : 6;
+        ctx.shadowBlur = isCrit ? 8 : 4;
         ctx.fillStyle = dn.glow;
         ctx.fillText(dn.text, dx, dy);
         ctx.shadowBlur = 0;
@@ -2382,12 +2435,15 @@ export class GameRenderer {
     // Swap-with-last removal pattern — O(1) per removal instead of O(n) splice
     let i = 0;
     while (i < this.damageNumbers.length) {
-      this.damageNumbers[i].life -= dt;
-      if (this.damageNumbers[i].life <= 0) {
+      const dn = this.damageNumbers[i];
+      dn.life -= dt;
+      if (dn.mergeBumpTimer > 0) {
+        dn.mergeBumpTimer = Math.max(0, dn.mergeBumpTimer - dt * 4);
+      }
+      if (dn.life <= 0) {
         // Swap with last element and pop (O(1))
         this.damageNumbers[i] = this.damageNumbers[this.damageNumbers.length - 1];
         this.damageNumbers.pop();
-        // Don't increment i — re-check swapped element
       } else {
         i++;
       }
@@ -2636,25 +2692,33 @@ export class GameRenderer {
             else if (dType === 'ice') this.particles.emitFreezeShatter(wx, wy + TILE_SIZE / 2);
             else if (dType === 'poison') this.particles.emitPoisonCloud(wx, wy + TILE_SIZE / 2);
           }
-          // Camera shake — prefer server-provided intensity
-          if (serverMeta?.shake !== undefined && serverMeta.shake > 0) {
-            this.camera.shakeFromDamageRatio(serverMeta.shake);
-          } else if (isCritical) {
-            this.camera.shake(8, 300);
-          } else {
-            this.camera.shakeTakeDamage();
+          // Camera shake — only for local player taking damage, scaled by severity
+          if (p.id === localPlayerId) {
+            const dmgRatio = Math.min(1, diff / p.maxHp);
+            if (dmgRatio > 0.3) {
+              // Heavy hit (>30% max HP)
+              this.camera.shake(3.5, 220);
+            } else if (dmgRatio > 0.15) {
+              // Medium hit
+              this.camera.shake(2, 150);
+            } else if (dmgRatio > 0.06) {
+              // Light hit — minimal shake only
+              this.camera.shake(1, 90);
+            }
+            // <6% HP hit: no shake at all (reduces fatigue on rapid monster hits)
           }
+          // Other players' damage: no shake at all — avoids phantom jitter
 
-          // Screen flash on player damage (intensity scales with severity)
+          // Screen flash on player damage (softened alphas)
           if (p.id === localPlayerId) {
             if (diff > p.maxHp * 0.3) {
-              this.triggerScreenFlash('#ffffff', 0.5);
-              this.freezeFrame(60);
+              this.triggerScreenFlash('#ffffff', 0.28);
+              this.freezeFrame(50);
             } else if (isCritical) {
-              this.triggerScreenFlash('#ffffff', 0.25);
-              this.freezeFrame(60);
-            } else {
               this.triggerScreenFlash('#ffffff', 0.15);
+              this.freezeFrame(40);
+            } else if (diff > p.maxHp * 0.08) {
+              this.triggerScreenFlash('#ffffff', 0.08);
             }
           }
         } else {
@@ -2703,17 +2767,17 @@ export class GameRenderer {
             else if (dType === 'poison') this.particles.emitPoisonCloud(wx, wy + TILE_SIZE / 2);
             else if (dType === 'holy') this.particles.emitHealEffect(wx, wy + TILE_SIZE / 2);
           }
-          // Screen shake — server-provided or boss fallback
-          if (serverMeta?.shake !== undefined && serverMeta.shake > 0) {
-            this.camera.shakeFromDamageRatio(serverMeta.shake);
-          } else if (m.type.startsWith('boss_')) {
-            this.camera.shake(4, 200);
-            this.freezeFrame(35);
+          // Screen shake — only for notable events (boss, crit), not every hit
+          // Normal hits on monsters: no shake (sprite squash + particles = enough feedback)
+          if (m.type.startsWith('boss_')) {
+            // Boss damage — small punch
+            this.camera.shake(2, 110);
+            this.freezeFrame(30);
           } else if (isCrit) {
-            this.camera.shakeCrit();
-          } else {
-            this.camera.shake(1, 80);
+            // Crit — subtle, not big
+            this.camera.shake(1.5, 90);
           }
+          // Normal monster hit → NO screen shake (fixes "her vuruşta sallanıyor")
         }
       }
       if (prev !== undefined && m.hp <= 0 && (prev > 0)) {

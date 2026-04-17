@@ -1513,13 +1513,13 @@ export function HUD({ player, gameState, fps, showFps = false, attackCooldownPct
                 >
                   <motion.div
                     className="flex items-center gap-1.5 rounded border px-2 py-0.5 font-pixel text-[9px] sm:text-[10px] lg:text-[11px] 2xl:text-[13px]"
-                    animate={ready ? { boxShadow: ['0 0 8px rgba(251,191,36,0.35)', '0 0 18px rgba(251,191,36,0.8)', '0 0 8px rgba(251,191,36,0.35)'] } : undefined}
-                    transition={ready ? { duration: 1.4, repeat: Infinity, ease: 'easeInOut' } : undefined}
+                    animate={ready ? { boxShadow: ['0 0 6px rgba(251,191,36,0.25)', '0 0 12px rgba(251,191,36,0.5)', '0 0 6px rgba(251,191,36,0.25)'] } : undefined}
+                    transition={ready ? { duration: 2.0, repeat: Infinity, ease: 'easeInOut' } : undefined}
                     style={{
                       borderColor: ready ? '#fbbf24' : '#4b5563',
-                      background: ready ? 'rgba(251,191,36,0.12)' : 'rgba(0,0,0,0.4)',
-                      color: ready ? '#fbbf24' : '#9ca3af',
-                      textShadow: ready ? '0 0 8px rgba(251,191,36,0.8)' : 'none',
+                      background: ready ? 'rgba(251,191,36,0.08)' : 'rgba(0,0,0,0.4)',
+                      color: ready ? '#fcd34d' : '#9ca3af',
+                      textShadow: ready ? '0 0 5px rgba(251,191,36,0.5)' : 'none',
                     }}
                   >
                     <span className="font-bold">[F]</span>
@@ -1687,10 +1687,10 @@ export function HUD({ player, gameState, fps, showFps = false, attackCooldownPct
           if (displayCombo < 2) return null;
           const tier = displayCombo >= 10 ? 3 : displayCombo >= 6 ? 2 : displayCombo >= 4 ? 1 : 0;
           const cfg = [
-            { color: '#ffffff', glow: 'rgba(255,255,255,0.4)', label: 'KOMBO' },
-            { color: '#fef3c7', glow: 'rgba(254,243,199,0.65)', label: 'KOMBO' },
-            { color: '#fbbf24', glow: 'rgba(251,191,36,0.8)', label: 'SÜPER KOMBO' },
-            { color: '#ef4444', glow: 'rgba(239,68,68,0.9)', label: 'KATLİAM' },
+            { color: '#e5e5e5', glow: 'rgba(229,229,229,0.3)', label: 'KOMBO' },
+            { color: '#fef3c7', glow: 'rgba(254,243,199,0.45)', label: 'KOMBO' },
+            { color: '#fcd34d', glow: 'rgba(252,211,77,0.55)', label: 'SÜPER KOMBO' },
+            { color: '#f87171', glow: 'rgba(248,113,113,0.6)', label: 'KATLİAM' },
           ][tier];
           return (
             <motion.div
@@ -1710,13 +1710,13 @@ export function HUD({ player, gameState, fps, showFps = false, attackCooldownPct
               >
                 <span
                   className="font-pixel text-2xl font-bold sm:text-3xl lg:text-4xl 2xl:text-5xl"
-                  style={{ color: cfg.color, textShadow: `0 0 14px ${cfg.glow}, -1px -1px 0 #000, 1px 1px 0 #000` }}
+                  style={{ color: cfg.color, textShadow: `0 0 10px ${cfg.glow}, -1px -1px 0 #000, 1px 1px 0 #000` }}
                 >
                   {displayCombo}×
                 </span>
                 <span
                   className="font-pixel text-[9px] font-semibold tracking-[0.25em] sm:text-[10px] lg:text-[12px] 2xl:text-[13px]"
-                  style={{ color: cfg.color, textShadow: `0 0 8px ${cfg.glow}` }}
+                  style={{ color: cfg.color, textShadow: `0 0 5px ${cfg.glow}` }}
                 >
                   {cfg.label}
                 </span>

@@ -22,20 +22,20 @@ export function DebuffBar({ player }: DebuffBarProps) {
   const entries: DebuffEntry[] = [];
 
   if (player.poisoned) {
-    entries.push({ key: 'poison', icon: '☠', label: 'Zehir', color: '#a78bfa', glow: 'rgba(167,139,250,0.65)', ticks: 60, max: 60 });
+    entries.push({ key: 'poison', icon: '☠', label: 'Zehir', color: '#c4b5fd', glow: 'rgba(196,181,253,0.4)', ticks: 60, max: 60 });
   }
   if (player.slowed) {
-    entries.push({ key: 'slow', icon: '❄', label: 'Yavaş', color: '#7dd3fc', glow: 'rgba(125,211,252,0.65)', ticks: 60, max: 60 });
+    entries.push({ key: 'slow', icon: '❄', label: 'Yavaş', color: '#bae6fd', glow: 'rgba(186,230,253,0.4)', ticks: 60, max: 60 });
   }
   if (player.stunTicks > 0) {
-    entries.push({ key: 'stun', icon: '✦', label: 'Sersem', color: '#fbbf24', glow: 'rgba(251,191,36,0.7)', ticks: player.stunTicks, max: 60 });
+    entries.push({ key: 'stun', icon: '✦', label: 'Sersem', color: '#fcd34d', glow: 'rgba(252,211,77,0.45)', ticks: player.stunTicks, max: 60 });
   }
   const ps = player as PlayerState & { burnTicks?: number; freezeTicks?: number };
   if (ps.burnTicks && ps.burnTicks > 0) {
-    entries.push({ key: 'burn', icon: '🔥', label: 'Yanma', color: '#ff7a3a', glow: 'rgba(255,122,58,0.7)', ticks: ps.burnTicks, max: 40 });
+    entries.push({ key: 'burn', icon: '🔥', label: 'Yanma', color: '#fb923c', glow: 'rgba(251,146,60,0.4)', ticks: ps.burnTicks, max: 40 });
   }
   if (ps.freezeTicks && ps.freezeTicks > 0) {
-    entries.push({ key: 'freeze', icon: '❄', label: 'Donmuş', color: '#38bdf8', glow: 'rgba(56,189,248,0.75)', ticks: ps.freezeTicks, max: 30 });
+    entries.push({ key: 'freeze', icon: '❄', label: 'Donmuş', color: '#7dd3fc', glow: 'rgba(125,211,252,0.45)', ticks: ps.freezeTicks, max: 30 });
   }
 
   return (
@@ -53,11 +53,11 @@ export function DebuffBar({ player }: DebuffBarProps) {
               transition={{ type: 'spring', stiffness: 380, damping: 22 }}
               className={`relative flex h-9 w-9 items-center justify-center rounded-md border font-pixel text-[10px] sm:h-10 sm:w-10 sm:text-xs ${urgent ? 'animate-pulse' : ''}`}
               style={{
-                borderColor: e.color,
-                background: `linear-gradient(135deg, ${e.color}22, ${e.color}08)`,
-                boxShadow: `0 0 10px ${e.glow}`,
+                borderColor: `${e.color}99`,
+                background: `linear-gradient(135deg, ${e.color}18, ${e.color}05)`,
+                boxShadow: `0 0 6px ${e.glow}`,
                 color: e.color,
-                textShadow: `0 0 6px ${e.glow}`,
+                textShadow: `0 0 3px ${e.glow}`,
               }}
               title={e.label}
             >

@@ -145,20 +145,20 @@ body {
    HUD Animations
    ================================ */
 
-/* HP bar flash on damage — color lerp (softer than brightness) */
+/* HP bar flash on damage — very soft, non-jarring */
 @keyframes hp-flash {
   0% { filter: brightness(1); }
-  35% { filter: brightness(1.35) saturate(1.6) drop-shadow(0 0 4px rgba(239,68,68,0.9)); }
+  30% { filter: brightness(1.18) saturate(1.25) drop-shadow(0 0 3px rgba(239,68,68,0.5)); }
   100% { filter: brightness(1); }
 }
-.hp-flash { animation: hp-flash 0.3s ease-out; }
+.hp-flash { animation: hp-flash 0.25s ease-out; }
 
 /* Low HP pulse */
 @keyframes low-hp-pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+  50% { opacity: 0.75; }
 }
-.low-hp-pulse { animation: low-hp-pulse 0.8s ease-in-out infinite; }
+.low-hp-pulse { animation: low-hp-pulse 1.1s ease-in-out infinite; }
 
 /* Boss bar delayed damage */
 @keyframes boss-damage-delay {

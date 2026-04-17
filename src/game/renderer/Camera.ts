@@ -163,45 +163,58 @@ export class Camera {
 
   // ===== SCREEN SHAKE =====
 
-  /** Start a screen shake effect */
+  // Global shake attenuation — user-adjustable (0..1), lets players tune intensity
+  private shakeMultiplier = 0.7; // softer default per UX feedback
+
+  setShakeMultiplier(m: number): void {
+    this.shakeMultiplier = Math.max(0, Math.min(1.5, m));
+  }
+
+  /** Start a screen shake effect. New shake must be meaningfully stronger or current nearly done. */
   shake(intensity: number, duration: number): void {
-    // Only override if new shake is stronger or current is nearly done
-    if (intensity >= this.shakeState.intensity || this.shakeState.elapsed >= this.shakeState.duration * 0.7) {
-      this.shakeState.intensity = intensity;
+    const scaled = intensity * this.shakeMultiplier;
+    // Stricter threshold: only override if new shake is ≥ 1.35× current OR current is almost done
+    const currentRemaining = this.shakeState.duration - this.shakeState.elapsed;
+    if (
+      scaled >= this.shakeState.intensity * 1.35 ||
+      currentRemaining < this.shakeState.duration * 0.2
+    ) {
+      this.shakeState.intensity = scaled;
       this.shakeState.duration = duration;
       this.shakeState.elapsed = 0;
     }
   }
 
-  /** Preset: small shake when player takes damage (amplitude 2, 150ms) */
+  /** Preset: very small shake when player takes light damage */
   shakeTakeDamage(): void {
-    this.shake(2, 150);
+    this.shake(1.5, 120);
   }
 
-  /** Preset: large shake for boss slam (amplitude 5, 400ms) */
+  /** Preset: large shake for boss slam (reduced from 8 → 5) */
   shakeBossSlam(): void {
-    this.shake(8, 400);
+    this.shake(5, 340);
   }
 
-  /** Preset: medium shake on death (amplitude 3, 300ms) */
+  /** Preset: medium shake on death (reduced from 4 → 3) */
   shakeDeath(): void {
-    this.shake(4, 300);
+    this.shake(3, 260);
   }
 
-  /** Preset: sharp crit shake with quick decay */
+  /** Preset: sharp crit shake — small and quick */
   shakeCrit(): void {
-    this.shake(4, 150);
+    this.shake(1.8, 100);
   }
 
-  /** Preset: scaled shake from damage/maxHp ratio (0..1) */
+  /** Preset: scaled shake from damage/maxHp ratio (0..1). Reduced curve. */
   shakeFromDamageRatio(ratio: number): void {
     const r = Math.max(0, Math.min(1, ratio));
-    this.shake(1.5 + r * 6, 80 + r * 280);
+    // Damped curve: no base, grows gently
+    this.shake(r * 4, 80 + r * 180);
   }
 
   /** Preset: punch in a direction (used on hit landings) */
   punchHit(dirX: number, dirY: number, strength = 2): void {
-    this.punch(dirX, dirY, strength, 0.8);
+    this.punch(dirX, dirY, strength * this.shakeMultiplier, 0.8);
   }
 
   // ===== BOSS ROOM ZOOM =====
