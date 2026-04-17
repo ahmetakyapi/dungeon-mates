@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 const AUTO_CONTINUE_MS = 5000;
@@ -69,6 +69,45 @@ function generateParticles(): Particle[] {
   }));
 }
 
+// Confetti: celebratory burst from center on completion
+type Confetto = {
+  id: number;
+  x: number;
+  startY: number;
+  endY: number;
+  rotation: number;
+  color: string;
+  size: number;
+  duration: number;
+  delay: number;
+};
+
+function generateConfetti(): Confetto[] {
+  const colors = ['#fbbf24', '#a78bfa', '#10b981', '#ef4444', '#3b82f6', '#fde68a', '#f97316'];
+  return Array.from({ length: 40 }, (_, i) => ({
+    id: i,
+    x: 40 + Math.random() * 20, // center-biased
+    startY: 45 + Math.random() * 10,
+    endY: 10 + Math.random() * 85,
+    rotation: Math.random() * 720 - 360,
+    color: colors[i % colors.length],
+    size: 4 + Math.random() * 4,
+    duration: 1.4 + Math.random() * 0.8,
+    delay: Math.random() * 0.25,
+  }));
+}
+
+/** Count-up number display — animates from 0 to `value` using spring-like tween */
+function CountUpNumber({ value, duration = 1.1 }: { value: number; duration?: number }) {
+  const motionValue = useMotionValue(0);
+  const rounded = useTransform(motionValue, (v) => Math.floor(v).toString());
+  useEffect(() => {
+    const controls = animate(motionValue, value, { duration, ease: [0.22, 1, 0.36, 1] });
+    return () => controls.stop();
+  }, [value, duration, motionValue]);
+  return <motion.span>{rounded}</motion.span>;
+}
+
 export function FloorTransition({
   isVisible,
   completedFloor,
@@ -79,6 +118,7 @@ export function FloorTransition({
 }: FloorTransitionProps) {
   const [showNext, setShowNext] = useState(false);
   const particles = useMemo(generateParticles, []);
+  const confetti = useMemo(generateConfetti, []);
 
   // Auto-continue after delay
   useEffect(() => {
@@ -117,6 +157,36 @@ export function FloorTransition({
 
           {/* Ambient glow */}
           <div className="pointer-events-none absolute left-1/2 top-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-dm-accent/[0.08] blur-[120px]" />
+
+          {/* Confetti celebration burst */}
+          {confetti.map((c) => (
+            <motion.div
+              key={c.id}
+              className="pointer-events-none absolute"
+              style={{
+                left: `${c.x}%`,
+                top: `${c.startY}%`,
+                width: c.size,
+                height: c.size * 0.4,
+                backgroundColor: c.color,
+                borderRadius: '1px',
+              }}
+              initial={{ opacity: 1, y: 0, x: 0, rotate: 0, scale: 1 }}
+              animate={{
+                opacity: [1, 1, 0],
+                y: `${c.endY - c.startY}vh`,
+                x: (c.id % 2 === 0 ? 1 : -1) * (30 + Math.random() * 120),
+                rotate: c.rotation,
+                scale: [1, 1, 0.6],
+              }}
+              transition={{
+                duration: c.duration,
+                delay: c.delay,
+                ease: [0.22, 1, 0.36, 1],
+                times: [0, 0.7, 1],
+              }}
+            />
+          ))}
 
           {/* Particles */}
           {particles.map((p) => (
@@ -196,18 +266,32 @@ export function FloorTransition({
               transition={{ delay: 0.6, duration: 0.4 }}
             >
               {monstersKilled > 0 && (
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-lg lg:text-xl 2xl:text-2xl">💀</span>
+                <motion.div
+                  className="flex flex-col items-center gap-1"
+                  initial={{ scale: 0.6, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.75, type: 'spring', stiffness: 340, damping: 18 }}
+                >
+                  <motion.span
+                    className="text-lg lg:text-xl 2xl:text-2xl"
+                    animate={{ scale: [1, 1.3, 1] }}
+                    transition={{ delay: 0.9, duration: 0.4 }}
+                  >💀</motion.span>
                   <span className="font-pixel text-[10px] text-zinc-300 lg:text-sm xl:text-sm 2xl:text-base">
-                    {monstersKilled}
+                    <CountUpNumber value={monstersKilled} />
                   </span>
                   <span className="font-pixel text-[7px] text-zinc-600 lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
                     Canavar
                   </span>
-                </div>
+                </motion.div>
               )}
               {timeSpent > 0 && (
-                <div className="flex flex-col items-center gap-1">
+                <motion.div
+                  className="flex flex-col items-center gap-1"
+                  initial={{ scale: 0.6, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.85, type: 'spring', stiffness: 340, damping: 18 }}
+                >
                   <span className="text-lg lg:text-xl 2xl:text-2xl">⏱️</span>
                   <span className="font-pixel text-[10px] text-zinc-300 lg:text-sm xl:text-sm 2xl:text-base">
                     {formatTime(timeSpent)}
@@ -215,7 +299,7 @@ export function FloorTransition({
                   <span className="font-pixel text-[7px] text-zinc-600 lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
                     Süre
                   </span>
-                </div>
+                </motion.div>
               )}
             </motion.div>
 

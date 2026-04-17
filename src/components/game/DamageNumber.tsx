@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
-type DamageNumberType = 'damage' | 'critical' | 'heal' | 'xp' | 'gold';
+type DamageNumberType = 'damage' | 'critical' | 'heal' | 'xp' | 'gold' | 'fire' | 'ice' | 'poison' | 'holy';
 
 type DamageNumberProps = {
   x: number;
@@ -72,6 +72,42 @@ const TYPE_CONFIG: Record<
     glow: 'rgba(251,191,36,0.4)',
     duration: 0.9,
     yTravel: -40,
+  },
+  fire: {
+    color: '#ff7a3a',
+    prefix: '',
+    suffix: '',
+    fontClasses: 'text-xs sm:text-sm lg:text-base 2xl:text-lg',
+    glow: 'rgba(255,122,58,0.6)',
+    duration: 0.85,
+    yTravel: -48,
+  },
+  ice: {
+    color: '#7dd3fc',
+    prefix: '',
+    suffix: '',
+    fontClasses: 'text-xs sm:text-sm lg:text-base 2xl:text-lg',
+    glow: 'rgba(125,211,252,0.6)',
+    duration: 0.85,
+    yTravel: -45,
+  },
+  poison: {
+    color: '#a78bfa',
+    prefix: '',
+    suffix: '',
+    fontClasses: 'text-xs sm:text-sm lg:text-base 2xl:text-lg',
+    glow: 'rgba(167,139,250,0.6)',
+    duration: 0.85,
+    yTravel: -45,
+  },
+  holy: {
+    color: '#fde68a',
+    prefix: '',
+    suffix: '✦',
+    fontClasses: 'text-sm sm:text-base lg:text-lg 2xl:text-xl',
+    glow: 'rgba(253,230,138,0.7)',
+    duration: 0.95,
+    yTravel: -55,
   },
 } as const;
 

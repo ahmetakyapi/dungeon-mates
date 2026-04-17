@@ -1119,6 +1119,9 @@ export class SpriteRenderer {
     shieldActive = false,
     phased = false,
     enraged = false,
+    burnTicks = 0,
+    freezeTicks = 0,
+    poisonTicks = 0,
   ): void {
     const stats = MONSTER_STATS[type];
     const renderSize = Math.floor(TILE_SIZE * stats.size);
@@ -1159,6 +1162,26 @@ export class SpriteRenderer {
     const cachedMon = getCachedSprite(mCacheKey, renderSize, renderSize, (sprCtx) => {
       this.drawMonsterSprite(sprCtx, 0, 0, type, facing, frame, attacking);
     });
+
+    // Elite gold outline — 4-offset silhouette pass (uses cached tinted variant)
+    if (isElite) {
+      const outlineKey = `mon_${type}_${facing}_${atkFrame}_${bossFrame}_goldOutline`;
+      const outlineCanvas = getCachedSprite(outlineKey, renderSize, renderSize, (sprCtx) => {
+        // Draw sprite then tint gold via source-atop
+        this.drawMonsterSprite(sprCtx, 0, 0, type, facing, frame, attacking);
+        sprCtx.globalCompositeOperation = 'source-atop';
+        sprCtx.fillStyle = '#fbbf24';
+        sprCtx.fillRect(0, 0, renderSize, renderSize);
+      });
+      const outlineAlpha = 0.38 + Math.sin(frame * 0.3) * 0.08;
+      ctx.globalAlpha = outlineAlpha;
+      ctx.drawImage(outlineCanvas, Math.floor(x) - 1, Math.floor(y));
+      ctx.drawImage(outlineCanvas, Math.floor(x) + 1, Math.floor(y));
+      ctx.drawImage(outlineCanvas, Math.floor(x), Math.floor(y) - 1);
+      ctx.drawImage(outlineCanvas, Math.floor(x), Math.floor(y) + 1);
+      ctx.globalAlpha = 1;
+    }
+
     ctx.drawImage(cachedMon, Math.floor(x), Math.floor(y));
 
     // Reset phase transparency
@@ -1207,6 +1230,51 @@ export class SpriteRenderer {
         ctx.globalAlpha = Math.max(0, ea);
         px(ctx, ex, ey, 1, 1, i % 2 === 0 ? '#f97316' : '#fbbf24');
       }
+      ctx.globalAlpha = 1;
+    }
+
+    // Elemental status overlays — burn/freeze/poison
+    if (burnTicks > 0) {
+      const bp = Math.sin(frame * 0.6) * 0.06;
+      ctx.globalAlpha = 0.22 + bp;
+      ctx.fillStyle = '#f97316';
+      ctx.fillRect(x + 2, y + 2, renderSize - 4, renderSize - 4);
+      ctx.globalAlpha = 1;
+      // Flame licks around top
+      for (let i = 0; i < 3; i++) {
+        const fx = x + 3 + ((frame * 4 + i * 9) % (renderSize - 6));
+        const fy = y - 2 - ((frame * 2 + i * 3) % 5);
+        const fa = 0.7 - ((frame + i * 5) % 5) * 0.12;
+        ctx.globalAlpha = Math.max(0, fa);
+        px(ctx, fx, fy, 1, 2, i % 2 === 0 ? '#f97316' : '#fbbf24');
+      }
+      ctx.globalAlpha = 1;
+    }
+    if (freezeTicks > 0) {
+      ctx.globalAlpha = 0.45;
+      ctx.fillStyle = '#7dd3fc';
+      ctx.fillRect(x + 1, y + 1, renderSize - 2, renderSize - 2);
+      ctx.globalAlpha = 0.9;
+      // Crystal spikes
+      px(ctx, x + 2, y + 2, 1, 2, '#e0f2fe');
+      px(ctx, x + renderSize - 3, y + 2, 1, 2, '#e0f2fe');
+      px(ctx, x + 2, y + renderSize - 3, 1, 2, '#bae6fd');
+      px(ctx, x + renderSize - 3, y + renderSize - 3, 1, 2, '#bae6fd');
+      // Center sparkle
+      const ss = (frame % 6) < 3 ? 1 : 0;
+      if (ss) px(ctx, x + renderSize / 2 - 1, y + renderSize / 2 - 1, 2, 2, '#ffffff');
+      ctx.globalAlpha = 1;
+    }
+    if (poisonTicks > 0) {
+      const pp = Math.sin(frame * 0.45) * 0.06;
+      ctx.globalAlpha = 0.2 + pp;
+      ctx.fillStyle = '#a78bfa';
+      ctx.fillRect(x + 2, y + 2, renderSize - 4, renderSize - 4);
+      ctx.globalAlpha = 1;
+      // Drip particles
+      const dripY = (frame * 2) % 8;
+      ctx.globalAlpha = 0.6 - dripY * 0.06;
+      px(ctx, x + 3 + (frame % 3) * 4, y + renderSize - 2 + dripY, 1, 2, '#c4b5fd');
       ctx.globalAlpha = 1;
     }
 

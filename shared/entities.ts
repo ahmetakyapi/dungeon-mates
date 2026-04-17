@@ -54,6 +54,14 @@ export type PlayerState = {
   shieldActive: boolean;
   poisoned: boolean;
   slowed: boolean;
+  // Premium combat feel — hit-stop & knockback
+  hitStopTicks: number;
+  knockbackVx: number;
+  knockbackVy: number;
+  knockbackTicks: number;
+  // Combo tracking
+  comboCount: number;
+  comboExpiry: number;
 };
 
 export type MonsterState = {
@@ -73,7 +81,19 @@ export type MonsterState = {
   phased: boolean;
   casting: boolean;
   enraged: boolean;
+  // Premium combat feel — hit-stop & knockback
+  hitStopTicks: number;
+  knockbackVx: number;
+  knockbackVy: number;
+  knockbackTicks: number;
+  // Status effects (elemental — Faz 3 hazırlığı ama sprite layer şimdi kullanıyor)
+  burnTicks: number;
+  freezeTicks: number;
+  poisonTicks: number;
 };
+
+// --- Damage / Event Metadata ---
+export type DamageType = 'physical' | 'fire' | 'ice' | 'poison' | 'holy';
 
 export type ProjectileState = {
   id: string;

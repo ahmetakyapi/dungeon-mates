@@ -1642,30 +1642,52 @@ export function HUD({ player, gameState, fps, showFps = false, attackCooldownPct
         </div>
       )}
 
-      {/* Combo counter */}
+      {/* Combo counter — tier-based premium visual */}
       <AnimatePresence>
-        {comboCount >= 2 && (
-          <motion.div
-            className="pointer-events-none absolute right-16 top-1/3 z-30 sm:right-24"
-            initial={{ scale: 0.5, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 1.5, opacity: 0 }}
-            transition={{ duration: 0.3, ease: EASE }}
-          >
+        {(() => {
+          // Prefer server-tracked comboCount (hit-based); fallback to kill-based local count
+          const serverCombo = (player as PlayerState & { comboCount?: number }).comboCount ?? 0;
+          const displayCombo = Math.max(serverCombo, comboCount);
+          if (displayCombo < 2) return null;
+          const tier = displayCombo >= 10 ? 3 : displayCombo >= 6 ? 2 : displayCombo >= 4 ? 1 : 0;
+          const cfg = [
+            { color: '#ffffff', glow: 'rgba(255,255,255,0.4)', label: 'KOMBO' },
+            { color: '#fef3c7', glow: 'rgba(254,243,199,0.65)', label: 'KOMBO' },
+            { color: '#fbbf24', glow: 'rgba(251,191,36,0.8)', label: 'SÜPER KOMBO' },
+            { color: '#ef4444', glow: 'rgba(239,68,68,0.9)', label: 'KATLİAM' },
+          ][tier];
+          return (
             <motion.div
-              className="flex flex-col items-center"
-              animate={{ scale: [1, 1.1, 1] }}
-              transition={{ duration: 0.4, repeat: Infinity }}
+              key={`combo-${tier}`}
+              className="pointer-events-none absolute right-16 top-1/3 z-30 sm:right-24"
+              initial={{ scale: 0.5, opacity: 0, y: -10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 1.4, opacity: 0, y: -5 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 18 }}
             >
-              <span className="font-pixel text-xl text-dm-gold sm:text-2xl lg:text-3xl 2xl:text-4xl" style={{ textShadow: '0 0 12px rgba(245, 158, 11, 0.6)' }}>
-                {comboCount}x
-              </span>
-              <span className="font-pixel text-[8px] text-dm-gold/80 sm:text-[9px] lg:text-[10px] 2xl:text-[12px]">
-                KOMBO!
-              </span>
+              <motion.div
+                key={displayCombo}
+                className="flex flex-col items-center"
+                initial={{ scale: 1.3 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', stiffness: 420, damping: 14 }}
+              >
+                <span
+                  className="font-pixel text-2xl font-bold sm:text-3xl lg:text-4xl 2xl:text-5xl"
+                  style={{ color: cfg.color, textShadow: `0 0 14px ${cfg.glow}, -1px -1px 0 #000, 1px 1px 0 #000` }}
+                >
+                  {displayCombo}×
+                </span>
+                <span
+                  className="font-pixel text-[9px] font-semibold tracking-[0.25em] sm:text-[10px] lg:text-[12px] 2xl:text-[13px]"
+                  style={{ color: cfg.color, textShadow: `0 0 8px ${cfg.glow}` }}
+                >
+                  {cfg.label}
+                </span>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
+          );
+        })()}
       </AnimatePresence>
 
       {/* Level up celebration overlay */}

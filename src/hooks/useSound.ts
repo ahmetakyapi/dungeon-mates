@@ -36,6 +36,11 @@ export function useSound() {
   const playFireball = useCallback(() => getManager()?.playFireball(), [getManager]);
   const playHit = useCallback(() => getManager()?.playHit(), [getManager]);
   const playCriticalHit = useCallback(() => getManager()?.playCriticalHit(), [getManager]);
+  const playFireHit = useCallback(() => getManager()?.playFireHit(), [getManager]);
+  const playIceHit = useCallback(() => getManager()?.playIceHit(), [getManager]);
+  const playPoisonHit = useCallback(() => getManager()?.playPoisonHit(), [getManager]);
+  const playHolyHit = useCallback(() => getManager()?.playHolyHit(), [getManager]);
+  const playComboTier = useCallback((tier: number) => getManager()?.playComboTier(tier), [getManager]);
   const playPlayerHurt = useCallback(() => getManager()?.playPlayerHurt(), [getManager]);
   const playMonsterHurt = useCallback(() => getManager()?.playMonsterHurt(), [getManager]);
   const playDeath = useCallback(() => getManager()?.playDeath(), [getManager]);
@@ -72,7 +77,8 @@ export function useSound() {
 
   return useMemo(() => ({
     playSwordSlash, playArrowShoot, playFireball,
-    playHit, playCriticalHit, playPlayerHurt, playMonsterHurt, playDeath,
+    playHit, playCriticalHit, playFireHit, playIceHit, playPoisonHit, playHolyHit, playComboTier,
+    playPlayerHurt, playMonsterHurt, playDeath,
     playLootPickup, playGoldPickup, playHealthPotion,
     playButtonClick, playMenuOpen, playMenuClose,
     playRoomCleared, playLevelUp, playBossAppear, playFloorComplete,
@@ -84,7 +90,8 @@ export function useSound() {
     toggleMute, isMuted, getMasterVolume, getSfxVolume, getMusicVolume,
   }), [
     playSwordSlash, playArrowShoot, playFireball,
-    playHit, playCriticalHit, playPlayerHurt, playMonsterHurt, playDeath,
+    playHit, playCriticalHit, playFireHit, playIceHit, playPoisonHit, playHolyHit, playComboTier,
+    playPlayerHurt, playMonsterHurt, playDeath,
     playLootPickup, playGoldPickup, playHealthPotion,
     playButtonClick, playMenuOpen, playMenuClose,
     playRoomCleared, playLevelUp, playBossAppear, playFloorComplete,

@@ -4,6 +4,7 @@ import {
   Vec2,
   Direction,
   TileType,
+  DamageType,
   MONSTER_STATS,
   TICK_RATE,
   DUNGEON_WIDTH,
@@ -46,6 +47,13 @@ import {
 } from './BossAI';
 
 const MONSTER_RADIUS_BASE = 0.4;
+
+// Premium combat feel
+const MON_HITSTOP_NORMAL_TICKS = 2;
+const MON_HITSTOP_CRIT_TICKS = 3;
+const MON_HITSTOP_HEAVY_TICKS = 4;
+const MON_KNOCKBACK_DECAY = 0.82;
+const MON_KNOCKBACK_MIN = 0.02;
 
 let nextMonsterId = 0;
 
@@ -118,6 +126,13 @@ export class Monster implements MonsterContext {
       phased: false,
       casting: false,
       enraged: false,
+      hitStopTicks: 0,
+      knockbackVx: 0,
+      knockbackVy: 0,
+      knockbackTicks: 0,
+      burnTicks: 0,
+      freezeTicks: 0,
+      poisonTicks: 0,
     };
 
     this.monsterType = type;
@@ -212,6 +227,53 @@ export class Monster implements MonsterContext {
       if (this.slowTicks <= 0) {
         this.slowMultiplier = 1;
       }
+    }
+
+    // Elemental status effect ticks
+    if (this.state.burnTicks > 0) this.state.burnTicks--;
+    if (this.state.freezeTicks > 0) {
+      this.state.freezeTicks--;
+      // Freeze = full stop; skip AI entirely
+      this.state.velocity.x = 0;
+      this.state.velocity.y = 0;
+      return null;
+    }
+    if (this.state.poisonTicks > 0) this.state.poisonTicks--;
+
+    // Hit-stop: freeze AI briefly for combat weight
+    if (this.state.hitStopTicks > 0) {
+      this.state.hitStopTicks--;
+      this.state.velocity.x = 0;
+      this.state.velocity.y = 0;
+      return null;
+    }
+
+    // Knockback integration
+    if (this.state.knockbackTicks > 0) {
+      this.state.knockbackTicks--;
+      const kbStep = 1 / TICK_RATE;
+      const newX = this.state.position.x + this.state.knockbackVx * kbStep;
+      const newY = this.state.position.y + this.state.knockbackVy * kbStep;
+      if (!this.collidesWithWall(newX, this.state.position.y, tiles)) {
+        this.state.position.x = newX;
+      } else {
+        this.state.knockbackVx = 0;
+      }
+      if (!this.collidesWithWall(this.state.position.x, newY, tiles)) {
+        this.state.position.y = newY;
+      } else {
+        this.state.knockbackVy = 0;
+      }
+      this.state.knockbackVx *= MON_KNOCKBACK_DECAY;
+      this.state.knockbackVy *= MON_KNOCKBACK_DECAY;
+      if (Math.abs(this.state.knockbackVx) < MON_KNOCKBACK_MIN) this.state.knockbackVx = 0;
+      if (Math.abs(this.state.knockbackVy) < MON_KNOCKBACK_MIN) this.state.knockbackVy = 0;
+      if (this.state.knockbackTicks === 0) {
+        this.state.knockbackVx = 0;
+        this.state.knockbackVy = 0;
+      }
+      // During knockback, skip AI
+      return null;
     }
 
     this.shouldSummon = false;
@@ -406,7 +468,7 @@ export class Monster implements MonsterContext {
     return this.monsterType === 'wraith' && this.phaseActive;
   }
 
-  takeDamage(damage: number): number {
+  takeDamage(damage: number, severity: 'normal' | 'crit' | 'heavy' = 'normal', damageType: DamageType = 'physical'): number {
     if (!this.state.alive) return 0;
 
     // Wraith is invulnerable while phased
@@ -421,12 +483,44 @@ export class Monster implements MonsterContext {
     const effectiveDamage = Math.max(1, damage - stats.defense);
     this.state.hp -= effectiveDamage;
 
+    // Elemental status application
+    if (damageType === 'fire') {
+      this.state.burnTicks = Math.max(this.state.burnTicks, 40); // 2s burn
+    } else if (damageType === 'ice') {
+      // Ice slows; if already burning, triggers freeze (Faz 3 elemental reaction)
+      if (this.state.burnTicks > 0) {
+        this.state.freezeTicks = Math.max(this.state.freezeTicks, 30); // 1.5s freeze
+        this.state.burnTicks = 0;
+      } else {
+        this.applySlow(0.5, 40);
+      }
+    } else if (damageType === 'poison') {
+      this.state.poisonTicks = Math.max(this.state.poisonTicks, 60); // 3s poison
+    }
+
+    // Hit-stop by severity
+    const hitStop = severity === 'heavy' ? MON_HITSTOP_HEAVY_TICKS
+      : severity === 'crit' ? MON_HITSTOP_CRIT_TICKS
+      : MON_HITSTOP_NORMAL_TICKS;
+    if (hitStop > this.state.hitStopTicks) this.state.hitStopTicks = hitStop;
+
     if (this.state.hp <= 0) {
       this.state.hp = 0;
       this.state.alive = false;
     }
 
     return effectiveDamage;
+  }
+
+  /** External knockback from a hit */
+  applyKnockback(dirX: number, dirY: number, strength: number, ticks = 3): void {
+    const mag = Math.sqrt(dirX * dirX + dirY * dirY);
+    if (mag < 0.0001) return;
+    // Elite and bosses resist knockback
+    const resist = this.state.isElite ? 0.5 : this.monsterType.startsWith('boss_') ? 0.15 : 1;
+    this.state.knockbackVx = (dirX / mag) * strength * resist;
+    this.state.knockbackVy = (dirY / mag) * strength * resist;
+    this.state.knockbackTicks = ticks;
   }
 
   getState(): MonsterState {

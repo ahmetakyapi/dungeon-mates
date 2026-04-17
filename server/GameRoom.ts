@@ -13,6 +13,8 @@ import {
   Vec2,
   FloorModifier,
   ShopItem,
+  DamageType,
+  DamageEventMeta,
   TICK_MS,
   TICK_RATE,
   MAX_PLAYERS,
@@ -179,7 +181,7 @@ export class GameRoom {
   private readonly _alivePlayersBuf: Array<{ id: string; position: Vec2; alive: boolean }> = [];
 
   // Damage event batch buffer — accumulated per tick, flushed at end
-  private readonly _damageBatch: Array<{ targetId: string; damage: number; sourceId: string }> = [];
+  private readonly _damageBatch: DamageEventMeta[] = [];
 
   // Reusable removal buffers (avoids allocation per tick)
   private readonly _projRemoveBuf: string[] = [];
@@ -748,11 +750,15 @@ export class GameRoom {
                 const dy = monster.state.position.y - abilityResult.position.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist <= abilityResult.radius) {
-                  const actualDamage = monster.takeDamage(abilityResult.damage);
+                  const actualDamage = monster.takeDamage(abilityResult.damage, 'heavy', 'ice');
                   player.state.totalDamageDealt += actualDamage;
                   player.applyLifesteal(actualDamage);
                   monster.applySlow(0.5, 60); // %50 yavaşlama, 3 saniye
-                  this.queueDamage(monsterId, actualDamage, player.state.id);
+                  // Radial knockback from storm center
+                  monster.applyKnockback(dx, dy, 4);
+                  this.queueDamage(monsterId, actualDamage, player.state.id, {
+                    damageType: 'ice', kx: dx, ky: dy, shake: 0.5,
+                  });
                   if (!monster.state.alive) {
                     this.handleMonsterKilled(monster, player.state.id);
                   }
@@ -778,7 +784,9 @@ export class GameRoom {
                   ally.state.hp = Math.min(ally.state.maxHp, ally.state.hp + abilityResult.healAmount);
                   const healed = ally.state.hp - prevHp;
                   if (healed > 0) {
-                    this.queueDamage(ally.state.id, -healed, player.state.id); // negative = heal
+                    this.queueDamage(ally.state.id, healed, player.state.id, {
+                      isHeal: true, damageType: 'holy',
+                    });
                   }
                 }
               }
@@ -802,11 +810,32 @@ export class GameRoom {
           const burnDmg = 3 + this.currentFloor;
           const burnResult = player.takeDamage(burnDmg);
           if (!burnResult.dodged && burnResult.effectiveDamage > 0) {
-            this.queueDamage(player.state.id, burnResult.effectiveDamage, 'burning_ground');
+            this.queueDamage(player.state.id, burnResult.effectiveDamage, 'burning_ground', {
+              damageType: 'fire', shake: 0.1,
+            });
           }
           if (!player.state.alive) {
             this.handlePlayerDeath(player);
           }
+        }
+      }
+    }
+
+    // Elemental DoT ticks on monsters (burn/poison) every 20 ticks
+    if (this.tick % 20 === 0) {
+      for (const [monsterId, monster] of this.monsters) {
+        if (!monster.state.alive) continue;
+        if (monster.state.burnTicks > 0) {
+          const burnDot = 4 + Math.floor(this.currentFloor * 0.8);
+          const actual = monster.takeDamage(burnDot, 'normal', 'physical');
+          this.queueDamage(monsterId, actual, 'burning', { damageType: 'fire', shake: 0.05 });
+          if (!monster.state.alive) this.handleMonsterKilled(monster, 'burning');
+        }
+        if (monster.state.poisonTicks > 0) {
+          const poisonDot = 3 + Math.floor(this.currentFloor * 0.5);
+          const actual = monster.takeDamage(poisonDot, 'normal', 'physical');
+          this.queueDamage(monsterId, actual, 'poison', { damageType: 'poison', shake: 0.05 });
+          if (!monster.state.alive) this.handleMonsterKilled(monster, 'poison');
         }
       }
     }
@@ -830,13 +859,21 @@ export class GameRoom {
         const targetPlayer = this.players.get(attackResult.targetId);
         if (targetPlayer) {
           const fragileMultiplier = this.hasModifier('fragile') ? 1.2 : 1;
-          const result = targetPlayer.takeDamage(Math.floor(attackResult.damage * fragileMultiplier));
+          const isBoss = monster.state.type.startsWith('boss_');
+          const severity: 'normal' | 'crit' | 'boss' = isBoss ? 'boss' : 'normal';
+          const result = targetPlayer.takeDamage(Math.floor(attackResult.damage * fragileMultiplier), severity);
           if (!result.dodged && result.effectiveDamage > 0) {
-            this.queueDamage(attackResult.targetId, result.effectiveDamage, monsterId);
+            // Knockback player away from monster
+            const ndx = targetPlayer.state.position.x - monster.state.position.x;
+            const ndy = targetPlayer.state.position.y - monster.state.position.y;
+            targetPlayer.applyKnockback(ndx, ndy, isBoss ? 6 : 3);
+            this.queueDamage(attackResult.targetId, result.effectiveDamage, monsterId, {
+              kx: ndx, ky: ndy, shake: isBoss ? 0.9 : 0.5,
+            });
             // Thorns hasarı — canavar saldırana yansıyan hasar
             if (result.thornsDamage > 0) {
               const thornsDmg = monster.takeDamage(result.thornsDamage);
-              this.queueDamage(monsterId, thornsDmg, attackResult.targetId);
+              this.queueDamage(monsterId, thornsDmg, attackResult.targetId, { damageType: 'physical' });
               if (!monster.state.alive) {
                 this.handleMonsterKilled(monster, attackResult.targetId);
               }
@@ -863,7 +900,9 @@ export class GameRoom {
         if (poisonPlayer && poisonPlayer.state.alive) {
           const poisonResult = poisonPlayer.takeDamage(poisonTarget.damage);
           if (!poisonResult.dodged && poisonResult.effectiveDamage > 0) {
-            this.queueDamage(poisonTarget.playerId, poisonResult.effectiveDamage, monsterId);
+            this.queueDamage(poisonTarget.playerId, poisonResult.effectiveDamage, monsterId, {
+              damageType: 'poison', shake: 0.1,
+            });
           }
 
           if (!poisonPlayer.state.alive) {
@@ -877,9 +916,14 @@ export class GameRoom {
         const aoePlayer = this.players.get(aoeHit.playerId);
         if (aoePlayer && aoePlayer.state.alive) {
           const fragileMultiplier = this.hasModifier('fragile') ? 1.2 : 1;
-          const aoeResult = aoePlayer.takeDamage(Math.floor(aoeHit.damage * fragileMultiplier));
+          const aoeResult = aoePlayer.takeDamage(Math.floor(aoeHit.damage * fragileMultiplier), 'boss');
           if (!aoeResult.dodged && aoeResult.effectiveDamage > 0) {
-            this.queueDamage(aoeHit.playerId, aoeResult.effectiveDamage, monsterId);
+            const ndx = aoePlayer.state.position.x - monster.state.position.x;
+            const ndy = aoePlayer.state.position.y - monster.state.position.y;
+            aoePlayer.applyKnockback(ndx, ndy, 8, 5);
+            this.queueDamage(aoeHit.playerId, aoeResult.effectiveDamage, monsterId, {
+              kx: ndx, ky: ndy, shake: 1.0,
+            });
           }
           if (!aoePlayer.state.alive) {
             this.handlePlayerDeath(aoePlayer);
@@ -984,22 +1028,54 @@ export class GameRoom {
         // Check collision with monsters
         let hitSomething = false;
 
+        // Element ve knockback projectile tipine göre
+        const projType = projectile.state.type;
+        const dmgType: DamageType = projType === 'fireball' ? 'fire'
+          : projType === 'holy_bolt' ? 'holy'
+          : 'physical';
+        const knockbackStrength = projType === 'sword_slash' ? 6
+          : projType === 'fireball' ? 4
+          : projType === 'arrow' ? 3
+          : 2;
+
         for (const [monsterId, monster] of this.monsters) {
           if (!monster.state.alive) continue;
 
           if (projectile.checkCircleCollision(monster.state.position, monster.getRadius())) {
-            // Crit kontrolü
+            // Crit kontrolü (+ combo crit guarantee)
             let projDmg = projectile.state.damage;
+            let isCrit = false;
             if (owner) {
+              const comboCrit = owner.registerComboHit(this.tick);
               const crit = owner.rollCrit();
-              if (crit.isCrit) projDmg = Math.floor(projDmg * crit.multiplier);
+              isCrit = crit.isCrit || comboCrit;
+              const mult = isCrit ? Math.max(crit.multiplier, comboCrit ? 1.6 : 1) : 1;
+              if (isCrit) {
+                projDmg = Math.floor(projDmg * mult);
+                if (comboCrit) projDmg = Math.floor(projDmg * 1.2); // +20% combo bonus
+              }
             }
-            const actualDamage = monster.takeDamage(projDmg);
+            const severity: 'normal' | 'crit' | 'heavy' = isCrit ? 'crit' : 'normal';
+            const actualDamage = monster.takeDamage(projDmg, severity, dmgType);
             if (owner) {
               owner.state.totalDamageDealt += actualDamage;
               owner.applyLifesteal(actualDamage);
             }
-            this.queueDamage(monsterId, actualDamage, projectile.state.ownerId);
+            // Knockback (direction = projectile velocity normalized)
+            const pvx = projectile.state.velocity.x;
+            const pvy = projectile.state.velocity.y;
+            const pmag = Math.sqrt(pvx * pvx + pvy * pvy);
+            const kx = pmag > 0.001 ? pvx / pmag : 0;
+            const ky = pmag > 0.001 ? pvy / pmag : 0;
+            monster.applyKnockback(kx, ky, knockbackStrength * (isCrit ? 1.4 : 1));
+
+            this.queueDamage(monsterId, actualDamage, projectile.state.ownerId, {
+              isCrit,
+              damageType: dmgType,
+              kx,
+              ky,
+              shake: isCrit ? 0.6 : 0.3,
+            });
 
             if (!monster.state.alive) {
               this.handleMonsterKilled(monster, projectile.state.ownerId);
@@ -1012,9 +1088,18 @@ export class GameRoom {
               for (const [otherId, otherMonster] of this.monsters) {
                 if (!otherMonster.state.alive || otherId === monsterId) continue;
                 if (projectile.getAoeTargetsInRange(otherMonster.state.position, otherMonster.getRadius())) {
-                  const aoeDamage = otherMonster.takeDamage(Math.floor(projectile.state.damage * AOE_DAMAGE_MULTIPLIER));
+                  const aoeDamage = otherMonster.takeDamage(Math.floor(projectile.state.damage * AOE_DAMAGE_MULTIPLIER), 'normal', dmgType);
                   if (owner) owner.state.totalDamageDealt += aoeDamage;
-                  this.queueDamage(otherId, aoeDamage, projectile.state.ownerId);
+                  // Light knockback radially from center
+                  const adx = otherMonster.state.position.x - projectile.state.position.x;
+                  const ady = otherMonster.state.position.y - projectile.state.position.y;
+                  otherMonster.applyKnockback(adx, ady, knockbackStrength * 0.6);
+                  this.queueDamage(otherId, aoeDamage, projectile.state.ownerId, {
+                    damageType: dmgType,
+                    kx: adx,
+                    ky: ady,
+                    shake: 0.2,
+                  });
                   if (!otherMonster.state.alive) {
                     this.handleMonsterKilled(otherMonster, projectile.state.ownerId);
                   }
@@ -1037,7 +1122,16 @@ export class GameRoom {
           if (projectile.checkCircleCollision(player.state.position, player.getRadius())) {
             const projResult = player.takeDamage(projectile.state.damage);
             if (!projResult.dodged && projResult.effectiveDamage > 0) {
-              this.queueDamage(player.state.id, projResult.effectiveDamage, projectile.state.ownerId);
+              // Knockback from projectile direction
+              const pvx = projectile.state.velocity.x;
+              const pvy = projectile.state.velocity.y;
+              const pmag = Math.sqrt(pvx * pvx + pvy * pvy);
+              const kx = pmag > 0.001 ? pvx / pmag : 0;
+              const ky = pmag > 0.001 ? pvy / pmag : 0;
+              player.applyKnockback(kx, ky, 3);
+              this.queueDamage(player.state.id, projResult.effectiveDamage, projectile.state.ownerId, {
+                kx, ky, shake: 0.5,
+              });
             }
 
             if (!player.state.alive) {
@@ -1408,8 +1502,18 @@ export class GameRoom {
   }
 
   /** Queue damage event for batch emit at end of tick */
-  private queueDamage(targetId: string, damage: number, sourceId: string): void {
-    this._damageBatch.push({ targetId, damage, sourceId });
+  private queueDamage(
+    targetId: string,
+    damage: number,
+    sourceId: string,
+    meta?: { isCrit?: boolean; isHeal?: boolean; damageType?: DamageType; kx?: number; ky?: number; shake?: number },
+  ): void {
+    this._damageBatch.push({
+      targetId,
+      damage,
+      sourceId,
+      ...(meta ?? {}),
+    });
   }
 
   /** Flush accumulated damage events as a single batch emit */

@@ -18,13 +18,14 @@ import { FloorTransition } from '@/components/game/FloorTransition';
 import { StoryIntro } from '@/components/game/StoryIntro';
 import { PrologueCinematic } from '@/components/game/PrologueCinematic';
 import { BossIntro } from '@/components/game/BossIntro';
+import { CinematicWipe } from '@/components/game/CinematicWipe';
 import { ChatBox } from '@/components/game/ChatBox';
 import { TalentSelect } from '@/components/game/TalentSelect';
 import { ShopScreen } from '@/components/game/ShopScreen';
 import { PixelButton } from '@/components/ui/PixelButton';
 import { PixelHero } from '@/components/game/PixelHero';
 import { GameErrorBoundary } from '@/components/game/ErrorBoundary';
-import type { PlayerInput, GamePhase } from '../../../shared/types';
+import type { PlayerInput, GamePhase, PlayerState } from '../../../shared/types';
 import { CLASS_STATS, DIFFICULTY_INFO, ABILITY_MAX_COOLDOWNS } from '../../../shared/types';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -116,6 +117,7 @@ function GamePage() {
     selectTalent,
     buyItem,
     shopDone,
+    damageEvents,
   } = useGameSocket();
 
   const [gameOverStats, setGameOverStats] = useState<{
@@ -568,6 +570,56 @@ function GamePage() {
     }
   }, [rendererRef]);
 
+  // Route server-side damage metadata into renderer for richer feedback (crit flash, element particles, shake)
+  // Also trigger elemental SFX per damage event
+  const lastDamageIdx = useRef(0);
+  useEffect(() => {
+    const renderer = rendererRef.current as { queueDamageMeta?: (id: string, meta: Record<string, unknown>) => void } | null;
+    // Process only new events since last run
+    for (let i = lastDamageIdx.current; i < damageEvents.length; i++) {
+      const ev = damageEvents[i];
+      if (!ev?.targetId) continue;
+      if (renderer?.queueDamageMeta) {
+        renderer.queueDamageMeta(ev.targetId, {
+          isCrit: ev.type === 'critical',
+          isHeal: ev.type === 'heal',
+          damageType: ev.damageType,
+          kx: ev.kx,
+          ky: ev.ky,
+          shake: ev.shake,
+          value: ev.value,
+        });
+      }
+      // Elemental SFX — type-aware variation (skip heals, they have own pickup sound)
+      if (ev.type === 'heal') continue;
+      if (ev.type === 'critical') {
+        sound.playCriticalHit();
+      } else if (ev.damageType === 'fire') {
+        sound.playFireHit();
+      } else if (ev.damageType === 'ice') {
+        sound.playIceHit();
+      } else if (ev.damageType === 'poison') {
+        sound.playPoisonHit();
+      } else if (ev.damageType === 'holy') {
+        sound.playHolyHit();
+      }
+    }
+    lastDamageIdx.current = damageEvents.length;
+  }, [damageEvents, rendererRef, sound]);
+
+  // Combo tier SFX — fires when local player hits a new combo threshold
+  const prevComboTierRef = useRef(0);
+  useEffect(() => {
+    const localPlayer = playerId ? players[playerId] : undefined;
+    if (!localPlayer) return;
+    const combo = (localPlayer as PlayerState & { comboCount?: number }).comboCount ?? 0;
+    const tier = combo >= 10 ? 3 : combo >= 6 ? 2 : combo >= 4 ? 1 : 0;
+    if (tier > prevComboTierRef.current) {
+      sound.playComboTier(tier);
+    }
+    prevComboTierRef.current = tier;
+  }, [players, playerId, sound]);
+
   const handleToggleFps = useCallback(() => {
     setShowFps((prev) => !prev);
   }, []);
@@ -948,6 +1000,12 @@ function GamePage() {
         monstersKilled={floorTransitionData.kills}
         timeSpent={floorTransitionData.time}
         onContinue={handleFloorTransitionContinue}
+      />
+
+      {/* Cinematic phase-transition wipe — fires on phase change for premium feel */}
+      <CinematicWipe
+        trigger={phase}
+        color={phase === 'boss' ? '#2a0a0a' : phase === 'victory' ? '#1a1300' : phase === 'defeat' ? '#1a0505' : '#000000'}
       />
 
       {/* Prologue cinematic */}

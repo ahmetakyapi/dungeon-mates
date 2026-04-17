@@ -13,6 +13,7 @@ import type {
   TalentDef,
   ShopItem,
   FloorModifier,
+  DamageType,
 } from '../../shared/types';
 import type { ChatMessage } from '@/components/game/ChatBox';
 
@@ -21,7 +22,11 @@ type ConnectionState = 'disconnected' | 'connecting' | 'connected';
 type DamageEvent = {
   targetId: string;
   value: number;
-  type: 'damage' | 'heal' | 'gold';
+  type: 'damage' | 'heal' | 'gold' | 'critical';
+  damageType?: DamageType;
+  kx?: number;
+  ky?: number;
+  shake?: number;
   x?: number;
   y?: number;
   _ts?: number; // timestamp for auto-cleanup
@@ -282,13 +287,20 @@ export function useGameSocket(): UseGameSocketReturn {
       if (batch.length === 0) return;
       const now = Date.now();
       setDamageEvents((prev) => {
-        const newEvents = batch.map((d) => ({
-          targetId: d.targetId,
-          value: d.damage,
-          type: 'damage' as const,
-          _ts: now,
-        }));
-        return [...prev.slice(-(20 - newEvents.length)), ...newEvents];
+        const newEvents: DamageEvent[] = batch.map((d) => {
+          const type: DamageEvent['type'] = d.isHeal ? 'heal' : d.isCrit ? 'critical' : 'damage';
+          return {
+            targetId: d.targetId,
+            value: d.damage,
+            type,
+            damageType: d.damageType,
+            kx: d.kx,
+            ky: d.ky,
+            shake: d.shake,
+            _ts: now,
+          };
+        });
+        return [...prev.slice(-(30 - newEvents.length)), ...newEvents];
       });
     });
 

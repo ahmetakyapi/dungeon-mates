@@ -145,12 +145,13 @@ body {
    HUD Animations
    ================================ */
 
-/* HP bar flash on damage */
+/* HP bar flash on damage — color lerp (softer than brightness) */
 @keyframes hp-flash {
-  0%, 100% { filter: brightness(1); }
-  50% { filter: brightness(1.8) saturate(2); }
+  0% { filter: brightness(1); }
+  35% { filter: brightness(1.35) saturate(1.6) drop-shadow(0 0 4px rgba(239,68,68,0.9)); }
+  100% { filter: brightness(1); }
 }
-.hp-flash { animation: hp-flash 0.2s ease-out; }
+.hp-flash { animation: hp-flash 0.3s ease-out; }
 
 /* Low HP pulse */
 @keyframes low-hp-pulse {
@@ -402,3 +403,60 @@ body {
     height: 100dvh;
   }
 }
+
+/* ================================
+   Accessibility — reduced motion + focus
+   ================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Consistent focus ring for all interactive elements */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #8b5cf6;
+  outline-offset: 2px;
+}
+
+/* ================================
+   Premium UX — cinematic & spring feel
+   ================================ */
+
+/* Diagonal wipe transition (used between phases) */
+@keyframes cinematic-wipe-in {
+  0% { clip-path: polygon(-20% 0, -20% 0, -20% 100%, -20% 100%); opacity: 0.95; }
+  50% { clip-path: polygon(-20% 0, 120% 0, 120% 100%, -20% 100%); opacity: 0.95; }
+  100% { clip-path: polygon(120% 0, 120% 0, 120% 100%, 120% 100%); opacity: 0; }
+}
+.cinematic-wipe { animation: cinematic-wipe-in 0.55s cubic-bezier(0.83, 0, 0.17, 1); }
+
+/* Button press glow ramp-up */
+@keyframes button-glow-pulse {
+  0%, 100% { box-shadow: 0 0 12px currentColor; }
+  50% { box-shadow: 0 0 24px currentColor; }
+}
+
+/* Stat value count-up highlight */
+@keyframes stat-count-highlight {
+  0% { color: #fbbf24; transform: scale(1.1); }
+  100% { color: inherit; transform: scale(1); }
+}
+.stat-count-highlight { animation: stat-count-highlight 0.45s ease-out; }
+
+/* Combo tier shake for high tiers */
+@keyframes combo-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-1px); }
+  75% { transform: translateX(1px); }
+}
+.combo-shake { animation: combo-shake 0.12s ease-in-out infinite; }

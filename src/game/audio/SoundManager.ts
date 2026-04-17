@@ -214,20 +214,90 @@ export class SoundManager {
 
   playHit(): void {
     if (!this.canPlay('hit', 80)) return;
+    // Pitch + filter variation for organic per-hit feel
+    const pitch = 0.8 + Math.random() * 0.35; // 80-115%
+    const filterCut = 1600 + Math.random() * 900;
     // Short noise burst + square wave
-    this.playNoise(0.08, 0.3, 2000, 'lowpass');
-    this.playTone(300, 0.08, 'square', 0.2, 100);
+    this.playNoise(0.08, 0.3, filterCut, 'lowpass');
+    this.playTone(300 * pitch, 0.08, 'square', 0.2, 100 * pitch);
+    // Low thump body
+    this.playTone(90 * pitch, 0.05, 'sine', 0.15);
   }
 
   playCriticalHit(): void {
     if (!this.canPlay('criticalHit', 150)) return;
     const ctx = this.getContext();
     if (!ctx) return;
-    // Louder hit
-    this.playNoise(0.1, 0.4, 2500, 'lowpass');
-    this.playTone(400, 0.1, 'square', 0.3, 150);
-    // Ascending "ding"
-    this.playTone(800, 0.15, 'sine', 0.2, 1600, ctx.currentTime + 0.08);
+    const pitch = 0.95 + Math.random() * 0.1;
+    // Louder hit + sub-bass thump for crit weight
+    this.playNoise(0.12, 0.5, 2500, 'lowpass');
+    this.playTone(400 * pitch, 0.1, 'square', 0.3, 150 * pitch);
+    this.playTone(60, 0.12, 'sine', 0.28); // sub-bass
+    // Shimmer arpeggio (C-E-G ascending)
+    const base = 880 * pitch;
+    this.playTone(base, 0.1, 'sine', 0.2, 1800, ctx.currentTime + 0.04);
+    this.playTone(base * 1.26, 0.1, 'sine', 0.2, 2200, ctx.currentTime + 0.08);
+    this.playTone(base * 1.5, 0.14, 'sine', 0.22, 2600, ctx.currentTime + 0.12);
+  }
+
+  // ===== Elemental hit SFX — Faz 4 =====
+
+  playFireHit(): void {
+    if (!this.canPlay('fireHit', 100)) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const pitch = 0.9 + Math.random() * 0.2;
+    // Low crackle + descending burst
+    this.playNoise(0.12, 0.35, 900, 'bandpass');
+    this.playTone(180 * pitch, 0.15, 'sawtooth', 0.22, 60 * pitch);
+    // Spark snap
+    this.playTone(1200 * pitch, 0.04, 'square', 0.14);
+  }
+
+  playIceHit(): void {
+    if (!this.canPlay('iceHit', 100)) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const pitch = 0.92 + Math.random() * 0.18;
+    // High crystalline ping + shimmer
+    this.playTone(1800 * pitch, 0.12, 'sine', 0.2, 2400 * pitch);
+    this.playTone(2600 * pitch, 0.1, 'sine', 0.14, 3200 * pitch, ctx.currentTime + 0.02);
+    this.playNoise(0.08, 0.2, 4500, 'highpass');
+  }
+
+  playPoisonHit(): void {
+    if (!this.canPlay('poisonHit', 100)) return;
+    const pitch = 0.85 + Math.random() * 0.2;
+    // Low throb + bubbling noise
+    this.playTone(140 * pitch, 0.22, 'triangle', 0.2, 80 * pitch);
+    this.playNoise(0.1, 0.25, 700, 'lowpass');
+  }
+
+  playHolyHit(): void {
+    if (!this.canPlay('holyHit', 100)) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const pitch = 0.95 + Math.random() * 0.1;
+    // Detuned sine stack — major triad C-E-G for choir feel
+    const base = 520 * pitch;
+    this.playTone(base, 0.3, 'sine', 0.15);
+    this.playTone(base * 1.25, 0.3, 'sine', 0.12, undefined, ctx.currentTime + 0.01);
+    this.playTone(base * 1.5, 0.3, 'sine', 0.1, undefined, ctx.currentTime + 0.02);
+    // Sparkle
+    this.playTone(base * 3, 0.1, 'sine', 0.08, base * 4, ctx.currentTime + 0.05);
+  }
+
+  playComboTier(tier: number): void {
+    if (!this.canPlay(`combo_${tier}`, 200)) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+    // Ascending notes per tier for escalating satisfaction
+    const baseFreq = 440 * (1 + tier * 0.25);
+    this.playTone(baseFreq, 0.08, 'sine', 0.18);
+    this.playTone(baseFreq * 1.5, 0.08, 'sine', 0.15, undefined, ctx.currentTime + 0.05);
+    if (tier >= 2) {
+      this.playTone(baseFreq * 2, 0.12, 'sine', 0.13, undefined, ctx.currentTime + 0.1);
+    }
   }
 
   playPlayerHurt(): void {

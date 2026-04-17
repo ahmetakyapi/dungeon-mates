@@ -6,7 +6,22 @@ import type { PlayerClass } from './classes';
 import type { TalentId, TalentDef } from './talents';
 import type { ShopItem } from './shop';
 import type { FloorModifier } from './floor-modifiers';
-import type { PlayerState, LootState, GamePhase, GameState, PlayerInput } from './entities';
+import type { PlayerState, LootState, GamePhase, GameState, PlayerInput, DamageType } from './entities';
+
+// Rich damage event metadata — broadcast per hit for premium feedback
+export type DamageEventMeta = {
+  targetId: string;
+  damage: number;
+  sourceId: string;
+  isCrit?: boolean;
+  isHeal?: boolean;
+  damageType?: DamageType;
+  // Knockback direction (normalized) — renderer can play directional squash
+  kx?: number;
+  ky?: number;
+  // Screen shake strength hint (0-1) for client-only gating
+  shake?: number;
+};
 
 // --- Socket Events ---
 
@@ -36,8 +51,8 @@ export type ServerEvents = {
   'room:error': (data: { message: string }) => void;
   'game:phase_change': (data: { phase: GamePhase }) => void;
   'game:state': (data: GameState) => void;
-  'game:damage': (data: { targetId: string; damage: number; sourceId: string }) => void;
-  'game:damage_batch': (data: Array<{ targetId: string; damage: number; sourceId: string }>) => void;
+  'game:damage': (data: DamageEventMeta) => void;
+  'game:damage_batch': (data: DamageEventMeta[]) => void;
   'game:loot_pickup': (data: { playerId: string; loot: LootState }) => void;
   'game:monster_killed': (data: { monsterId: string; killerId: string; xp: number }) => void;
   'game:player_died': (data: { playerId: string }) => void;

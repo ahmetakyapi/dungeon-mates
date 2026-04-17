@@ -180,12 +180,28 @@ export class Camera {
 
   /** Preset: large shake for boss slam (amplitude 5, 400ms) */
   shakeBossSlam(): void {
-    this.shake(5, 400);
+    this.shake(8, 400);
   }
 
   /** Preset: medium shake on death (amplitude 3, 300ms) */
   shakeDeath(): void {
-    this.shake(3, 300);
+    this.shake(4, 300);
+  }
+
+  /** Preset: sharp crit shake with quick decay */
+  shakeCrit(): void {
+    this.shake(4, 150);
+  }
+
+  /** Preset: scaled shake from damage/maxHp ratio (0..1) */
+  shakeFromDamageRatio(ratio: number): void {
+    const r = Math.max(0, Math.min(1, ratio));
+    this.shake(1.5 + r * 6, 80 + r * 280);
+  }
+
+  /** Preset: punch in a direction (used on hit landings) */
+  punchHit(dirX: number, dirY: number, strength = 2): void {
+    this.punch(dirX, dirY, strength, 0.8);
   }
 
   // ===== BOSS ROOM ZOOM =====

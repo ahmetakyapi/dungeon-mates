@@ -34,6 +34,15 @@ const DODGE_DURATION_TICKS = 6; // ~0.3 seconds
 const DODGE_COOLDOWN_TICKS = 30; // ~1.5 seconds
 const DODGE_MANA_COST = 5;
 
+// Premium combat feel — tick counts @ 20 TPS
+const HITSTOP_NORMAL_TICKS = 2;   // ~100ms
+const HITSTOP_CRIT_TICKS = 3;     // ~150ms
+const HITSTOP_BOSS_TICKS = 4;     // ~200ms
+const KNOCKBACK_DECAY = 0.82;     // per tick
+const KNOCKBACK_MIN = 0.02;
+const COMBO_EXPIRY_TICKS = 20;    // 1s at 20 TPS
+const COMBO_CRIT_THRESHOLD = 4;   // 4th hit within window = guaranteed crit + bonus
+
 const SOLO_MANA_REGEN = 0.06;
 const SOLO_HP_REGEN = 0.01;
 const SOLO_NO_COMBAT_THRESHOLD = 100;
@@ -134,7 +143,45 @@ export class Player {
       shieldActive: false,
       poisoned: false,
       slowed: false,
+      hitStopTicks: 0,
+      knockbackVx: 0,
+      knockbackVy: 0,
+      knockbackTicks: 0,
+      comboCount: 0,
+      comboExpiry: 0,
     };
+  }
+
+  /** Apply knockback — external callers push the entity in a direction for N ticks */
+  applyKnockback(dirX: number, dirY: number, strength: number, ticks = 4): void {
+    const mag = Math.sqrt(dirX * dirX + dirY * dirY);
+    if (mag < 0.0001) return;
+    this.state.knockbackVx = (dirX / mag) * strength;
+    this.state.knockbackVy = (dirY / mag) * strength;
+    this.state.knockbackTicks = ticks;
+  }
+
+  /** Apply hit-stop — freeze entity briefly for "weight" feel */
+  applyHitStop(ticks: number): void {
+    if (ticks > this.state.hitStopTicks) this.state.hitStopTicks = ticks;
+  }
+
+  /** Register an attack for combo tracking; returns true if this hit triggered combo crit */
+  registerComboHit(currentTick: number): boolean {
+    if (currentTick > this.state.comboExpiry) {
+      this.state.comboCount = 1;
+    } else {
+      this.state.comboCount += 1;
+    }
+    this.state.comboExpiry = currentTick + COMBO_EXPIRY_TICKS;
+    return this.state.comboCount >= COMBO_CRIT_THRESHOLD;
+  }
+
+  /** Tick combo expiry (called each tick regardless of attack) */
+  tickCombo(currentTick: number): void {
+    if (this.state.comboCount > 0 && currentTick > this.state.comboExpiry) {
+      this.state.comboCount = 0;
+    }
   }
 
   getRadius(): number {
@@ -192,6 +239,43 @@ export class Player {
       }
       return null;
     }
+
+    // Hit-stop: skip input, tick down freeze
+    if (this.state.hitStopTicks > 0) {
+      this.state.hitStopTicks--;
+      this.state.velocity.x = 0;
+      this.state.velocity.y = 0;
+      return null;
+    }
+
+    // Knockback tick — apply velocity and decay
+    if (this.state.knockbackTicks > 0) {
+      this.state.knockbackTicks--;
+      const kbStep = 1 / TICK_RATE;
+      const newX = this.state.position.x + this.state.knockbackVx * kbStep;
+      const newY = this.state.position.y + this.state.knockbackVy * kbStep;
+      if (!this.collidesWithWall(newX, this.state.position.y, tiles)) {
+        this.state.position.x = newX;
+      } else {
+        this.state.knockbackVx = 0;
+      }
+      if (!this.collidesWithWall(this.state.position.x, newY, tiles)) {
+        this.state.position.y = newY;
+      } else {
+        this.state.knockbackVy = 0;
+      }
+      this.state.knockbackVx *= KNOCKBACK_DECAY;
+      this.state.knockbackVy *= KNOCKBACK_DECAY;
+      if (Math.abs(this.state.knockbackVx) < KNOCKBACK_MIN) this.state.knockbackVx = 0;
+      if (Math.abs(this.state.knockbackVy) < KNOCKBACK_MIN) this.state.knockbackVy = 0;
+      if (this.state.knockbackTicks === 0) {
+        this.state.knockbackVx = 0;
+        this.state.knockbackVy = 0;
+      }
+    }
+
+    // Combo timeout tick (runs every frame)
+    this.tickCombo(currentTick);
 
     // Normalize movement
     let dx = input.dx;
@@ -448,7 +532,7 @@ export class Player {
     return false;
   }
 
-  takeDamage(damage: number): { effectiveDamage: number; thornsDamage: number; dodged: boolean } {
+  takeDamage(damage: number, severity: 'normal' | 'crit' | 'boss' = 'normal'): { effectiveDamage: number; thornsDamage: number; dodged: boolean } {
     if (!this.state.alive) return { effectiveDamage: 0, thornsDamage: 0, dodged: false };
 
     // Dodge roll invincibility
@@ -472,6 +556,17 @@ export class Player {
 
     // Thorns hasarı
     const thornsDamage = this.talentBonuses.thornsDamage;
+
+    // Hit-stop: auto-apply based on severity for "weight"
+    const hitStop = severity === 'boss' ? HITSTOP_BOSS_TICKS
+      : severity === 'crit' ? HITSTOP_CRIT_TICKS
+      : HITSTOP_NORMAL_TICKS;
+    this.applyHitStop(hitStop);
+
+    // Combo break on damage taken
+    if (this.state.comboCount > 0) {
+      this.state.comboCount = 0;
+    }
 
     if (this.state.hp <= 0) {
       this.state.hp = 0;

@@ -1141,6 +1141,114 @@ export class ParticleSystem {
     });
   }
 
+  /** death_soul: 15 particles drifting upward, entity-colored, long life — use on monster death */
+  emitDeathSoul(x: number, y: number, color: string): void {
+    this.emit({
+      x, y,
+      count: 10 + Math.floor(Math.random() * 6),
+      color: [color, lightenHex(color, 0.4), '#ffffff'],
+      speedMin: 8, speedMax: 22,
+      sizeMin: 1, sizeMax: 2,
+      lifeMin: 0.9, lifeMax: 1.6,
+      gravity: -38, // strong upward drift
+      friction: 0.95,
+      fadeOut: true,
+      shrink: false,
+      angleMin: -Math.PI * 0.75,
+      angleMax: -Math.PI * 0.25,
+      priority: 2,
+    });
+    // Inner white core burst
+    this.emit({
+      x, y,
+      count: 4,
+      color: ['#ffffff', '#fef3c7'],
+      speedMin: 15, speedMax: 30,
+      sizeMin: 1, sizeMax: 2,
+      lifeMin: 0.3, lifeMax: 0.6,
+      gravity: -20,
+      fadeOut: true,
+      shrink: true,
+    });
+  }
+
+  /** heal_sparkles: 8 green sparkles rising around target */
+  emitHealSparkles(x: number, y: number): void {
+    this.emit({
+      x, y,
+      count: 8,
+      color: ['#4ade80', '#86efac', '#ffffff', '#bbf7d0'],
+      speedMin: 12, speedMax: 28,
+      sizeMin: 1, sizeMax: 2,
+      lifeMin: 0.6, lifeMax: 1.1,
+      gravity: -30,
+      friction: 0.96,
+      fadeOut: true,
+      shrink: true,
+      priority: 1,
+    });
+  }
+
+  /** combo_ring: expanding ring for combo feedback */
+  emitComboRing(x: number, y: number, tier: number): void {
+    // Tier 1..N — bigger & goldener as tier grows
+    const colors = tier >= 3 ? ['#fbbf24', '#fde68a', '#ffffff'] : ['#fef3c7', '#ffffff'];
+    const rays = 12;
+    const speed = 55 + tier * 12;
+    for (let i = 0; i < rays; i++) {
+      const angle = (i / rays) * Math.PI * 2;
+      const p = this.acquire(2);
+      if (!p) return;
+      p.x = x;
+      p.y = y;
+      p.vx = Math.cos(angle) * speed;
+      p.vy = Math.sin(angle) * speed;
+      p.life = 0.4;
+      p.maxLife = 0.4;
+      p.color = colors[Math.floor(Math.random() * colors.length)];
+      p.size = tier >= 3 ? 2 : 1.5;
+      p.gravity = 0;
+      p.friction = 0.9;
+      p.fadeOut = true;
+      p.shrink = false;
+    }
+  }
+
+  /** elemental_freeze: shatter of ice crystals (used on freeze status trigger) */
+  emitFreezeShatter(x: number, y: number): void {
+    this.emit({
+      x, y,
+      count: 14,
+      color: ['#7dd3fc', '#bae6fd', '#ffffff', '#38bdf8'],
+      speedMin: 25, speedMax: 70,
+      sizeMin: 1, sizeMax: 2,
+      lifeMin: 0.3, lifeMax: 0.7,
+      gravity: 30,
+      friction: 0.97,
+      fadeOut: true,
+      shrink: true,
+      priority: 1,
+    });
+  }
+
+  /** elemental_burn: short orange flame flare */
+  emitBurnFlare(x: number, y: number): void {
+    this.emit({
+      x, y,
+      count: 6,
+      color: ['#f97316', '#fb923c', '#fbbf24', '#ef4444'],
+      speedMin: 10, speedMax: 28,
+      sizeMin: 1, sizeMax: 2,
+      lifeMin: 0.25, lifeMax: 0.5,
+      gravity: -35,
+      fadeOut: true,
+      shrink: true,
+      angleMin: -Math.PI * 0.9,
+      angleMax: -Math.PI * 0.1,
+      priority: 0,
+    });
+  }
+
   /** Update all active particles */
   update(dt: number): void {
     for (let i = 0; i < MAX_PARTICLES; i++) {

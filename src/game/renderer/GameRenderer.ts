@@ -5,7 +5,7 @@
 // Visual effects: vignette, screen flash, ambient particles
 // ==========================================
 
-import type { GameState, PlayerState, MonsterState, ProjectileState, LootState, TileType } from '../../../shared/types';
+import type { GameState, PlayerState, MonsterState, ProjectileState, LootState, TileType, DamageType } from '../../../shared/types';
 import { TILE_SIZE, CLASS_STATS, MONSTER_STATS, LOOT_TABLE } from '../../../shared/types';
 import { Camera } from './Camera';
 import { SpriteRenderer } from './SpriteRenderer';
@@ -19,29 +19,56 @@ const LOGICAL_HEIGHT_MOBILE = 240;
 
 // Quality presets
 const QUALITY_PRESETS = {
-  low: { particles: false, fogSimple: true, fpsCap: 15, particleMax: 0, effects: false },
-  medium: { particles: true, fogSimple: false, fpsCap: 45, particleMax: 96, effects: true },
-  high: { particles: true, fogSimple: false, fpsCap: 60, particleMax: 256, effects: true },
+  low: {
+    particles: false, fogSimple: true, fpsCap: 15, particleMax: 0, effects: false,
+    bloom: 0, colorGrade: false, torchFlicker: false, shadowDynamic: false,
+  },
+  medium: {
+    particles: true, fogSimple: false, fpsCap: 60, particleMax: 512, effects: true,
+    bloom: 0.32, colorGrade: true, torchFlicker: true, shadowDynamic: false,
+  },
+  high: {
+    particles: true, fogSimple: false, fpsCap: 120, particleMax: 1400, effects: true,
+    bloom: 0.5, colorGrade: true, torchFlicker: true, shadowDynamic: true,
+  },
 } as const;
 
 type QualityLevel = keyof typeof QUALITY_PRESETS;
 
+// Bloom resolution — 1/4 of logical render size
+const BLOOM_SCALE = 0.25;
+
 // Damage number floating text
-type DamageNumberKind = 'damage' | 'heal' | 'gold' | 'critical';
+type DamageNumberKind = 'damage' | 'heal' | 'gold' | 'critical' | 'fire' | 'ice' | 'poison' | 'holy';
 
 type DamageNumber = {
   x: number;
   y: number;
+  vy: number; // upward velocity
   text: string;
   color: string;
+  glow: string;
   life: number;
   maxLife: number;
   kind: DamageNumberKind;
   scale: number;
+  shake: number; // small x-wobble for crit
 };
 
 const DAMAGE_NUMBER_DURATION = 0.9;
-const MAX_DAMAGE_NUMBERS = 16;
+const MAX_DAMAGE_NUMBERS = 24;
+
+// Color palette per damage type — matches server-side DamageType
+const DMG_COLOR: Record<DamageNumberKind, { color: string; glow: string; prefix: string; suffix: string }> = {
+  damage:   { color: '#ffffff', glow: 'rgba(255,255,255,0.55)', prefix: '', suffix: '' },
+  critical: { color: '#fbbf24', glow: 'rgba(251,191,36,0.9)',   prefix: '', suffix: '!' },
+  heal:     { color: '#4ade80', glow: 'rgba(74,222,128,0.7)',   prefix: '+', suffix: '' },
+  gold:     { color: '#fcd34d', glow: 'rgba(252,211,77,0.7)',   prefix: '+', suffix: 'g' },
+  fire:     { color: '#ff7a3a', glow: 'rgba(255,122,58,0.8)',   prefix: '', suffix: '' },
+  ice:      { color: '#7dd3fc', glow: 'rgba(125,211,252,0.8)',  prefix: '', suffix: '' },
+  poison:   { color: '#a78bfa', glow: 'rgba(167,139,250,0.8)',  prefix: '', suffix: '' },
+  holy:     { color: '#fde68a', glow: 'rgba(253,230,138,0.85)', prefix: '', suffix: '✦' },
+};
 
 // Fog of war tile cache
 type FogState = 0 | 1 | 2; // 0 = hidden, 1 = explored, 2 = visible
@@ -89,6 +116,9 @@ export class GameRenderer {
 
   // Cache to track entity states for flash effects
   private readonly prevHp: Map<string, number> = new Map();
+
+  // Server-provided damage metadata keyed by targetId — consumed once then cleared
+  private readonly pendingDamageMeta: Map<string, { isCrit?: boolean; isHeal?: boolean; damageType?: DamageType; kx?: number; ky?: number; shake?: number; value?: number; _ts: number }> = new Map();
 
   // Frame timing for FPS cap
   private lastFrameTime = 0;
@@ -172,6 +202,33 @@ export class GameRenderer {
   // Fog invalidation hash (tracks all player positions + vision radius)
   private _fogHash = 0;
 
+  // Bloom post-processing: two-pass ping-pong canvases at 1/4 resolution
+  private bloomA: HTMLCanvasElement | null = null;
+  private bloomACtx: CanvasRenderingContext2D | null = null;
+  private bloomB: HTMLCanvasElement | null = null;
+  private bloomBCtx: CanvasRenderingContext2D | null = null;
+
+  // Torch flicker: deterministic noise lookup (60 frames)
+  private readonly torchFlicker: Float32Array = (() => {
+    const arr = new Float32Array(60);
+    for (let i = 0; i < arr.length; i++) {
+      // Multi-octave noise for organic flicker
+      const a = Math.sin(i * 0.73) * 0.5;
+      const b = Math.sin(i * 1.37 + 1.1) * 0.3;
+      const c = Math.sin(i * 2.1 + 0.3) * 0.2;
+      arr[i] = a + b + c; // range ~[-1, 1]
+    }
+    return arr;
+  })();
+
+  // Ambient floor theme — computed per floor for themed atmosphere
+  private ambientThemeFloor = -1;
+
+  // Last known monster position+color — used to emit death FX when server drops a dead monster from state
+  private readonly prevMonsterSnapshot: Map<string, { x: number; y: number; type: string; isBoss: boolean }> = new Map();
+  // Client-side dying entities for squash+spin animation (2 ticks ~100ms)
+  private readonly dyingEntities: Array<{ x: number; y: number; type: string; color: string; elapsed: number; duration: number; isBoss: boolean }> = [];
+
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     const ctx = canvas.getContext('2d');
@@ -211,6 +268,96 @@ export class GameRenderer {
 
     // Pre-create film grain canvas
     this.createGrainCanvas();
+
+    // Pre-create bloom canvases (1/4 resolution)
+    this.createBloomCanvases();
+  }
+
+  private createBloomCanvases(): void {
+    const bw = Math.max(32, Math.floor(this.logicalWidth * BLOOM_SCALE));
+    const bh = Math.max(24, Math.floor(this.logicalHeight * BLOOM_SCALE));
+    this.bloomA = document.createElement('canvas');
+    this.bloomA.width = bw; this.bloomA.height = bh;
+    const a = this.bloomA.getContext('2d', { alpha: true });
+    if (!a) return;
+    this.bloomACtx = a;
+    this.bloomB = document.createElement('canvas');
+    this.bloomB.width = bw; this.bloomB.height = bh;
+    const b = this.bloomB.getContext('2d', { alpha: true });
+    if (!b) return;
+    this.bloomBCtx = b;
+  }
+
+  /** Render bloom post-processing: bright-pass extract + 2-pass Gaussian blur + screen composite */
+  private renderBloom(ctx: CanvasRenderingContext2D, sourceCanvas: HTMLCanvasElement, strength: number): void {
+    if (!this.bloomA || !this.bloomACtx || !this.bloomB || !this.bloomBCtx) return;
+    if (strength <= 0) return;
+
+    const bw = this.bloomA.width;
+    const bh = this.bloomA.height;
+    const a = this.bloomACtx;
+    const b = this.bloomBCtx;
+
+    // 1. Downsample source to bloomA
+    a.globalCompositeOperation = 'source-over';
+    a.globalAlpha = 1;
+    a.clearRect(0, 0, bw, bh);
+    a.drawImage(sourceCanvas, 0, 0, bw, bh);
+
+    // 2. Bright-pass: darken non-bright areas. Use 'multiply' with a dark grey to crush mid-tones, keep bright.
+    a.globalCompositeOperation = 'multiply';
+    a.globalAlpha = 1;
+    a.fillStyle = '#2b2b2b'; // threshold — lower = more bleed, higher = only very bright
+    a.fillRect(0, 0, bw, bh);
+    a.globalCompositeOperation = 'source-over';
+
+    // 3. Horizontal blur (bloomA → bloomB) — use filter blur for performance on Canvas 2D
+    b.clearRect(0, 0, bw, bh);
+    b.filter = 'blur(2px)';
+    b.drawImage(this.bloomA, 0, 0);
+    b.filter = 'none';
+
+    // 4. Vertical blur (bloomB → bloomA) — cheap second pass (approx gaussian)
+    a.clearRect(0, 0, bw, bh);
+    a.filter = 'blur(3px)';
+    a.drawImage(this.bloomB, 0, 0);
+    a.filter = 'none';
+
+    // 5. Composite back with additive-like 'screen' for glow
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = strength;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(this.bloomA, 0, 0, this.logicalWidth, this.logicalHeight);
+    ctx.restore();
+  }
+
+  /** Apply color grading tint — boss rooms and themed floors get atmospheric shift */
+  private renderColorGrade(ctx: CanvasRenderingContext2D, floor: number, inBossRoom: boolean): void {
+    ctx.save();
+    // Base thematic tint by floor
+    let tintColor = '';
+    let tintAlpha = 0;
+    if (floor === 5) { tintColor = '#7c3aed'; tintAlpha = 0.08; }       // spider queen — purple
+    else if (floor === 7) { tintColor = '#a3a3a3'; tintAlpha = 0.06; }  // stone warden — gray
+    else if (floor === 8) { tintColor = '#ea580c'; tintAlpha = 0.10; }  // lava — warm
+    else if (floor === 9) { tintColor = '#9ca3af'; tintAlpha = 0.07; }  // spirits — cool
+    else if (floor === 10) { tintColor = '#991b1b'; tintAlpha = 0.12; } // throne — blood
+
+    if (tintAlpha > 0) {
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.globalAlpha = tintAlpha;
+      ctx.fillStyle = tintColor;
+      ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
+    }
+    // Boss-room warm/danger overlay on top
+    if (inBossRoom) {
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.globalAlpha = 0.08;
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
+    }
+    ctx.restore();
   }
 
   /** Get the camera instance (for external zoom control, etc.) */
@@ -251,32 +398,10 @@ export class GameRenderer {
     const rounded = Math.round(amount);
     if (rounded === 0) return;
 
-    let resolvedKind: DamageNumberKind = kind ?? (isHealing ? 'heal' : 'damage');
-    let color: string;
-    let text: string;
-    let scale = 1;
-
-    switch (resolvedKind) {
-      case 'heal':
-        color = '#4ade80';
-        text = `+${rounded}`;
-        break;
-      case 'gold':
-        color = '#fbbf24';
-        text = `+${rounded}g`;
-        break;
-      case 'critical':
-        color = '#ff6b6b';
-        text = `${rounded}!`;
-        scale = 1.5;
-        break;
-      case 'damage':
-      default:
-        color = '#ef4444';
-        text = `${rounded}`;
-        resolvedKind = 'damage';
-        break;
-    }
+    const resolvedKind: DamageNumberKind = kind ?? (isHealing ? 'heal' : 'damage');
+    const palette = DMG_COLOR[resolvedKind];
+    const scale = resolvedKind === 'critical' ? 1.55 : resolvedKind === 'holy' || resolvedKind === 'fire' ? 1.15 : 1;
+    const text = `${palette.prefix}${rounded}${palette.suffix}`;
 
     // Stack nearby numbers: offset Y if another number is very close
     for (let i = 0; i < this.damageNumbers.length; i++) {
@@ -291,13 +416,80 @@ export class GameRenderer {
     this.damageNumbers.push({
       x,
       y,
+      vy: resolvedKind === 'critical' ? -55 : -42,
       text,
-      color,
+      color: palette.color,
+      glow: palette.glow,
       life: DAMAGE_NUMBER_DURATION,
       maxLife: DAMAGE_NUMBER_DURATION,
       kind: resolvedKind,
       scale,
+      shake: resolvedKind === 'critical' ? 1.5 : 0,
     });
+  }
+
+  /** Queue server-side damage metadata to be used on next HP change detection */
+  queueDamageMeta(targetId: string, meta: { isCrit?: boolean; isHeal?: boolean; damageType?: DamageType; kx?: number; ky?: number; shake?: number; value?: number }): void {
+    this.pendingDamageMeta.set(targetId, { ...meta, _ts: performance.now() });
+  }
+
+  /** Consume a server-side damage event (richer metadata than HP delta detection) */
+  consumeDamageEvent(
+    targetWx: number,
+    targetWy: number,
+    amount: number,
+    meta: { isCrit?: boolean; isHeal?: boolean; damageType?: DamageType; shake?: number; kx?: number; ky?: number },
+    isLocalPlayer: boolean,
+  ): void {
+    // Resolve kind: heal > crit > damageType > plain damage
+    let kind: DamageNumberKind;
+    if (meta.isHeal) kind = 'heal';
+    else if (meta.isCrit) kind = 'critical';
+    else if (meta.damageType === 'fire') kind = 'fire';
+    else if (meta.damageType === 'ice') kind = 'ice';
+    else if (meta.damageType === 'poison') kind = 'poison';
+    else if (meta.damageType === 'holy') kind = 'holy';
+    else kind = 'damage';
+
+    this.addDamageNumber(targetWx, targetWy, amount, !!meta.isHeal, kind);
+
+    const preset = QUALITY_PRESETS[this.quality];
+    if (!preset.particles) return;
+
+    // Elemental particles per type
+    switch (meta.damageType) {
+      case 'fire':
+        this.particles.emitFireTrail(targetWx, targetWy);
+        break;
+      case 'ice':
+        this.particles.emitIceStorm(targetWx, targetWy);
+        break;
+      case 'poison':
+        this.particles.emitPoisonCloud(targetWx, targetWy);
+        break;
+      case 'holy':
+        this.particles.emitHealEffect(targetWx, targetWy);
+        break;
+    }
+
+    // Crit = extra sparkle + shake
+    if (meta.isCrit) {
+      this.particles.emitCriticalHit(targetWx, targetWy);
+      this.camera.shakeCrit();
+      if (isLocalPlayer) {
+        this.triggerScreenFlash('#fbbf24', 0.2);
+      }
+    }
+
+    // Strong hit feedback: shake intensity from metadata
+    const shake = meta.shake ?? 0;
+    if (shake > 0) {
+      // Scale 0..1 → amplitude 1..7, duration 80..350
+      this.camera.shake(1 + shake * 6, 80 + shake * 270);
+      if (isLocalPlayer && shake > 0.7) {
+        this.freezeFrame(60);
+      }
+    }
   }
 
   /** Access the particle system for external effects */
@@ -429,6 +621,24 @@ export class GameRenderer {
           const dripY = camY + Math.random() * this.logicalHeight * 0.3;
           this.particles.emitDrip(dripX, dripY);
         }
+
+        // Floor-themed ambient particle bursts (subtle, every 300ms)
+        const floor = state.dungeon.currentFloor;
+        const fx = camX + Math.random() * this.logicalWidth;
+        const fy = camY + Math.random() * this.logicalHeight;
+        if (floor === 5 && Math.random() < 0.6) {
+          // Spider queen floor — violet gas wisps
+          this.particles.emitPoisonCloud(fx, fy);
+        } else if (floor === 8 && Math.random() < 0.5) {
+          // Lava floor — upward-drifting embers
+          this.particles.emitBurnFlare(fx, fy);
+        } else if (floor === 9 && Math.random() < 0.4) {
+          // Spirits floor — cold blue shimmer
+          this.particles.emitFreezeShatter(fx, fy);
+        } else if (floor === 10 && Math.random() < 0.5) {
+          // Throne — downward drifting ash (reuse dust with gravity)
+          this.particles.emitDrip(fx, fy - 40);
+        }
       }
 
       // Boss aura particles
@@ -555,12 +765,25 @@ export class GameRenderer {
       this.particles.render(ctx, camX, camY, this.logicalWidth, this.logicalHeight);
     }
 
+    // 9b. Dying entity squash+spin animations (on top of particles)
+    this.updateAndRenderDyingEntities(ctx, camX, camY, dt);
+
     // 10. Render damage numbers
     this.renderDamageNumbers(ctx, camX, camY);
 
     // 10b. Boss health bar at top of screen
     if (isBossPhase) {
       this.drawBossHealthBar(ctx, monstersArr);
+    }
+
+    // 10c. Bloom post-processing — subtle glow for premium feel (before vignette/grain)
+    if (preset.bloom > 0) {
+      this.renderBloom(ctx, this.offscreen, preset.bloom);
+    }
+
+    // 10d. Color grading — floor theme + boss tint
+    if (preset.colorGrade) {
+      this.renderColorGrade(ctx, state.dungeon.currentFloor, isBossPhase);
     }
 
     // 11. Post-processing effects (drawn on top of everything)
@@ -972,6 +1195,9 @@ export class GameRenderer {
       this.torchFlameFrame = (this.torchFlameFrame + 1) % 3;
     }
 
+    const preset = QUALITY_PRESETS[this.quality];
+    const flickerEnabled = preset.torchFlicker;
+
     for (let i = 0; i < this.torchPositions.length; i++) {
       const torch = this.torchPositions[i];
       const sx = torch.x - camX;
@@ -982,7 +1208,15 @@ export class GameRenderer {
 
       // Warm-colored light circle — use cached torch light canvas
       const lightRadius = 30;
-      const flicker = 1 + Math.sin(this.animFrame * 0.7 + i * 1.3) * 0.1;
+      // Organic flicker from multi-octave noise table, per-torch phase offset
+      let flicker: number;
+      if (flickerEnabled) {
+        const lookupIdx = (this.animFrame + i * 7) % this.torchFlicker.length;
+        const noise = this.torchFlicker[lookupIdx]; // range ~[-1, 1]
+        flicker = 1 + noise * 0.18; // ±18% radius variation
+      } else {
+        flicker = 1 + Math.sin(this.animFrame * 0.7 + i * 1.3) * 0.1;
+      }
       const r = lightRadius * flicker;
       if (!this._torchLightCanvas) {
         this._torchLightCanvas = document.createElement('canvas');
@@ -992,16 +1226,21 @@ export class GameRenderer {
         const tlCtx = this._torchLightCanvas.getContext('2d');
         if (tlCtx) {
           const gr = tlCtx.createRadialGradient(tlSize / 2, tlSize / 2, 0, tlSize / 2, tlSize / 2, tlSize / 2);
-          gr.addColorStop(0, 'rgba(255,200,100,0.30)');
-          gr.addColorStop(0.2, 'rgba(255,170,70,0.20)');
-          gr.addColorStop(0.45, 'rgba(255,140,50,0.10)');
-          gr.addColorStop(0.7, 'rgba(255,120,35,0.03)');
-          gr.addColorStop(1, 'rgba(255,100,20,0)');
+          // Warmer hot core, cooler fall-off for more depth
+          gr.addColorStop(0, 'rgba(255,215,140,0.38)');
+          gr.addColorStop(0.15, 'rgba(255,180,90,0.26)');
+          gr.addColorStop(0.38, 'rgba(255,130,55,0.13)');
+          gr.addColorStop(0.65, 'rgba(235,90,30,0.045)');
+          gr.addColorStop(1, 'rgba(180,60,15,0)');
           tlCtx.fillStyle = gr;
           tlCtx.fillRect(0, 0, tlSize, tlSize);
         }
       }
+      // Alpha pulse with flicker — slightly dim during low-flicker phase
+      const alphaPulse = flickerEnabled ? (0.88 + (flicker - 1) * 1.2) : 1;
+      ctx.globalAlpha = Math.max(0.5, Math.min(1.1, alphaPulse));
       ctx.drawImage(this._torchLightCanvas, sx - r, sy - r, r * 2, r * 2);
+      ctx.globalAlpha = 1;
 
       // Enhanced flame sprite (5x8px, animated 3 patterns)
       this.drawEnhancedFlame(ctx, Math.floor(sx) - 2, Math.floor(sy) - 8, this.torchFlameFrame, i);
@@ -1016,6 +1255,11 @@ export class GameRenderer {
         ctx.fillRect(Math.floor(sx) + 1, Math.floor(sy) - 14, 1, 1);
       }
       ctx.globalAlpha = 1;
+
+      // Occasional torch spark particle during bright flicker peaks
+      if (flickerEnabled && preset.particles && flicker > 1.12 && (this.animFrame + i * 11) % 7 === 0) {
+        this.particles.emitTorchSpark(torch.x, torch.y - 8);
+      }
     }
   }
 
@@ -1432,7 +1676,14 @@ export class GameRenderer {
         ctx.restore();
       }
 
-      this.sprites.drawMonster(ctx, sx, sy, monster.type, monster.facing, this.animFrame, flashWhite, isAttacking, monster.isElite, monster.shieldActive, monster.phased, monster.enraged);
+      this.sprites.drawMonster(
+        ctx, sx, sy, monster.type, monster.facing, this.animFrame,
+        flashWhite, isAttacking, monster.isElite,
+        monster.shieldActive, monster.phased, monster.enraged,
+        monster.burnTicks ?? 0,
+        monster.freezeTicks ?? 0,
+        monster.poisonTicks ?? 0,
+      );
 
       // Elite crown indicator above sprite
       if (monster.isElite && !flashWhite) {
@@ -1587,18 +1838,38 @@ export class GameRenderer {
         this.particles.emitIceStorm(wx + TILE_SIZE / 2, wy + TILE_SIZE / 2);
       }
 
-      // Dodge roll visual: semi-transparent + afterimage trail
+      // Dodge roll visual: cyan i-frame glow + double afterimage trail
       if (player.dodging) {
-        ctx.globalAlpha = 0.3;
-        // Afterimage behind (opposite of facing direction)
+        // Cyan glow halo behind player
+        const gcx = sx + TILE_SIZE / 2;
+        const gcy = sy + TILE_SIZE / 2;
+        const glowR = TILE_SIZE * 0.8;
+        const iframePulse = 0.55 + Math.sin(this.animFrame * 1.2) * 0.1;
+        ctx.save();
+        ctx.globalAlpha = iframePulse * 0.35;
+        ctx.fillStyle = '#22d3ee';
+        ctx.beginPath();
+        ctx.arc(gcx, gcy, glowR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // Two afterimages with graduated alpha
         const trailOffX = player.facing === 'left' ? 3 : player.facing === 'right' ? -3 : 0;
         const trailOffY = player.facing === 'up' ? 3 : player.facing === 'down' ? -3 : 0;
+        ctx.globalAlpha = 0.2;
+        this.sprites.drawPlayer(
+          ctx, sx + trailOffX * 2, sy + trailOffY * 2,
+          player.class, player.facing, false, this.animFrame,
+          false, false, false, false, false, 0,
+        );
+        ctx.globalAlpha = 0.35;
         this.sprites.drawPlayer(
           ctx, sx + trailOffX, sy + trailOffY,
           player.class, player.facing, false, this.animFrame,
           false, false, false, false, false, 0,
         );
-        ctx.globalAlpha = 0.6;
+        // Main sprite slightly translucent to match i-frame feel
+        ctx.globalAlpha = 0.7;
       }
 
       this.sprites.drawPlayer(
@@ -1888,12 +2159,12 @@ export class GameRenderer {
       const dn = this.damageNumbers[i];
       const progress = 1 - dn.life / dn.maxLife;
 
-      // Non-linear float: fast at start, decelerating
-      const floatY = Math.pow(progress, 0.6) * 20;
+      // Non-linear float: fast at start, decelerating (longer travel for crits)
+      const floatY = Math.pow(progress, 0.6) * (dn.kind === 'critical' ? 32 : 22);
 
       // Scale-up animation: overshoot then settle
       const scaleProgress = Math.min(1, progress * 5); // first 20% of life
-      const overshoot = scaleProgress < 0.5 ? 1 + scaleProgress * 0.3 : 1;
+      const overshoot = scaleProgress < 0.5 ? 1 + scaleProgress * 0.35 : 1;
       const currentScale = dn.scale + (1 - dn.scale) * scaleProgress * overshoot;
 
       // Alpha: fade out in last 30%
@@ -1903,12 +2174,27 @@ export class GameRenderer {
       // Font size based on kind
       const isCrit = dn.kind === 'critical';
       const isHeal = dn.kind === 'heal';
-      const baseSize = isCrit ? 8 : isHeal ? 6 : 6;
+      const isElement = dn.kind === 'fire' || dn.kind === 'ice' || dn.kind === 'poison' || dn.kind === 'holy';
+      const baseSize = isCrit ? 9 : isElement ? 7 : isHeal ? 7 : 6;
       const fontSize = Math.round(baseSize * currentScale);
       ctx.font = `bold ${fontSize}px monospace`;
 
-      const dx = Math.floor(dn.x - camX);
+      // Slight x-wobble for crit
+      const wobble = dn.shake > 0 ? Math.sin(progress * 30) * dn.shake : 0;
+      const dx = Math.floor(dn.x - camX + wobble);
       const dy = Math.floor(dn.y - camY - floatY);
+
+      // Soft outer glow (additive) — only in first 60% of life for performance
+      if (progress < 0.6) {
+        const glowAlpha = alpha * (1 - progress / 0.6) * (isCrit ? 0.9 : 0.6);
+        ctx.globalAlpha = glowAlpha;
+        ctx.shadowColor = dn.glow;
+        ctx.shadowBlur = isCrit ? 12 : 6;
+        ctx.fillStyle = dn.glow;
+        ctx.fillText(dn.text, dx, dy);
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = alpha;
+      }
 
       // Shadow/outline for readability
       ctx.fillStyle = '#000000';
@@ -1916,15 +2202,6 @@ export class GameRenderer {
       ctx.fillText(dn.text, dx - 1, dy - 1);
       ctx.fillText(dn.text, dx + 1, dy - 1);
       ctx.fillText(dn.text, dx - 1, dy + 1);
-
-      // Critical: pulsing glow halo
-      if (isCrit && progress < 0.4) {
-        ctx.globalAlpha = alpha * (0.4 - progress);
-        ctx.fillStyle = '#fbbf24';
-        ctx.fillText(dn.text, dx, dy - 1);
-        ctx.fillText(dn.text, dx, dy + 1);
-        ctx.globalAlpha = alpha;
-      }
 
       // Main color
       ctx.fillStyle = dn.color;
@@ -2177,20 +2454,32 @@ export class GameRenderer {
         const diff = prev - p.hp;
         const wx = p.position.x * TILE_SIZE + TILE_SIZE / 2;
         const wy = p.position.y * TILE_SIZE;
+        const serverMeta = this.pendingDamageMeta.get(p.id);
+        if (serverMeta) this.pendingDamageMeta.delete(p.id);
         if (diff > 0) {
-          // Critical hit detection (>25% of max HP in one hit)
-          const isCritical = diff > p.maxHp * 0.25;
-          this.addDamageNumber(wx, wy, diff, false, isCritical ? 'critical' : 'damage');
+          // Prefer server metadata; fallback to heuristic
+          const isCritical = serverMeta?.isCrit ?? (diff > p.maxHp * 0.25);
+          const dType = serverMeta?.damageType;
+          const kind: DamageNumberKind = isCritical ? 'critical'
+            : dType === 'fire' ? 'fire'
+            : dType === 'ice' ? 'ice'
+            : dType === 'poison' ? 'poison'
+            : dType === 'holy' ? 'holy'
+            : 'damage';
+          this.addDamageNumber(wx, wy, diff, false, kind);
           if (preset.particles) {
             this.particles.emitHit(wx, wy);
-            // Blood/damage particles at player position
             this.particles.emitBloodSplatter(wx, wy + TILE_SIZE / 2);
-            if (isCritical) {
-              this.particles.emitHitSpark(wx, wy + TILE_SIZE / 2);
-            }
+            if (isCritical) this.particles.emitHitSpark(wx, wy + TILE_SIZE / 2);
+            // Element-specific extra particles
+            if (dType === 'fire') this.particles.emitBurnFlare(wx, wy + TILE_SIZE / 2);
+            else if (dType === 'ice') this.particles.emitFreezeShatter(wx, wy + TILE_SIZE / 2);
+            else if (dType === 'poison') this.particles.emitPoisonCloud(wx, wy + TILE_SIZE / 2);
           }
-          // Camera shake on player damage (stronger for criticals)
-          if (isCritical) {
+          // Camera shake — prefer server-provided intensity
+          if (serverMeta?.shake !== undefined && serverMeta.shake > 0) {
+            this.camera.shakeFromDamageRatio(serverMeta.shake);
+          } else if (isCritical) {
             this.camera.shake(8, 300);
           } else {
             this.camera.shakeTakeDamage();
@@ -2211,7 +2500,7 @@ export class GameRenderer {
         } else {
           this.addDamageNumber(wx, wy, Math.abs(diff), true, 'heal');
           if (preset.particles) {
-            this.particles.emitHealEffect(wx, wy + TILE_SIZE / 2);
+            this.particles.emitHealSparkles(wx, wy + TILE_SIZE / 2);
           }
         }
       }
@@ -2234,17 +2523,34 @@ export class GameRenderer {
         const diff = prev - m.hp;
         const wx = m.position.x * TILE_SIZE + TILE_SIZE / 2;
         const wy = m.position.y * TILE_SIZE;
+        const serverMeta = this.pendingDamageMeta.get(m.id);
+        if (serverMeta) this.pendingDamageMeta.delete(m.id);
         if (diff > 0) {
-          // Critical hit on monster (>30% of max HP)
-          const isCrit = diff > m.maxHp * 0.3;
-          this.addDamageNumber(wx, wy, diff, false, isCrit ? 'critical' : 'damage');
+          const isCrit = serverMeta?.isCrit ?? (diff > m.maxHp * 0.3);
+          const dType = serverMeta?.damageType;
+          const kind: DamageNumberKind = isCrit ? 'critical'
+            : dType === 'fire' ? 'fire'
+            : dType === 'ice' ? 'ice'
+            : dType === 'poison' ? 'poison'
+            : dType === 'holy' ? 'holy'
+            : 'damage';
+          this.addDamageNumber(wx, wy, diff, false, kind);
           if (preset.particles) {
             this.particles.emitHit(wx, wy, MONSTER_STATS[m.type].color);
+            if (isCrit) this.particles.emitCriticalHit(wx, wy);
+            if (dType === 'fire') this.particles.emitBurnFlare(wx, wy + TILE_SIZE / 2);
+            else if (dType === 'ice') this.particles.emitFreezeShatter(wx, wy + TILE_SIZE / 2);
+            else if (dType === 'poison') this.particles.emitPoisonCloud(wx, wy + TILE_SIZE / 2);
+            else if (dType === 'holy') this.particles.emitHealEffect(wx, wy + TILE_SIZE / 2);
           }
-          // Screen shake on hit impact (stronger for bosses)
-          if (m.type.startsWith('boss_')) {
+          // Screen shake — server-provided or boss fallback
+          if (serverMeta?.shake !== undefined && serverMeta.shake > 0) {
+            this.camera.shakeFromDamageRatio(serverMeta.shake);
+          } else if (m.type.startsWith('boss_')) {
             this.camera.shake(4, 200);
             this.freezeFrame(35);
+          } else if (isCrit) {
+            this.camera.shakeCrit();
           } else {
             this.camera.shake(1, 80);
           }
@@ -2255,6 +2561,7 @@ export class GameRenderer {
         const wy = m.position.y * TILE_SIZE + TILE_SIZE / 2;
         if (preset.particles) {
           this.particles.emitDeath(wx, wy, MONSTER_STATS[m.type].color);
+          this.particles.emitDeathSoul(wx, wy, MONSTER_STATS[m.type].color);
         }
         // Add blood splatter at death location
         this.addBloodSplatter(wx, wy);
@@ -2262,14 +2569,56 @@ export class GameRenderer {
         if (m.type.startsWith('boss_')) {
           this.camera.shakeBossSlam();
           this.triggerScreenFlash('#ffffff', 0.7);
-          this.freezeFrame(80);
+          this.freezeFrame(120);
         } else {
           this.camera.shake(3, 150);
-          this.triggerScreenFlash('#ffffff', 0.12);
-          this.freezeFrame(50);
+          this.triggerScreenFlash('#ffffff', 0.14);
+          this.freezeFrame(70);
         }
       }
       this.prevHp.set(m.id, m.hp);
+    }
+
+    // Update snapshot for next tick + detect disappearing monsters (server drops dead ones)
+    const preset2 = QUALITY_PRESETS[this.quality];
+    for (let i = 0; i < monsters.length; i++) {
+      const m = monsters[i];
+      this.prevMonsterSnapshot.set(m.id, {
+        x: m.position.x * TILE_SIZE + TILE_SIZE / 2,
+        y: m.position.y * TILE_SIZE + TILE_SIZE / 2,
+        type: m.type,
+        isBoss: m.type.startsWith('boss_'),
+      });
+    }
+    // Any snapshot id that has prevHp > 0 but is missing from state.monsters = just died
+    for (const [id, snap] of this.prevMonsterSnapshot) {
+      if (state.monsters[id]) continue;
+      const prev = this.prevHp.get(id);
+      if (prev !== undefined && prev > 0) {
+        const color = MONSTER_STATS[snap.type as keyof typeof MONSTER_STATS]?.color ?? '#ffffff';
+        if (preset2.particles) {
+          this.particles.emitDeath(snap.x, snap.y, color);
+          this.particles.emitDeathSoul(snap.x, snap.y, color);
+        }
+        this.addBloodSplatter(snap.x, snap.y);
+        // Client-side dying entity for squash+spin
+        this.dyingEntities.push({
+          x: snap.x, y: snap.y, type: snap.type, color,
+          elapsed: 0, duration: snap.isBoss ? 600 : 320,
+          isBoss: snap.isBoss,
+        });
+        if (snap.isBoss) {
+          this.camera.shakeBossSlam();
+          this.triggerScreenFlash('#ffffff', 0.7);
+          this.freezeFrame(120);
+        } else {
+          this.camera.shake(3, 150);
+          this.triggerScreenFlash('#ffffff', 0.12);
+          this.freezeFrame(55);
+        }
+      }
+      this.prevMonsterSnapshot.delete(id);
+      this.prevHp.delete(id);
     }
 
     // Clean up
@@ -2277,6 +2626,51 @@ export class GameRenderer {
       if (!state.players[id] && !state.monsters[id]) {
         this.prevHp.delete(id);
       }
+    }
+  }
+
+  /** Tick & render dying entity squash+spin animations (called each frame after monsters) */
+  private updateAndRenderDyingEntities(ctx: CanvasRenderingContext2D, camX: number, camY: number, dt: number): void {
+    const dtMs = dt * 1000;
+    for (let i = this.dyingEntities.length - 1; i >= 0; i--) {
+      const d = this.dyingEntities[i];
+      d.elapsed += dtMs;
+      if (d.elapsed >= d.duration) {
+        // Swap-pop remove
+        this.dyingEntities[i] = this.dyingEntities[this.dyingEntities.length - 1];
+        this.dyingEntities.pop();
+        continue;
+      }
+      const t = d.elapsed / d.duration;
+      // Cubic-in scale to zero
+      const scale = 1 - t * t;
+      // 1.5 revolutions (boss spins slower, more revolutions)
+      const rot = t * Math.PI * (d.isBoss ? 3 : 2);
+      // Horizontal squash based on rotation
+      const squash = 0.6 + Math.abs(Math.cos(rot)) * 0.4;
+      const alpha = 1 - t * 0.9;
+
+      const sx = d.x - camX;
+      const sy = d.y - camY;
+      const size = d.isBoss ? 20 : 14;
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(sx, sy);
+      ctx.rotate(rot);
+      ctx.scale(scale * squash, scale);
+      // Draw a simple colored ellipse (cheap — no sprite cache lookup mid-death)
+      ctx.fillStyle = d.color;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, size / 2, size / 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Inner highlight
+      ctx.globalAlpha = alpha * 0.55;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.ellipse(-size / 6, -size / 6, size / 5, size / 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
   }
 

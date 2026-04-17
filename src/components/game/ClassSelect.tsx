@@ -52,13 +52,26 @@ function StatBar({ label, value, max, color }: StatBarProps) {
       <span className="w-12 font-pixel text-[7px] text-zinc-400 sm:text-[8px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
         {label}
       </span>
-      <div className="h-2 flex-1 overflow-hidden rounded-sm bg-zinc-800">
+      <div className="relative h-2 flex-1 overflow-hidden rounded-sm bg-zinc-800">
         <motion.div
           className="h-full rounded-sm"
-          style={{ backgroundColor: color }}
+          style={{
+            backgroundColor: color,
+            boxShadow: `0 0 8px ${color}80`,
+          }}
           initial={{ width: 0 }}
           animate={{ width: `${percentage}%` }}
-          transition={{ duration: 0.6, ease: EASE }}
+          transition={{ type: 'spring', stiffness: 80, damping: 16, mass: 0.8 }}
+        />
+        {/* Shimmer overlay */}
+        <motion.div
+          className="pointer-events-none absolute inset-y-0 w-8"
+          style={{
+            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent)',
+          }}
+          initial={{ x: -40 }}
+          animate={{ x: `${percentage * 3}%` }}
+          transition={{ type: 'spring', stiffness: 60, damping: 20, delay: 0.15 }}
         />
       </div>
       <span className="w-6 text-right font-pixel text-[7px] text-zinc-300 lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
