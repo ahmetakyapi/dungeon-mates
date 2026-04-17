@@ -267,6 +267,79 @@ function StatBar({
   );
 }
 
+// --- Sticky Top Nav ---
+function TopNav({
+  onScrollTo,
+  heroRef,
+}: {
+  onScrollTo: (id: string) => void;
+  heroRef: React.RefObject<HTMLElement>;
+}) {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const hero = heroRef.current;
+    if (!hero) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        // Show nav when hero is mostly out of view
+        setVisible(!entries[0].isIntersecting || entries[0].intersectionRatio < 0.3);
+      },
+      { threshold: [0.3] },
+    );
+    obs.observe(hero);
+    return () => obs.disconnect();
+  }, [heroRef]);
+
+  return (
+    <AnimatePresence>
+      {visible && (
+        <motion.nav
+          className="fixed left-0 right-0 top-0 z-40 border-b border-dm-border/40 backdrop-blur-md"
+          style={{ background: 'rgba(10,14,23,0.72)' }}
+          initial={{ y: -60, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: -60, opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 26 }}
+        >
+          <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
+            <button
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              className="flex items-center gap-2 font-pixel text-[10px] tracking-wider text-dm-accent transition-opacity hover:opacity-80 sm:text-xs"
+            >
+              <span className="text-base sm:text-lg">⚔</span>
+              <span>DUNGEON MATES</span>
+            </button>
+            <div className="hidden items-center gap-4 sm:flex lg:gap-6">
+              {[
+                { id: 'demo', label: 'Önizleme' },
+                { id: 'ozellikler', label: 'Özellikler' },
+                { id: 'siniflar', label: 'Sınıflar' },
+                { id: 'nasil-oynanir', label: 'Nasıl Oynanır' },
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => onScrollTo(item.id)}
+                  className="font-pixel text-[8px] tracking-wider text-zinc-400 transition-colors hover:text-dm-accent lg:text-[9px]"
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <PixelButton
+              variant="primary"
+              onClick={() => onScrollTo('hemen-oyna')}
+              className="!px-3 !py-2 !text-[9px] sm:!text-[10px]"
+            >
+              ▶ Başla
+            </PixelButton>
+          </div>
+        </motion.nav>
+      )}
+    </AnimatePresence>
+  );
+}
+
 // --- Section heading ---
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
@@ -610,6 +683,9 @@ export default function HomePage() {
 
   return (
     <main className="relative">
+      {/* ============ STICKY TOP NAV ============ */}
+      <TopNav onScrollTo={scrollTo} heroRef={heroRef} />
+
       {/* ============ HERO ============ */}
       <section
         ref={heroRef}
@@ -638,43 +714,67 @@ export default function HomePage() {
           className="z-10 flex flex-col items-center"
           style={{ y: heroY, opacity: heroOpacity }}
         >
-          {/* Badge */}
+          {/* Badge — stronger trust signal */}
           <motion.div
-            className="glass mb-6 rounded-full px-4 py-1.5 sm:mb-8 2xl:px-6 2xl:py-2 4xl:px-8 4xl:py-3"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, ease: EASE }}
+            className="glass mb-5 flex items-center gap-2 rounded-full px-4 py-1.5 sm:mb-7 2xl:px-6 2xl:py-2 4xl:px-8 4xl:py-3"
+            initial={{ opacity: 0, scale: 0.9, y: -6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 220, damping: 22 }}
           >
-            <span className="font-pixel text-[8px] tracking-wider text-dm-accent/80 sm:text-[10px] lg:text-xs 2xl:text-sm 4xl:text-base">
-              SOLO & 2-4 KİŞİ KOOPERATİF
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-dm-xp opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-dm-xp" />
+            </span>
+            <span className="font-pixel text-[8px] tracking-wider text-zinc-300 sm:text-[10px] lg:text-xs 2xl:text-sm 4xl:text-base">
+              TARAYICIDA · ANINDA · KURULUM YOK
             </span>
           </motion.div>
 
           {/* Title */}
           <motion.h1
-            className="glow-purple-pulse mb-3 text-center font-pixel text-2xl leading-tight text-dm-accent sm:text-4xl md:text-5xl lg:text-6xl 2xl:text-7xl 4xl:text-8xl"
-            initial={{ y: -40, opacity: 0 }}
+            className="glow-purple-pulse mb-3 text-center font-pixel text-3xl leading-tight text-dm-accent sm:text-5xl md:text-6xl lg:text-7xl 2xl:text-8xl 4xl:text-9xl"
+            initial={{ y: -30, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.9, ease: EASE }}
           >
             DUNGEON MATES
           </motion.h1>
 
-          {/* Subtitle / Tagline */}
+          {/* Big hook tagline — replaces typewriter generic copy */}
+          <motion.h2
+            className="mx-auto mb-3 max-w-lg text-balance text-center font-body text-base font-medium text-zinc-200 sm:max-w-xl sm:text-xl md:text-2xl lg:text-3xl 2xl:text-4xl"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35, duration: 0.7, ease: EASE }}
+          >
+            Arkadaşlarınla{' '}
+            <span className="text-dm-accent" style={{ textShadow: '0 0 18px rgba(139,92,246,0.5)' }}>
+              10 kat derin
+            </span>
+            .
+            <br className="hidden sm:block" />
+            <span className="text-dm-gold" style={{ textShadow: '0 0 14px rgba(245,158,11,0.35)' }}>
+              Tarayıcıda
+            </span>{' '}
+            anında.
+          </motion.h2>
+
+          {/* Sub-description */}
           <motion.p
-            className="typewriter mb-8 overflow-hidden whitespace-nowrap border-r-2 border-dm-accent/50 font-pixel text-[9px] tracking-wider text-zinc-500 sm:mb-12 sm:text-xs lg:text-sm 2xl:text-base 4xl:text-lg"
+            className="mx-auto mb-8 max-w-md text-center font-body text-sm leading-relaxed text-zinc-500 sm:mb-10 sm:max-w-lg sm:text-base lg:text-lg 2xl:text-xl"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.5, duration: 0.3 }}
+            transition={{ delay: 0.55, duration: 0.6 }}
           >
-            Co-op Zindan Macerası
+            Zephara&apos;nın yozlaşmış katlarında 14 canavarla savaş, 4 sınıftan birini seç,
+            ultimate&apos;ini patlat. Solo ya da 2-4 kişilik co-op.
           </motion.p>
 
           {/* Gate */}
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.3, duration: 0.8, ease: EASE }}
+            transition={{ delay: 0.4, duration: 0.8, ease: EASE }}
           >
             <DungeonGate />
           </motion.div>
@@ -684,25 +784,53 @@ export default function HomePage() {
             <HeroParade size="md" />
           </div>
 
-          {/* CTA */}
+          {/* CTA — stronger hierarchy, primary is bigger */}
           <motion.div
-            className="mt-8 flex flex-col gap-3 sm:mt-12 sm:flex-row sm:gap-4"
-            initial={{ y: 24, opacity: 0 }}
+            className="mt-8 flex w-full max-w-md flex-col items-stretch gap-3 sm:mt-10 sm:w-auto sm:flex-row sm:items-center sm:gap-4"
+            initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.8, duration: 0.6, ease: EASE }}
+            transition={{ delay: 0.75, duration: 0.6, ease: EASE }}
           >
             <PixelButton
               variant="primary"
               onClick={() => scrollTo('hemen-oyna')}
+              className="!py-4 !text-xs sm:!text-sm lg:!text-base"
             >
-              Maceraya Başla
+              <span className="mr-2">▶</span>Maceraya Başla
             </PixelButton>
             <PixelButton
               variant="secondary"
-              onClick={() => scrollTo('nasil-oynanir')}
+              onClick={() => scrollTo('demo')}
             >
-              Nasıl Oynanır?
+              Canlı Önizleme
             </PixelButton>
+          </motion.div>
+
+          {/* Quick stats row — tek bakışta scope */}
+          <motion.div
+            className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 sm:mt-12 sm:gap-x-10"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.0, duration: 0.6, ease: EASE }}
+          >
+            {[
+              { value: '10', label: 'Kat', color: '#c4b5fd' },
+              { value: '14', label: 'Canavar', color: '#fcd34d' },
+              { value: '4', label: 'Sınıf', color: '#86efac' },
+              { value: '∞', label: 'Rastgele Zindan', color: '#7dd3fc' },
+            ].map((s) => (
+              <div key={s.label} className="flex flex-col items-center">
+                <span
+                  className="font-pixel text-lg leading-none sm:text-xl lg:text-2xl 2xl:text-3xl"
+                  style={{ color: s.color, textShadow: `0 0 12px ${s.color}44` }}
+                >
+                  {s.value}
+                </span>
+                <span className="mt-1 font-pixel text-[7px] uppercase tracking-[0.2em] text-zinc-600 sm:text-[8px] lg:text-[9px]">
+                  {s.label}
+                </span>
+              </div>
+            ))}
           </motion.div>
         </motion.div>
 
@@ -754,7 +882,14 @@ export default function HomePage() {
                   <div className="h-2 w-2 rounded-full bg-dm-xp/60 2xl:h-2.5 2xl:w-2.5" />
                 </div>
                 <span className="font-pixel text-[7px] text-zinc-500 sm:text-[8px] lg:text-[9px] 2xl:text-[10px] 4xl:text-xs">
-                  dungeon_mates.exe
+                  dungeon-mates.live — zephara floor 3
+                </span>
+                <span className="ml-auto flex items-center gap-1.5 font-pixel text-[7px] text-dm-xp/80 sm:text-[8px] lg:text-[9px]">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-dm-xp opacity-60" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-dm-xp" />
+                  </span>
+                  <span className="hidden sm:inline">CANLI</span>
                 </span>
               </div>
 
@@ -763,8 +898,9 @@ export default function HomePage() {
 
               {/* Bottom bar */}
               <div className="flex items-center justify-between rounded-b-xl border border-t-0 border-dm-border bg-dm-surface/80 px-3 py-2 2xl:px-4 2xl:py-2.5">
-                <span className="font-pixel text-[6px] text-zinc-600 sm:text-[7px] lg:text-[8px] 2xl:text-[9px] 4xl:text-[10px]">
-                  60 FPS
+                <span className="flex items-center gap-2 font-pixel text-[6px] text-zinc-500 sm:text-[7px] lg:text-[8px] 2xl:text-[9px] 4xl:text-[10px]">
+                  <span className="h-1 w-1 rounded-full bg-dm-xp" />
+                  60 FPS · 480×270 PIXEL PERFECT
                 </span>
                 <span className="font-pixel text-[6px] text-dm-accent/50 sm:text-[7px] lg:text-[8px] 2xl:text-[9px] 4xl:text-[10px]">
                   OTOMATİK DEMO
@@ -780,7 +916,16 @@ export default function HomePage() {
       {/* ============ ÖZELLİKLER ============ */}
       <section className="relative px-4 py-20 sm:py-28" id="ozellikler">
         <div className="mx-auto max-w-5xl 4xl:max-w-6xl">
-          <SectionHeading>Zindanda Seni Neler Bekliyor?</SectionHeading>
+          <SectionHeading>Neden Dungeon Mates?</SectionHeading>
+          <motion.p
+            className="mx-auto -mt-6 mb-12 max-w-xl text-center font-body text-sm text-zinc-500 sm:mb-16 sm:text-base"
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+          >
+            Her katta yeni bir sürpriz. Her run&apos;da farklı bir zindan. Her sınıfta bambaşka bir hikaye.
+          </motion.p>
 
           <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 2xl:gap-6 4xl:gap-8">
             {FEATURES.map((feat, i) => (
@@ -1174,35 +1319,111 @@ export default function HomePage() {
       </section>
 
       {/* ============ FOOTER ============ */}
-      <footer className="relative px-4 py-10 2xl:py-14 4xl:py-20">
-        <div className="section-divider mx-auto mb-8 w-full max-w-xs" />
+      <footer className="relative overflow-hidden px-4 pb-10 pt-20 sm:pt-28">
+        {/* Ambient glow */}
+        <div className="pointer-events-none absolute left-1/2 top-0 h-[300px] w-[800px] -translate-x-1/2 rounded-full bg-dm-accent/[0.04] blur-[100px]" />
 
-        <div className="flex flex-col items-center gap-2.5">
-          <p className="font-pixel text-[8px] tracking-wider text-zinc-600 sm:text-[9px] lg:text-[10px] 2xl:text-xs 4xl:text-sm">
-            DUNGEON MATES v0.1
-          </p>
-          <p className="text-[11px] text-zinc-700 sm:text-xs lg:text-sm 2xl:text-base 4xl:text-lg">
-            Next.js + Socket.IO + Canvas ile yapıldı
-          </p>
-          <a
-            href="https://ahmetakyapi.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[11px] text-dm-accent/40 transition-colors hover:text-dm-accent sm:text-xs lg:text-sm 2xl:text-base 4xl:text-lg"
-          >
-            ahmetakyapi.com
-          </a>
+        <div className="relative mx-auto max-w-5xl">
+          {/* Three-column info grid */}
+          <div className="grid grid-cols-1 gap-8 border-b border-dm-border/30 pb-10 sm:grid-cols-3 sm:gap-6 sm:pb-14">
+            {/* Brand */}
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">⚔</span>
+                <span className="font-pixel text-sm tracking-wider text-dm-accent lg:text-base">
+                  DUNGEON MATES
+                </span>
+              </div>
+              <p className="max-w-xs text-xs leading-relaxed text-zinc-500 sm:text-sm">
+                Zephara&apos;nın yozlaşmış katlarında 2-4 kişilik co-op pixel-art macera.
+                Tarayıcıda anında, kurulum yok.
+              </p>
+              <div className="mt-1 flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-dm-xp" />
+                <span className="font-pixel text-[8px] uppercase tracking-[0.2em] text-zinc-500 sm:text-[9px]">
+                  Erken Sürüm · v0.2
+                </span>
+              </div>
+            </div>
 
-          {/* Mute/Unmute button */}
-          <motion.button
-            onClick={handleToggleMute}
-            className="mt-2 flex h-8 w-8 items-center justify-center rounded-lg border border-dm-border bg-dm-surface/60 text-sm transition-colors hover:border-dm-accent/40 2xl:h-10 2xl:w-10 2xl:text-base 4xl:h-12 4xl:w-12 4xl:text-lg"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            title={isMuted ? 'Sesi Aç' : 'Sessiz'}
-          >
-            {isMuted ? '🔇' : '🔊'}
-          </motion.button>
+            {/* Keşfet */}
+            <div className="flex flex-col gap-2.5">
+              <h4 className="font-pixel text-[9px] uppercase tracking-[0.2em] text-zinc-400 sm:text-[10px]">
+                Keşfet
+              </h4>
+              {[
+                { id: 'demo', label: 'Canlı Önizleme' },
+                { id: 'ozellikler', label: 'Özellikler' },
+                { id: 'siniflar', label: 'Sınıflar' },
+                { id: 'nasil-oynanir', label: 'Nasıl Oynanır' },
+                { id: 'hemen-oyna', label: 'Maceraya Başla' },
+              ].map((l) => (
+                <button
+                  key={l.id}
+                  onClick={() => scrollTo(l.id)}
+                  className="flex items-center gap-1.5 text-left text-xs text-zinc-500 transition-colors hover:text-dm-accent sm:text-sm"
+                >
+                  <span className="text-dm-accent/40">›</span>
+                  {l.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Topluluk / Teknoloji */}
+            <div className="flex flex-col gap-2.5">
+              <h4 className="font-pixel text-[9px] uppercase tracking-[0.2em] text-zinc-400 sm:text-[10px]">
+                Teknoloji
+              </h4>
+              <div className="flex flex-wrap gap-1.5">
+                {['Next.js 14', 'Socket.IO', 'Canvas 2D', 'TypeScript', 'Web Audio'].map((t) => (
+                  <span
+                    key={t}
+                    className="rounded-md border border-dm-border/50 bg-dm-surface/40 px-2 py-1 font-pixel text-[8px] tracking-wider text-zinc-400 sm:text-[9px]"
+                  >
+                    {t}
+                  </span>
+                ))}
+              </div>
+              <h4 className="mt-4 font-pixel text-[9px] uppercase tracking-[0.2em] text-zinc-400 sm:text-[10px]">
+                Geri Bildirim
+              </h4>
+              <a
+                href="mailto:ahmetakyapii@gmail.com"
+                className="flex items-center gap-1.5 text-xs text-zinc-500 transition-colors hover:text-dm-accent sm:text-sm"
+              >
+                <span className="text-dm-accent/40">✉</span>
+                ahmetakyapii@gmail.com
+              </a>
+            </div>
+          </div>
+
+          {/* Bottom bar */}
+          <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-between sm:gap-4">
+            <div className="flex items-center gap-4">
+              <p className="font-pixel text-[8px] tracking-wider text-zinc-600 sm:text-[9px]">
+                © {new Date().getFullYear()} DUNGEON MATES
+              </p>
+              <a
+                href="https://ahmetakyapi.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[11px] text-dm-accent/40 transition-colors hover:text-dm-accent sm:text-xs"
+              >
+                ahmetakyapi.com
+              </a>
+            </div>
+
+            {/* Mute button */}
+            <motion.button
+              onClick={handleToggleMute}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-dm-border bg-dm-surface/60 text-sm transition-colors hover:border-dm-accent/40"
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              title={isMuted ? 'Sesi Aç' : 'Sessiz'}
+            >
+              {isMuted ? '🔇' : '🔊'}
+            </motion.button>
+          </div>
         </div>
       </footer>
     </main>
