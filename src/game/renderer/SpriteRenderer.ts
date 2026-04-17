@@ -89,6 +89,13 @@ export class SpriteRenderer {
   private readonly hitFlashTimers: Map<string, number> = new Map();
   private readonly tileCache: Map<string, HTMLCanvasElement> = new Map();
 
+  /** Current light source for dynamic shadows — set by renderer per-entity before draw */
+  private currentLightSource: { dx: number; dy: number; strength: number } | null = null;
+
+  setCurrentLightSource(src: { dx: number; dy: number; strength: number } | null): void {
+    this.currentLightSource = src;
+  }
+
   /** Register a hit flash for an entity (5 frames for visible feedback) */
   registerHitFlash(entityId: string): void {
     this.hitFlashTimers.set(entityId, 5);
@@ -112,24 +119,44 @@ export class SpriteRenderer {
 
   // ===== ENTITY SHADOW =====
 
-  /** Draw an elliptical semi-transparent shadow beneath an entity */
+  /** Draw an elliptical semi-transparent shadow beneath an entity.
+   *  If lightSource provided, shadow direction/length respects torch direction. */
   drawEntityShadow(
     ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
     width: number,
     height: number,
+    lightSource?: { dx: number; dy: number; strength: number }, // dx/dy: entity→light vec; strength 0..1
   ): void {
-    const shadowW = Math.max(4, Math.floor(width * 0.7));
-    const shadowH = Math.max(2, Math.floor(height * 0.15));
+    const baseW = Math.max(4, Math.floor(width * 0.7));
+    const baseH = Math.max(2, Math.floor(height * 0.15));
     const cx = x + Math.floor(width / 2);
     const cy = y + height - 1;
-    // Light source from upper-left: offset shadow slightly right and down
-    const offsetX = 1;
-    const offsetY = 0;
+
+    let offsetX = 1;
+    let offsetY = 0;
+    let shadowW = baseW;
+    let shadowH = baseH;
+    let alpha = 0.2;
+
+    if (lightSource && lightSource.strength > 0) {
+      // Shadow projects OPPOSITE light direction, elongates away, weaker when close to light
+      const mag = Math.sqrt(lightSource.dx * lightSource.dx + lightSource.dy * lightSource.dy);
+      if (mag > 0.01) {
+        const nx = -lightSource.dx / mag;
+        const ny = -lightSource.dy / mag;
+        // Elongation factor — stronger lights stretch shadow more
+        const elongation = 1 + lightSource.strength * 0.8;
+        shadowW = Math.floor(baseW * elongation);
+        offsetX = Math.round(nx * 2 * lightSource.strength);
+        offsetY = Math.round(ny * 1.5 * lightSource.strength);
+        alpha = 0.18 + lightSource.strength * 0.12;
+      }
+    }
 
     ctx.save();
-    ctx.globalAlpha = 0.2;
+    ctx.globalAlpha = alpha;
     ctx.beginPath();
     ctx.ellipse(
       cx + offsetX,
@@ -163,8 +190,8 @@ export class SpriteRenderer {
     slowed = false,
     stunTicks = 0,
   ): void {
-    // Elliptical shadow beneath
-    this.drawEntityShadow(ctx, x, y, 16, 16);
+    // Elliptical shadow beneath (dynamic if light source set)
+    this.drawEntityShadow(ctx, x, y, 16, 16, this.currentLightSource ?? undefined);
 
     // Idle breathing: subtle Y oscillation every ~30 frames
     const breatheY = Math.sin(frame * 0.21) * 0.6;
@@ -1137,8 +1164,8 @@ export class SpriteRenderer {
       ctx.translate(-cx, -cy);
     }
 
-    // Elliptical shadow beneath
-    this.drawEntityShadow(ctx, x, y, renderSize, renderSize);
+    // Elliptical shadow beneath (dynamic if light source set)
+    this.drawEntityShadow(ctx, x, y, renderSize, renderSize, this.currentLightSource ?? undefined);
 
     // Phased monsters (wraith) — ghostly transparency
     if (phased) {

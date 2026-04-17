@@ -243,6 +243,13 @@ io.on('connection', (socket) => {
     room.handleAbility(socket.id);
   });
 
+  socket.on('player:use_ultimate', () => {
+    if (!currentRoomCode) return;
+    const room = rooms.get(currentRoomCode);
+    if (!room) return;
+    room.handleUltimate(socket.id);
+  });
+
   socket.on('player:interact', () => {
     if (!currentRoomCode) return;
     const room = rooms.get(currentRoomCode);

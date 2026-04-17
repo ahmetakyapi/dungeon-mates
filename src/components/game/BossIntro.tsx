@@ -107,22 +107,22 @@ function generateParticles(): Particle[] {
   }));
 }
 
-function EnergyRing({ delay }: { delay: number }) {
+function EnergyRing({ delay, duration = 2.5, maxSize = 800, borderColor = 'rgba(239, 68, 68, 0.2)', thickness = 2 }: { delay: number; duration?: number; maxSize?: number; borderColor?: string; thickness?: number }) {
   return (
     <motion.div
-      className="absolute left-1/2 top-1/2 rounded-full border-2"
-      style={{ borderColor: 'rgba(239, 68, 68, 0.2)' }}
-      initial={{ width: 0, height: 0, x: '-50%', y: '-50%', opacity: 0.7 }}
+      className="absolute left-1/2 top-1/2 rounded-full"
+      style={{ borderStyle: 'solid', borderWidth: thickness, borderColor }}
+      initial={{ width: 0, height: 0, x: '-50%', y: '-50%', opacity: 0.8 }}
       animate={{
-        width: 800,
-        height: 800,
+        width: maxSize,
+        height: maxSize,
         x: '-50%',
         y: '-50%',
         opacity: 0,
       }}
       transition={{
-        duration: 2.5,
-        delay: 2.5 + delay * 0.4,
+        duration,
+        delay: 2.5 + delay,
         ease: 'easeOut',
       }}
     />
@@ -145,7 +145,12 @@ export function BossIntro({ onComplete, floor }: BossIntroProps) {
   const boss = BOSS_DATA[bossKey];
   const particles = useMemo(generateParticles, []);
   const nameLetters = useMemo(() => boss.name.split(''), [boss.name]);
-  const ringDelays = useMemo(() => [0, 1, 2] as const, []);
+  // Varied ring configs — different delay/size/thickness for visual richness
+  const ringConfigs = useMemo(() => [
+    { delay: 0,    duration: 2.5, maxSize: 800, borderColor: 'rgba(239,68,68,0.28)', thickness: 2 },
+    { delay: 0.35, duration: 2.2, maxSize: 650, borderColor: 'rgba(251,191,36,0.22)', thickness: 1 },
+    { delay: 0.75, duration: 2.8, maxSize: 950, borderColor: 'rgba(220,38,38,0.18)', thickness: 3 },
+  ], []);
 
   const handleSkip = useCallback(() => {
     onComplete();
@@ -241,24 +246,30 @@ export function BossIntro({ onComplete, floor }: BossIntroProps) {
           />
         ))}
 
-        {/* Energy rings */}
-        {ringDelays.map((d) => (
-          <EnergyRing key={d} delay={d} />
+        {/* Energy rings — varied delay/size/thickness */}
+        {ringConfigs.map((c, i) => (
+          <EnergyRing key={i} {...c} />
         ))}
       </motion.div>
 
       {/* Content */}
       <div className="relative z-10 flex flex-col items-center gap-4">
-        {/* Skull slam */}
+        {/* Skull slam with rotation + scale pulse */}
         <motion.div
           className="text-6xl sm:text-7xl lg:text-8xl 2xl:text-9xl"
-          initial={{ scale: 4, opacity: 0, y: -100 }}
-          animate={{ scale: [4, 0.8, 1.1, 1], opacity: [0, 1, 1, 1], y: 0 }}
-          transition={{ duration: 0.6, delay: 0.5, ease: EASE }}
+          initial={{ scale: 4, opacity: 0, y: -100, rotate: -15 }}
+          animate={{ scale: [4, 0.8, 1.1, 1], opacity: [0, 1, 1, 1], y: 0, rotate: 0 }}
+          transition={{ duration: 0.7, delay: 0.5, ease: EASE }}
         >
           <motion.span
-            animate={{ opacity: [1, 0.6, 1], filter: ['brightness(1)', 'brightness(1.5)', 'brightness(1)'] }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+            className="inline-block"
+            animate={{
+              opacity: [1, 0.6, 1],
+              filter: ['brightness(1) drop-shadow(0 0 12px rgba(220,38,38,0.6))', 'brightness(1.5) drop-shadow(0 0 24px rgba(239,68,68,0.9))', 'brightness(1) drop-shadow(0 0 12px rgba(220,38,38,0.6))'],
+              scale: [1, 1.08, 1],
+              rotate: [-3, 3, -3],
+            }}
+            transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
           >
             {boss.emoji}
           </motion.span>
@@ -302,12 +313,12 @@ export function BossIntro({ onComplete, floor }: BossIntroProps) {
           {boss.title}
         </motion.p>
 
-        {/* Dialogue */}
+        {/* Dialogue — word-by-word reveal */}
         <motion.div
           className="mt-2 max-w-md px-4 text-center lg:max-w-lg"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 2, duration: 0.6, ease: EASE }}
+          transition={{ delay: 2, duration: 0.4, ease: EASE }}
         >
           <p
             className="font-pixel text-[9px] leading-relaxed text-red-300/90 lg:text-[11px] xl:text-[12px] 2xl:text-[14px]"
@@ -315,7 +326,18 @@ export function BossIntro({ onComplete, floor }: BossIntroProps) {
               textShadow: '0 0 12px rgba(239, 68, 68, 0.4)',
             }}
           >
-            &ldquo;{boss.dialogue.join(' ')}&rdquo;
+            <span>&ldquo;</span>
+            {boss.dialogue.join(' ').split(' ').map((word, i) => (
+              <motion.span
+                key={i}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 2.2 + i * 0.08, duration: 0.25, ease: EASE }}
+              >
+                {word}{' '}
+              </motion.span>
+            ))}
+            <span>&rdquo;</span>
           </p>
         </motion.div>
 

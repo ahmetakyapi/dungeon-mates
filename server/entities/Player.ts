@@ -26,6 +26,17 @@ export type ServerAbilityResult =
   | { type: 'arrow_rain'; projectiles: Projectile[] }
   | { type: 'healing_wave'; position: Vec2; healAmount: number; radius: number };
 
+export type ServerUltimateResult =
+  | { type: 'berserker_rush'; slashes: Projectile[] }
+  | { type: 'arcane_nova'; position: Vec2; damage: number; radius: number }
+  | { type: 'piercing_volley'; projectiles: Projectile[] }
+  | { type: 'divine_intervention'; healAmount: number; immunityTicks: number };
+
+const ULTIMATE_UNLOCK_LEVEL = 5;
+const ULTIMATE_MANA_COST = 60;
+const ULTIMATE_BASE_CD_TICKS = 45 * TICK_RATE; // 45s
+const IMMUNITY_TICKS_DEFAULT = 3 * TICK_RATE;
+
 const LOOT_PICKUP_RADIUS = 0.8;
 const PLAYER_RADIUS = 0.4;
 const RESPAWN_DELAY_TICKS = 5 * TICK_RATE;
@@ -51,11 +62,20 @@ const SOLO_RESPAWN_DELAY_TICKS = 3 * TICK_RATE;
 
 export type MonsterTarget = { position: Vec2; alive: boolean };
 
+export type AuraBuffs = {
+  defense: number;   // +% damage reduction
+  critChance: number; // + crit chance (flat)
+  hpRegenPerTick: number;
+  eleDmgMult: number; // +% elemental damage multiplier
+};
+
 export class Player {
   public state: PlayerState;
   public totalDeaths: number;
   public isSolo: boolean;
   public shieldActive: boolean;
+  /** Active co-op aura buffs — recomputed per tick by GameRoom */
+  public auraBuffs: AuraBuffs = { defense: 0, critChance: 0, hpRegenPerTick: 0, eleDmgMult: 0 };
   // Talent sistemi — toplam birikmiş efektler
   private talentBonuses: {
     maxHp: number; maxMana: number; attack: number; defense: number; speed: number;
@@ -63,11 +83,16 @@ export class Player {
     shieldDmgReduction: number; thornsDamage: number;
     critChance: number; critMultiplier: number; dodgeChance: number;
     manaRegen: number; hpRegen: number;
+    // Faz 3 capstone
+    fireInfusion: number; iceInfusion: number; poisonInfusion: number;
+    killRefund: number; auraBoost: number; ultimateCdr: number;
   };
   private respawnTimer: number;
   private spawnPosition: Vec2;
   private ticksSinceLastDamage: number;
   private abilityCooldownTicks: number;
+  private ultimateCooldownTicks: number;
+  private immunityTicks: number;
   private abilityActiveTicks: number;
   private speedBoostMultiplier: number;
   private speedBoostTicks: number;
@@ -90,6 +115,8 @@ export class Player {
     this.ticksSinceLastDamage = 0;
     this.shieldActive = false;
     this.abilityCooldownTicks = 0;
+    this.ultimateCooldownTicks = 0;
+    this.immunityTicks = 0;
     this.abilityActiveTicks = 0;
     this.speedBoostMultiplier = 1;
     this.speedBoostTicks = 0;
@@ -106,6 +133,8 @@ export class Player {
       shieldDmgReduction: 0, thornsDamage: 0,
       critChance: 0, critMultiplier: 1.5, dodgeChance: 0,
       manaRegen: 0, hpRegen: 0,
+      fireInfusion: 0, iceInfusion: 0, poisonInfusion: 0,
+      killRefund: 0, auraBoost: 0, ultimateCdr: 0,
     };
     this.shopBonuses = { maxHp: 0, maxMana: 0, attack: 0, defense: 0, speed: 0 };
 
@@ -149,6 +178,8 @@ export class Player {
       knockbackTicks: 0,
       comboCount: 0,
       comboExpiry: 0,
+      ultimateCooldownTicks: 0,
+      ultimateReady: false,
     };
   }
 
@@ -207,6 +238,8 @@ export class Player {
   processInput(input: PlayerInput, tiles: TileType[][], currentTick: number, monsters: MonsterTarget[] = [], droughtActive = false): Projectile | null {
     // Tick down ability cooldown
     if (this.abilityCooldownTicks > 0) this.abilityCooldownTicks--;
+    if (this.ultimateCooldownTicks > 0) this.ultimateCooldownTicks--;
+    if (this.immunityTicks > 0) this.immunityTicks--;
 
     // Tick down shield
     if (this.abilityActiveTicks > 0) {
@@ -387,10 +420,10 @@ export class Player {
       this.state.mana = Math.min(this.state.maxMana, this.state.mana + manaRegenRate);
     }
 
-    // HP regen (solo out-of-combat + talent bonus always)
+    // HP regen (solo out-of-combat + talent bonus always + co-op healer aura)
     this.ticksSinceLastDamage += 1;
     if (this.state.hp < this.state.maxHp) {
-      let hpRegen = this.talentBonuses.hpRegen;
+      let hpRegen = this.talentBonuses.hpRegen + this.auraBuffs.hpRegenPerTick;
       if (this.isSolo && this.ticksSinceLastDamage >= SOLO_NO_COMBAT_THRESHOLD) {
         hpRegen += SOLO_HP_REGEN;
       }
@@ -538,6 +571,9 @@ export class Player {
     // Dodge roll invincibility
     if (this.dodging) return { effectiveDamage: 0, thornsDamage: 0, dodged: true };
 
+    // Divine Intervention / ultimate immunity
+    if (this.immunityTicks > 0) return { effectiveDamage: 0, thornsDamage: 0, dodged: true };
+
     this.ticksSinceLastDamage = 0;
 
     // Talent dodge chance kontrolü
@@ -549,6 +585,11 @@ export class Player {
     if (this.shieldActive) {
       const reduction = this.talentBonuses.shieldDmgReduction > 0 ? this.talentBonuses.shieldDmgReduction : 0.7;
       damage = Math.floor(damage * (1 - reduction));
+    }
+
+    // Co-op aura defense buff
+    if (this.auraBuffs.defense > 0) {
+      damage = Math.floor(damage * (1 - this.auraBuffs.defense));
     }
 
     const effectiveDamage = Math.max(1, damage - this.state.defense);
@@ -727,6 +768,8 @@ export class Player {
       shieldDmgReduction: 0, thornsDamage: 0,
       critChance: 0, critMultiplier: 1.5, dodgeChance: 0,
       manaRegen: 0, hpRegen: 0,
+      fireInfusion: 0, iceInfusion: 0, poisonInfusion: 0,
+      killRefund: 0, auraBoost: 0, ultimateCdr: 0,
     };
 
     for (const talentId of this.state.talents) {
@@ -748,6 +791,32 @@ export class Player {
       if (e.dodgeChance) this.talentBonuses.dodgeChance += e.dodgeChance;
       if (e.manaRegen) this.talentBonuses.manaRegen += e.manaRegen;
       if (e.hpRegen) this.talentBonuses.hpRegen += e.hpRegen;
+      if (e.fireInfusion) this.talentBonuses.fireInfusion = Math.max(this.talentBonuses.fireInfusion, e.fireInfusion);
+      if (e.iceInfusion) this.talentBonuses.iceInfusion = Math.max(this.talentBonuses.iceInfusion, e.iceInfusion);
+      if (e.poisonInfusion) this.talentBonuses.poisonInfusion = Math.max(this.talentBonuses.poisonInfusion, e.poisonInfusion);
+      if (e.killRefund) this.talentBonuses.killRefund += e.killRefund;
+      if (e.auraBoost) this.talentBonuses.auraBoost = Math.max(this.talentBonuses.auraBoost, e.auraBoost);
+      if (e.ultimateCdr) this.talentBonuses.ultimateCdr = Math.max(this.talentBonuses.ultimateCdr, e.ultimateCdr);
+    }
+  }
+
+  /** Roll a talent-based elemental infusion for player's next attack. Returns damage type override if rolled. */
+  rollElementalInfusion(): 'fire' | 'ice' | 'poison' | null {
+    // Fire has priority if multiple talents somehow combine — roll in order
+    if (this.talentBonuses.fireInfusion > 0 && Math.random() < this.talentBonuses.fireInfusion) return 'fire';
+    if (this.talentBonuses.iceInfusion > 0 && Math.random() < this.talentBonuses.iceInfusion) return 'ice';
+    if (this.talentBonuses.poisonInfusion > 0 && Math.random() < this.talentBonuses.poisonInfusion) return 'poison';
+    return null;
+  }
+
+  /** On kill: refund some cooldown ticks if talent supports it */
+  applyKillRefund(): void {
+    const refund = this.talentBonuses.killRefund;
+    if (refund <= 0) return;
+    // Reduce current ability cooldown by up to 20 ticks (1s) scaled by refund chance
+    if (Math.random() < refund * 2) {
+      this.abilityCooldownTicks = Math.max(0, this.abilityCooldownTicks - 20);
+      this.ultimateCooldownTicks = Math.max(0, this.ultimateCooldownTicks - 20);
     }
   }
 
@@ -874,6 +943,80 @@ export class Player {
     }
   }
 
+  /** Per-class ultimate ability — level 5+ required, 45s cooldown, 60 mana */
+  useUltimate(monsters: MonsterTarget[] = []): ServerUltimateResult | null {
+    if (this.state.level < ULTIMATE_UNLOCK_LEVEL) return null;
+    if (this.ultimateCooldownTicks > 0) return null;
+    const costReduction = 1 - this.talentBonuses.manaCostReduction;
+    const cost = Math.floor(ULTIMATE_MANA_COST * costReduction);
+    if (this.state.mana < cost) return null;
+
+    this.state.mana -= cost;
+    const cdrMult = 1 - this.talentBonuses.ultimateCdr;
+    this.ultimateCooldownTicks = Math.floor(ULTIMATE_BASE_CD_TICKS * cdrMult);
+    const abilityDmgMult = 1 + this.talentBonuses.abilityDamageBonus;
+
+    switch (this.state.class) {
+      case 'warrior': {
+        // Berserker Rush — 5 sword slashes fanned forward, each lifestealing
+        const aimDir = this.findNearestTarget(monsters) ?? this.getFacingVector();
+        if (aimDir !== this.getFacingVector()) this.applyAimFacing(aimDir);
+        const slashes: Projectile[] = [];
+        const spread = Math.PI / 6; // 30° total
+        for (let i = 0; i < 5; i++) {
+          const angle = Math.atan2(aimDir.y, aimDir.x) + (i - 2) * (spread / 4);
+          const dir: Vec2 = { x: Math.cos(angle), y: Math.sin(angle) };
+          const spawnPos: Vec2 = {
+            x: this.state.position.x + dir.x * 0.5,
+            y: this.state.position.y + dir.y * 0.5,
+          };
+          const dmg = Math.floor(this.state.attack * 1.1 * abilityDmgMult);
+          slashes.push(new Projectile(this.state.id, spawnPos, dir, dmg, 'sword_slash'));
+        }
+        this.attackAnimTicks = 10;
+        return { type: 'berserker_rush', slashes };
+      }
+      case 'mage': {
+        // Arcane Nova — 6 tile AoE, double damage
+        return {
+          type: 'arcane_nova',
+          position: { ...this.state.position },
+          damage: Math.floor(this.state.attack * 2.5 * abilityDmgMult),
+          radius: 6,
+        };
+      }
+      case 'archer': {
+        // Piercing Volley — 8 arrows, wide fan, double damage
+        const aimDir = this.findNearestTarget(monsters) ?? this.getFacingVector();
+        this.applyAimFacing(aimDir);
+        const spread = Math.PI * 0.7; // 126° total
+        const projs: Projectile[] = [];
+        for (let i = 0; i < 8; i++) {
+          const angle = Math.atan2(aimDir.y, aimDir.x) + (i - 3.5) * (spread / 7);
+          const dir: Vec2 = { x: Math.cos(angle), y: Math.sin(angle) };
+          const spawnPos: Vec2 = {
+            x: this.state.position.x + dir.x * 0.5,
+            y: this.state.position.y + dir.y * 0.5,
+          };
+          const dmg = Math.floor(this.state.attack * 1.6 * abilityDmgMult);
+          projs.push(new Projectile(this.state.id, spawnPos, dir, dmg, 'arrow'));
+        }
+        return { type: 'piercing_volley', projectiles: projs };
+      }
+      case 'healer': {
+        // Divine Intervention — full team heal + 3s immunity
+        const healAmount = Math.floor((60 + this.state.attack * 1.2) * abilityDmgMult);
+        this.immunityTicks = IMMUNITY_TICKS_DEFAULT;
+        return { type: 'divine_intervention', healAmount, immunityTicks: IMMUNITY_TICKS_DEFAULT };
+      }
+    }
+  }
+
+  /** Grant temporary immunity (used by healer ultimate on allies) */
+  grantImmunity(ticks: number): void {
+    this.immunityTicks = Math.max(this.immunityTicks, ticks);
+  }
+
   /** Lifesteal uygula (hasar sonrası) */
   applyLifesteal(damageDealt: number): void {
     if (this.talentBonuses.lifesteal > 0 && this.state.alive) {
@@ -886,10 +1029,16 @@ export class Player {
 
   /** Kritik vuruş kontrolü */
   rollCrit(): { isCrit: boolean; multiplier: number } {
-    if (this.talentBonuses.critChance > 0 && Math.random() < this.talentBonuses.critChance) {
+    const totalCrit = this.talentBonuses.critChance + this.auraBuffs.critChance;
+    if (totalCrit > 0 && Math.random() < totalCrit) {
       return { isCrit: true, multiplier: this.talentBonuses.critMultiplier };
     }
     return { isCrit: false, multiplier: 1 };
+  }
+
+  /** Returns elemental damage multiplier (aura + talent). 1.0 = no bonus. */
+  getElementalDamageMult(): number {
+    return 1 + this.auraBuffs.eleDmgMult;
   }
 
   getState(): PlayerState {
@@ -901,6 +1050,13 @@ export class Player {
       shieldActive: this.shieldActive,
       poisoned: false, // will be set by GameRoom if poison aura active
       slowed: this.slowTicks > 0,
+      ultimateCooldownTicks: this.ultimateCooldownTicks,
+      ultimateReady: this.state.level >= ULTIMATE_UNLOCK_LEVEL && this.ultimateCooldownTicks <= 0 && this.state.mana >= Math.floor(ULTIMATE_MANA_COST * (1 - this.talentBonuses.manaCostReduction)),
     };
+  }
+
+  /** Aura radius multiplier (auraBoost talent adds to base 3 tile radius) */
+  getAuraRadius(): number {
+    return 3 * (1 + this.talentBonuses.auraBoost);
   }
 }

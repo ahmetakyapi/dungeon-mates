@@ -405,6 +405,13 @@ export class GameRoom {
     }
   }
 
+  handleUltimate(socketId: string): void {
+    const input = this.playerInputs.get(socketId);
+    if (input) {
+      input.ultimate = true;
+    }
+  }
+
   handleInteract(socketId: string): void {
     const input = this.playerInputs.get(socketId);
     if (input) {
@@ -685,6 +692,11 @@ export class GameRoom {
     this.tick += 1;
     this.floorAdvancedThisTick = false;
 
+    // Co-op aura computation (every 5 ticks, 4x/sec — cheap but not per-frame)
+    if (this.tick % 5 === 0) {
+      this.computeCoOpAuras();
+    }
+
     // Single-pass: determine active rooms + find most-populated room
     const activeRoomIds = this._activeRoomIds;
     activeRoomIds.clear();
@@ -796,9 +808,69 @@ export class GameRoom {
         }
       }
 
+      // Ultimate handling — per-class powerful ability (F key, level 5+, 45s CD)
+      if (input.ultimate) {
+        const ultResult = player.useUltimate(monsterTargets);
+        if (ultResult) {
+          switch (ultResult.type) {
+            case 'berserker_rush': {
+              for (const slash of ultResult.slashes) {
+                this.projectiles.set(slash.state.id, slash);
+              }
+              break;
+            }
+            case 'arcane_nova': {
+              // AoE with all 3 elements triggered per monster
+              const elements: Array<'fire' | 'ice' | 'poison'> = ['fire', 'ice', 'poison'];
+              for (const [monsterId, monster] of this.monsters) {
+                if (!monster.state.alive) continue;
+                const dx = monster.state.position.x - ultResult.position.x;
+                const dy = monster.state.position.y - ultResult.position.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist <= ultResult.radius) {
+                  const elem = elements[Math.floor(Math.random() * elements.length)];
+                  const actual = monster.takeDamage(ultResult.damage, 'heavy', elem);
+                  player.state.totalDamageDealt += actual;
+                  player.applyLifesteal(actual);
+                  monster.applyKnockback(dx, dy, 6, 4);
+                  this.queueDamage(monsterId, actual, player.state.id, {
+                    damageType: elem, isCrit: true, kx: dx, ky: dy, shake: 0.9,
+                  });
+                  if (!monster.state.alive) this.handleMonsterKilled(monster, player.state.id);
+                }
+              }
+              break;
+            }
+            case 'piercing_volley': {
+              for (const p of ultResult.projectiles) {
+                this.projectiles.set(p.state.id, p);
+              }
+              break;
+            }
+            case 'divine_intervention': {
+              // Heal all alive allies + grant immunity
+              for (const [, ally] of this.players) {
+                if (!ally.state.alive) continue;
+                const prevHp = ally.state.hp;
+                ally.state.hp = Math.min(ally.state.maxHp, ally.state.hp + ultResult.healAmount);
+                const healed = ally.state.hp - prevHp;
+                if (healed > 0) {
+                  this.queueDamage(ally.state.id, healed, player.state.id, {
+                    isHeal: true, damageType: 'holy',
+                  });
+                }
+                ally.grantImmunity(ultResult.immunityTicks);
+              }
+              break;
+            }
+          }
+        }
+      }
+
       // Reset attack flag after processing
       input.attack = false;
       input.ability = false;
+      input.ultimate = false;
     }
 
     // Burning ground: random fire damage to players every 40 ticks
@@ -1030,9 +1102,14 @@ export class GameRoom {
 
         // Element ve knockback projectile tipine göre
         const projType = projectile.state.type;
-        const dmgType: DamageType = projType === 'fireball' ? 'fire'
+        let dmgType: DamageType = projType === 'fireball' ? 'fire'
           : projType === 'holy_bolt' ? 'holy'
           : 'physical';
+        // Talent-based elemental infusion (warrior/archer attacks can roll fire/ice/poison)
+        if (owner && dmgType === 'physical') {
+          const infused = owner.rollElementalInfusion();
+          if (infused) dmgType = infused;
+        }
         const knockbackStrength = projType === 'sword_slash' ? 6
           : projType === 'fireball' ? 4
           : projType === 'arrow' ? 3
@@ -1291,6 +1368,8 @@ export class GameRoom {
     // Grant XP to killer (scaled for multiplayer to prevent over-leveling)
     const killer = this.players.get(killerId);
     if (killer) {
+      // Kill refund — talent-based cooldown reduction chance
+      killer.applyKillRefund();
       const xpMultipliers: Record<number, number> = { 1: 1.0, 2: 0.75, 3: 0.6, 4: 0.5 };
       const clampedPlayers = Math.max(1, Math.min(4, this.playerCount));
       const xpScale = xpMultipliers[clampedPlayers] ?? 1.0;
@@ -1521,6 +1600,56 @@ export class GameRoom {
     if (this._damageBatch.length === 0) return;
     this.io.to(this.roomCode).emit('game:damage_batch', this._damageBatch);
     this._damageBatch.length = 0;
+  }
+
+  /** Compute per-tick co-op aura buffs for all alive players */
+  private computeCoOpAuras(): void {
+    // Only worth computing in multiplayer
+    if (this.players.size < 2) {
+      for (const [, p] of this.players) {
+        p.auraBuffs.defense = 0;
+        p.auraBuffs.critChance = 0;
+        p.auraBuffs.hpRegenPerTick = 0;
+        p.auraBuffs.eleDmgMult = 0;
+      }
+      return;
+    }
+    // Reset all first
+    const alive: Player[] = [];
+    for (const [, p] of this.players) {
+      p.auraBuffs.defense = 0;
+      p.auraBuffs.critChance = 0;
+      p.auraBuffs.hpRegenPerTick = 0;
+      p.auraBuffs.eleDmgMult = 0;
+      if (p.state.alive) alive.push(p);
+    }
+    // O(n²) — tiny n, fine
+    for (const provider of alive) {
+      const radius = provider.getAuraRadius();
+      const radSq = radius * radius;
+      for (const target of alive) {
+        if (target === provider) continue;
+        const dx = target.state.position.x - provider.state.position.x;
+        const dy = target.state.position.y - provider.state.position.y;
+        if (dx * dx + dy * dy > radSq) continue;
+        // Apply based on provider class (cumulative across providers)
+        switch (provider.state.class) {
+          case 'warrior':
+            target.auraBuffs.defense = Math.max(target.auraBuffs.defense, 0.1);
+            break;
+          case 'mage':
+            target.auraBuffs.eleDmgMult = Math.max(target.auraBuffs.eleDmgMult, 0.15);
+            break;
+          case 'archer':
+            target.auraBuffs.critChance = Math.max(target.auraBuffs.critChance, 0.1);
+            break;
+          case 'healer':
+            // 5 HP/s → 0.25 per tick at 20 TPS
+            target.auraBuffs.hpRegenPerTick = Math.max(target.auraBuffs.hpRegenPerTick, 0.25);
+            break;
+        }
+      }
+    }
   }
 
   private setPhase(phase: GamePhase): void {

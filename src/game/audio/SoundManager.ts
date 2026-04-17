@@ -175,37 +175,65 @@ export class SoundManager {
 
   playSwordSlash(): void {
     if (!this.canPlay('swordSlash', 150)) return;
-    const variation = 0.9 + Math.random() * 0.2; // 90-110%
-    // White noise burst
-    this.playNoise(0.12, 0.25, 3000 * variation, 'highpass');
-    // Descending frequency sweep
-    this.playTone(800 * variation, 0.15, 'sawtooth', 0.15, 200 * variation);
-    // Quick click at start
-    this.playTone(1200 * variation, 0.03, 'square', 0.1);
+    const variation = 0.9 + Math.random() * 0.2;
+    const ctx = this.getContext();
+    if (!ctx) return;
+    // Warrior sword: low bass body + metal clank + air whoosh
+    // Bass thump body
+    this.playTone(140 * variation, 0.07, 'sine', 0.22, 70 * variation);
+    // High metal clank (brown noise through highpass)
+    this.playNoise(0.18, 0.15, 3500 * variation, 'highpass');
+    // Swoosh — descending sweep
+    this.playTone(900 * variation, 0.18, 'sawtooth', 0.14, 180 * variation);
+    // Crisp metal click
+    this.playTone(1500 * variation, 0.02, 'square', 0.1);
   }
 
   playArrowShoot(): void {
     if (!this.canPlay('arrowShoot', 100)) return;
-    const variation = 0.9 + Math.random() * 0.2; // 90-110%
-    // Quick ascending "twang"
-    this.playTone(400 * variation, 0.08, 'sine', 0.2, 1200 * variation);
-    // Follow-up high ping
+    const variation = 0.9 + Math.random() * 0.2;
     const ctx = this.getContext();
     if (!ctx) return;
-    this.playTone(1800 * variation, 0.06, 'sine', 0.1, 2400 * variation, ctx.currentTime + 0.05);
+    // Archer bow: wood flex + ascending twang + whistle
+    // Wood flex (short low triangle)
+    this.playTone(220 * variation, 0.04, 'triangle', 0.18);
+    // String release ascending
+    this.playTone(420 * variation, 0.08, 'sine', 0.22, 1200 * variation);
+    // Arrow whistle (high sine) — slight delay
+    this.playTone(1800 * variation, 0.12, 'sine', 0.12, 2600 * variation, ctx.currentTime + 0.05);
+    // Feather brush
+    this.playNoise(0.06, 0.08, 5000 * variation, 'highpass', ctx.currentTime + 0.04);
   }
 
   playFireball(): void {
     if (!this.canPlay('fireball', 200)) return;
-    const variation = 0.9 + Math.random() * 0.2; // 90-110%
+    const variation = 0.9 + Math.random() * 0.2;
     const ctx = this.getContext();
     if (!ctx) return;
-    // Low rumble ascending
-    this.playTone(80 * variation, 0.25, 'sawtooth', 0.2, 400 * variation);
-    // Noise burst mid-way — use Web Audio scheduling instead of setTimeout to avoid drift/pops
-    this.playNoise(0.15, 0.15, 800 * variation, 'lowpass', ctx.currentTime + 0.1);
-    // High crackle
-    this.playTone(200 * variation, 0.3, 'sawtooth', 0.1, 600 * variation, ctx.currentTime + 0.05);
+    // Mage fireball: sawtooth drone + crackle + rising whine
+    // Low rumble with sawtooth (grittier than sine)
+    this.playTone(85 * variation, 0.3, 'sawtooth', 0.22, 420 * variation);
+    // Crackle noise
+    this.playNoise(0.16, 0.18, 900 * variation, 'lowpass', ctx.currentTime + 0.1);
+    // Rising magical whine
+    this.playTone(220 * variation, 0.35, 'sawtooth', 0.12, 680 * variation, ctx.currentTime + 0.05);
+    // Ember sparks
+    this.playNoise(0.05, 0.1, 6000 * variation, 'highpass', ctx.currentTime + 0.15);
+  }
+
+  /** Healer holy bolt — sine choir pad (C-E-G major triad) */
+  playHolyBolt(): void {
+    if (!this.canPlay('holyBolt', 150)) return;
+    const variation = 0.95 + Math.random() * 0.1;
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const base = 440 * variation;
+    // Major triad sine stack with slight detune for chorus effect
+    this.playTone(base, 0.25, 'sine', 0.16);
+    this.playTone(base * 1.26, 0.25, 'sine', 0.14, undefined, ctx.currentTime + 0.005);
+    this.playTone(base * 1.5, 0.28, 'sine', 0.12, undefined, ctx.currentTime + 0.01);
+    // Ascending shimmer
+    this.playTone(base * 3, 0.15, 'sine', 0.1, base * 4, ctx.currentTime + 0.08);
   }
 
   // =====================
@@ -512,24 +540,76 @@ export class SoundManager {
   // SFX - Footsteps
   // =====================
 
-  playFootstep(): void {
+  playFootstep(floor = 1): void {
     if (!this.canPlay('footstep', 220)) return;
     const ctx = this.getContext();
     if (!ctx || !this.noiseBuffer || !this.sfxGain) return;
+
+    // Floor-themed footstep variation
+    let freq = 400 + Math.random() * 400;
+    let q = 2;
+    let filterType: BiquadFilterType = 'bandpass';
+    let duration = 0.05;
+    let volume = 0.05;
+    let addSizzle = false;
+    let addReverbTail = false;
+
+    if (floor === 5) {
+      // Örümcek dokuyucunun evi: yumuşak crunch — lowpass + kısa silk rustle
+      freq = 700 + Math.random() * 300;
+      filterType = 'lowpass';
+      q = 1.5;
+      volume = 0.04;
+    } else if (floor === 8) {
+      // Lav nehirleri: sizzle katmanı
+      freq = 500 + Math.random() * 300;
+      addSizzle = true;
+    } else if (floor === 9 || floor === 10) {
+      // Ruhlar tapınağı / throne: echo reverb feel
+      addReverbTail = true;
+      duration = 0.08;
+    }
+
     const source = ctx.createBufferSource();
     source.buffer = this.noiseBuffer;
     const filter = ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = 400 + Math.random() * 400;
-    filter.Q.value = 2;
+    filter.type = filterType;
+    filter.frequency.value = freq;
+    filter.Q.value = q;
     const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.05, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
+    gain.gain.setValueAtTime(volume, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
     source.connect(filter);
     filter.connect(gain);
     gain.connect(this.sfxGain);
     source.start();
-    source.stop(ctx.currentTime + 0.05);
+    source.stop(ctx.currentTime + duration + 0.02);
+
+    // Lava sizzle overlay
+    if (addSizzle) {
+      this.playNoise(0.03, 0.15, 3000, 'highpass', ctx.currentTime + 0.02);
+    }
+    // Echo tail for temple/throne
+    if (addReverbTail) {
+      this.playNoise(0.02, 0.3, 600, 'lowpass', ctx.currentTime + 0.15);
+    }
+  }
+
+  // =====================
+  // Audio Ducking
+  // =====================
+
+  /** Duck the music/ambience briefly — used on boss dialog, phase changes, crits */
+  duckMusic(durationMs = 400, depth = 0.4): void {
+    const ctx = this.getContext();
+    if (!ctx || !this.musicGain) return;
+    const now = ctx.currentTime;
+    const current = this.musicGain.gain.value;
+    const target = current * (1 - depth);
+    this.musicGain.gain.cancelScheduledValues(now);
+    this.musicGain.gain.setValueAtTime(current, now);
+    this.musicGain.gain.linearRampToValueAtTime(target, now + 0.08);
+    this.musicGain.gain.linearRampToValueAtTime(this.musicVolume, now + durationMs / 1000);
   }
 
   // =====================
@@ -669,6 +749,58 @@ export class SoundManager {
   stopMusic(): void {
     this.musicIntervals.forEach((id) => clearInterval(id));
     this.musicIntervals = [];
+    this._bossPhase = 0;
+  }
+
+  // =====================
+  // Boss Phase Music Layering — Faz 4
+  // Phase 1 (100-66% HP): base bass + drum
+  // Phase 2 (66-33%):     + melody layer
+  // Phase 3 (33-0%):      + dissonant sawtooth enrage layer
+  // =====================
+
+  private _bossPhase = 0;
+
+  /** Set current boss phase (1/2/3 escalating). Adds layers additively. */
+  playBossPhaseMusic(phase: number): void {
+    const ctx = this.getContext();
+    if (!ctx || !this.musicGain) return;
+    if (phase === this._bossPhase) return;
+
+    // Keep phase 1 layer alive; add higher-phase layers incrementally
+    if (phase >= 2 && this._bossPhase < 2) {
+      // Add melody layer
+      const stepMs = 60000 / 140 / 2;
+      const melody = [NOTES.G4, NOTES.Bb4, NOTES.C5, NOTES.Bb4, NOTES.G4, NOTES.F4, NOTES.Eb4, NOTES.G4];
+      let step = 0;
+      const id = setInterval(() => {
+        if (this.muted || !this.musicGain) return;
+        this.playTone(melody[step % melody.length], 0.18, 'triangle', 0.05, undefined, undefined, this.musicGain);
+        step++;
+      }, stepMs);
+      this.musicIntervals.push(id);
+    }
+
+    if (phase >= 3 && this._bossPhase < 3) {
+      // Add enrage dissonant layer — detuned sawtooth + faster percussion
+      const stepMs = 60000 / 140 / 2;
+      const enrage = [NOTES.Db3, NOTES.C3, NOTES.Db3, NOTES.B2];
+      let step = 0;
+      const id = setInterval(() => {
+        if (this.muted || !this.musicGain) return;
+        this.playTone(enrage[step % enrage.length], 0.1, 'sawtooth', 0.055, undefined, undefined, this.musicGain);
+        // Snare-like rasp on offbeat
+        if (step % 2 === 1) {
+          this.playNoise(0.04, 0.06, 3500, 'highpass');
+        }
+        step++;
+      }, stepMs);
+      this.musicIntervals.push(id);
+      // Flash duck on phase 3 entry
+      this.duckMusic(800, 0.5);
+    }
+
+    this._bossPhase = phase;
   }
 
   // =====================

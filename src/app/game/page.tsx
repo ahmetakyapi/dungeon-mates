@@ -118,6 +118,7 @@ function GamePage() {
     buyItem,
     shopDone,
     damageEvents,
+    bossPhaseEvent,
   } = useGameSocket();
 
   const [gameOverStats, setGameOverStats] = useState<{
@@ -619,6 +620,13 @@ function GamePage() {
     }
     prevComboTierRef.current = tier;
   }, [players, playerId, sound]);
+
+  // Boss phase music layering — on boss_phase event, add corresponding music layer
+  useEffect(() => {
+    if (!bossPhaseEvent) return;
+    sound.playBossPhaseMusic(bossPhaseEvent.phase);
+    sound.duckMusic(600, 0.35);
+  }, [bossPhaseEvent, sound]);
 
   const handleToggleFps = useCallback(() => {
     setShowFps((prev) => !prev);

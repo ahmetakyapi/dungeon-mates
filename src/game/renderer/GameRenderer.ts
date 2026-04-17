@@ -224,6 +224,35 @@ export class GameRenderer {
   // Ambient floor theme — computed per floor for themed atmosphere
   private ambientThemeFloor = -1;
 
+  // Reusable light source object for nearest-torch calc (avoids allocation)
+  private readonly _lightSrc: { dx: number; dy: number; strength: number } = { dx: 0, dy: 0, strength: 0 };
+
+  /** Find nearest torch direction from entity world-space center. Mutates & returns reusable object (or null). */
+  private computeNearestTorchLight(wx: number, wy: number): { dx: number; dy: number; strength: number } | null {
+    if (this.torchPositions.length === 0) return null;
+    let bestD2 = Infinity;
+    let bestX = 0;
+    let bestY = 0;
+    for (let i = 0; i < this.torchPositions.length; i++) {
+      const t = this.torchPositions[i];
+      const dx = t.x - wx;
+      const dy = t.y - wy;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bestD2) {
+        bestD2 = d2;
+        bestX = dx;
+        bestY = dy;
+      }
+    }
+    // 80px radius max effect
+    if (bestD2 > 80 * 80) return null;
+    const s = 1 - Math.sqrt(bestD2) / 80;
+    this._lightSrc.dx = bestX;
+    this._lightSrc.dy = bestY;
+    this._lightSrc.strength = s;
+    return this._lightSrc;
+  }
+
   // Last known monster position+color — used to emit death FX when server drops a dead monster from state
   private readonly prevMonsterSnapshot: Map<string, { x: number; y: number; type: string; isBoss: boolean }> = new Map();
   // Client-side dying entities for squash+spin animation (2 ticks ~100ms)
@@ -1617,6 +1646,7 @@ export class GameRenderer {
     dt: number,
   ): void {
     const isFrozen = this.freezeFrameMs > 0;
+    const preset = QUALITY_PRESETS[this.quality];
     for (let i = 0; i < monsters.length; i++) {
       const monster: MonsterState = monsters[i];
       if (!monster.alive) continue;
@@ -1676,6 +1706,28 @@ export class GameRenderer {
         ctx.restore();
       }
 
+      // Dynamic shadow source (high quality only)
+      if (preset.shadowDynamic) {
+        const wcx = monster.position.x * TILE_SIZE + TILE_SIZE / 2;
+        const wcy = monster.position.y * TILE_SIZE + TILE_SIZE / 2;
+        this.sprites.setCurrentLightSource(this.computeNearestTorchLight(wcx, wcy));
+      } else {
+        this.sprites.setCurrentLightSource(null);
+      }
+
+      // Hit squash: if hitStopTicks > 0 apply temporary scale pulse (compressed vertically)
+      const hitStopT = (monster.hitStopTicks ?? 0) / 4; // 0..1 where 1 = fresh hit
+      const applyHitSquash = hitStopT > 0;
+      if (applyHitSquash) {
+        const sq = 1 - hitStopT * 0.15; // squashed Y
+        const st = 1 + hitStopT * 0.1;  // stretched X
+        const cx = sx + renderSize / 2;
+        const cy = sy + renderSize;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.scale(st, sq);
+        ctx.translate(-cx, -cy);
+      }
       this.sprites.drawMonster(
         ctx, sx, sy, monster.type, monster.facing, this.animFrame,
         flashWhite, isAttacking, monster.isElite,
@@ -1684,6 +1736,7 @@ export class GameRenderer {
         monster.freezeTicks ?? 0,
         monster.poisonTicks ?? 0,
       );
+      if (applyHitSquash) ctx.restore();
 
       // Elite crown indicator above sprite
       if (monster.isElite && !flashWhite) {
@@ -1872,6 +1925,30 @@ export class GameRenderer {
         ctx.globalAlpha = 0.7;
       }
 
+      // Dynamic shadow source for player
+      const playerQPreset = QUALITY_PRESETS[this.quality];
+      if (playerQPreset.shadowDynamic) {
+        const pwcx = player.position.x * TILE_SIZE + TILE_SIZE / 2;
+        const pwcy = player.position.y * TILE_SIZE + TILE_SIZE / 2;
+        this.sprites.setCurrentLightSource(this.computeNearestTorchLight(pwcx, pwcy));
+      } else {
+        this.sprites.setCurrentLightSource(null);
+      }
+
+      // Hit squash for player — same pattern
+      const pHitStopT = ((player as PlayerState & { hitStopTicks?: number }).hitStopTicks ?? 0) / 4;
+      const applyPSquash = pHitStopT > 0;
+      if (applyPSquash) {
+        const sq = 1 - pHitStopT * 0.18;
+        const st = 1 + pHitStopT * 0.12;
+        const pcx = sx + TILE_SIZE / 2;
+        const pcy = sy + TILE_SIZE;
+        ctx.save();
+        ctx.translate(pcx, pcy);
+        ctx.scale(st, sq);
+        ctx.translate(-pcx, -pcy);
+      }
+
       this.sprites.drawPlayer(
         ctx, sx, sy,
         player.class,
@@ -1885,6 +1962,7 @@ export class GameRenderer {
         player.slowed,
         player.stunTicks,
       );
+      if (applyPSquash) ctx.restore();
 
       if (player.dodging) {
         ctx.globalAlpha = 1;

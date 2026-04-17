@@ -62,6 +62,9 @@ export type PlayerState = {
   // Combo tracking
   comboCount: number;
   comboExpiry: number;
+  // Ultimate ability (level 5+ unlock, F key)
+  ultimateCooldownTicks: number;
+  ultimateReady: boolean;
 };
 
 export type MonsterState = {
@@ -162,6 +165,7 @@ export type PlayerInput = {
   sprint?: boolean;
   dodge?: boolean;
   toggleMap?: boolean;
+  ultimate?: boolean; // F key — per-class ultimate (level 5+)
 };
 
 // --- Yetenek Sonuçları ---
@@ -170,3 +174,10 @@ export type AbilityResult =
   | { type: 'ice_storm'; position: Vec2; damage: number; radius: number }
   | { type: 'arrow_rain'; projectiles: { id: string; ownerId: string; position: Vec2; direction: Vec2; damage: number }[] }
   | { type: 'healing_wave'; position: Vec2; healAmount: number; radius: number };
+
+// --- Ultimate Ability Sonuçları (Faz 3) ---
+export type UltimateKind =
+  | 'berserker_rush'       // warrior: 5x rapid sword slashes
+  | 'arcane_nova'          // mage: large AoE, triggers fire+ice reactions
+  | 'piercing_volley'      // archer: 8 arrows wide fan, 2x pierce
+  | 'divine_intervention'; // healer: full team heal + 3s immunity

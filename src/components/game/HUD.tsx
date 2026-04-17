@@ -7,6 +7,7 @@ import { CLASS_STATS, DIFFICULTY_INFO, xpForLevel, totalXpForLevel } from '../..
 import { KillFeed, createKillFeedEntry } from './KillFeed';
 import type { KillFeedEntry } from './KillFeed';
 import { PlayerHoverCard } from './PlayerHoverCard';
+import { DebuffBar } from './hud/DebuffBar';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 const TOAST_DURATION = 3000;
@@ -1472,6 +1473,9 @@ export function HUD({ player, gameState, fps, showFps = false, attackCooldownPct
             </span>
           </div>
 
+          {/* Active debuff indicators */}
+          <DebuffBar player={player} />
+
           {/* HP Bar */}
           <div className="flex flex-col gap-1">
             <HPBar
@@ -1492,6 +1496,38 @@ export function HUD({ player, gameState, fps, showFps = false, attackCooldownPct
               xpProgress={xpProgress}
               level={player.level}
             />
+
+            {/* Ultimate ready indicator — F key glow, level 5+ */}
+            {(() => {
+              const ps = player as PlayerState & { ultimateReady?: boolean; ultimateCooldownTicks?: number };
+              if (player.level < 5) return null;
+              const ready = ps.ultimateReady ?? false;
+              const cd = ps.ultimateCooldownTicks ?? 0;
+              const cdSecs = Math.ceil(cd / 20);
+              return (
+                <motion.div
+                  className="mt-1 flex items-center gap-2"
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                >
+                  <motion.div
+                    className="flex items-center gap-1.5 rounded border px-2 py-0.5 font-pixel text-[9px] sm:text-[10px] lg:text-[11px] 2xl:text-[13px]"
+                    animate={ready ? { boxShadow: ['0 0 8px rgba(251,191,36,0.35)', '0 0 18px rgba(251,191,36,0.8)', '0 0 8px rgba(251,191,36,0.35)'] } : undefined}
+                    transition={ready ? { duration: 1.4, repeat: Infinity, ease: 'easeInOut' } : undefined}
+                    style={{
+                      borderColor: ready ? '#fbbf24' : '#4b5563',
+                      background: ready ? 'rgba(251,191,36,0.12)' : 'rgba(0,0,0,0.4)',
+                      color: ready ? '#fbbf24' : '#9ca3af',
+                      textShadow: ready ? '0 0 8px rgba(251,191,36,0.8)' : 'none',
+                    }}
+                  >
+                    <span className="font-bold">[F]</span>
+                    <span>{ready ? 'ULTIMATE HAZIR' : `Ultimate ${cdSecs}s`}</span>
+                  </motion.div>
+                </motion.div>
+              );
+            })()}
           </div>
 
           {/* Teammates (hidden on touch — saves space for controls) */}

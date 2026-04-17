@@ -35,6 +35,7 @@ export type ClientEvents = {
   'player:input': (data: PlayerInput) => void;
   'player:attack': () => void;
   'player:use_ability': () => void;
+  'player:use_ultimate': () => void;
   'player:interact': () => void;
   'player:select_talent': (data: { talentId: TalentId }) => void;
   'player:buy_item': (data: { itemId: string }) => void;

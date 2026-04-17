@@ -66,6 +66,7 @@ type UseGameSocketReturn = {
   levelUpEvent: { playerId: string; level: number } | null;
   floorModifiers: FloorModifier[];
   bossDialogue: { bossType: string; dialogue: string; phase: number } | null;
+  bossPhaseEvent: { monsterId: string; phase: number } | null;
   selectTalent: (talentId: string) => void;
   buyItem: (itemId: string) => void;
   shopDone: () => void;
@@ -104,6 +105,7 @@ export function useGameSocket(): UseGameSocketReturn {
   const [levelUpEvent, setLevelUpEvent] = useState<{ playerId: string; level: number } | null>(null);
   const [floorModifiers, setFloorModifiers] = useState<FloorModifier[]>([]);
   const [bossDialogue, setBossDialogue] = useState<{ bossType: string; dialogue: string; phase: number } | null>(null);
+  const [bossPhaseEvent, setBossPhaseEvent] = useState<{ monsterId: string; phase: number } | null>(null);
 
   // Timer refs for proper cleanup
   const levelUpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -399,8 +401,8 @@ export function useGameSocket(): UseGameSocketReturn {
       setFloorModifiers(data.modifiers);
     });
 
-    socket.on('game:boss_phase', () => {
-      // Handled via game:state broadcast
+    socket.on('game:boss_phase', (data) => {
+      setBossPhaseEvent(data);
     });
 
     socket.on('game:boss_dialogue', (data: { monsterId: string; bossType: string; dialogue: string; phase: number }) => {
@@ -500,6 +502,7 @@ export function useGameSocket(): UseGameSocketReturn {
   const pendingAttackRef = useRef(false);
   const pendingAbilityRef = useRef(false);
   const pendingInteractRef = useRef(false);
+  const pendingUltimateRef = useRef(false);
 
   const sendInput = useCallback((input: PlayerInput) => {
     const socket = socketRef.current;
@@ -509,6 +512,7 @@ export function useGameSocket(): UseGameSocketReturn {
     if (input.attack) pendingAttackRef.current = true;
     if (input.ability) pendingAbilityRef.current = true;
     if (input.interact) pendingInteractRef.current = true;
+    if (input.ultimate) pendingUltimateRef.current = true;
 
     // Throttle: only send at ~20fps (matching server tick rate)
     const now = performance.now();
@@ -530,6 +534,10 @@ export function useGameSocket(): UseGameSocketReturn {
     if (pendingInteractRef.current) {
       socket.emit('player:interact');
       pendingInteractRef.current = false;
+    }
+    if (pendingUltimateRef.current) {
+      socket.emit('player:use_ultimate');
+      pendingUltimateRef.current = false;
     }
   }, []);
 
@@ -603,6 +611,7 @@ export function useGameSocket(): UseGameSocketReturn {
     levelUpEvent,
     floorModifiers,
     bossDialogue,
+    bossPhaseEvent,
     selectTalent,
     buyItem,
     shopDone,

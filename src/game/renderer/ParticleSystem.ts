@@ -6,6 +6,7 @@
 const MAX_PARTICLES = 768;
 
 type ParticlePriority = 0 | 1 | 2; // 0 = ambient (low), 1 = normal, 2 = high (combat)
+type ParticleShape = 'square' | 'circle' | 'star' | 'rune' | 'line';
 
 type Particle = {
   active: boolean;
@@ -22,6 +23,9 @@ type Particle = {
   fadeOut: boolean;
   shrink: boolean;
   priority: ParticlePriority;
+  shape: ParticleShape;
+  rotation: number;
+  rotVel: number;
 };
 
 // Pre-allocated pool
@@ -40,6 +44,9 @@ const createParticle = (): Particle => ({
   fadeOut: true,
   shrink: false,
   priority: 1,
+  shape: 'square',
+  rotation: 0,
+  rotVel: 0,
 });
 
 type EmitConfig = {
@@ -60,6 +67,8 @@ type EmitConfig = {
   angleMin?: number;
   angleMax?: number;
   priority?: ParticlePriority;
+  shape?: ParticleShape;
+  rotate?: boolean;
 };
 
 export class ParticleSystem {
@@ -144,6 +153,8 @@ export class ParticleSystem {
       gravity = 0, friction = 1, fadeOut = true, shrink = false,
       angleMin = 0, angleMax = Math.PI * 2,
       priority = 1,
+      shape = 'square',
+      rotate = false,
     } = config;
 
     const colors = Array.isArray(color) ? color : [color];
@@ -168,6 +179,9 @@ export class ParticleSystem {
       p.fadeOut = fadeOut;
       p.shrink = shrink;
       p.priority = priority;
+      p.shape = shape;
+      p.rotation = rotate ? Math.random() * Math.PI * 2 : 0;
+      p.rotVel = rotate ? (Math.random() - 0.5) * 8 : 0;
     }
   }
 
@@ -409,17 +423,35 @@ export class ParticleSystem {
 
   /** level_up: Gold particles spiraling upward, many (20+), long life */
   emitLevelUp(x: number, y: number): void {
+    // Rune particles for level up — magical / arcane
     this.emit({
       x, y,
-      count: 24,
+      count: 16,
       color: ['#fbbf24', '#eab308', '#fef3c7', '#ffffff'],
       speedMin: 15, speedMax: 50,
-      sizeMin: 1, sizeMax: 3,
+      sizeMin: 3, sizeMax: 5,
       lifeMin: 1.0, lifeMax: 2.0,
       gravity: -25,
       friction: 0.97,
       fadeOut: true,
       shrink: true,
+      shape: 'rune',
+      priority: 2,
+    });
+    // Inner star burst
+    this.emit({
+      x, y,
+      count: 8,
+      color: ['#ffffff', '#fbbf24'],
+      speedMin: 20, speedMax: 60,
+      sizeMin: 2, sizeMax: 3,
+      lifeMin: 0.5, lifeMax: 1.0,
+      gravity: -30,
+      fadeOut: true,
+      shrink: true,
+      shape: 'star',
+      rotate: true,
+      priority: 2,
     });
   }
 
@@ -532,17 +564,20 @@ export class ParticleSystem {
 
   /** Critical Hit: white flash + star burst (15 particles, 0.5s) */
   emitCriticalHit(x: number, y: number): void {
-    // White flash burst
+    // White flash burst with star shapes — premium "crit" feel
     this.emit({
       x, y,
       count: 8,
       color: ['#ffffff', '#fef3c7', '#fbbf24'],
       speedMin: 60, speedMax: 120,
-      sizeMin: 1, sizeMax: 3,
-      lifeMin: 0.1, lifeMax: 0.3,
+      sizeMin: 2, sizeMax: 4,
+      lifeMin: 0.15, lifeMax: 0.4,
       gravity: 0,
       fadeOut: true,
       shrink: true,
+      shape: 'star',
+      rotate: true,
+      priority: 2,
     });
     // Star burst rays
     for (let i = 0; i < 7; i++) {
@@ -1179,13 +1214,15 @@ export class ParticleSystem {
       count: 8,
       color: ['#4ade80', '#86efac', '#ffffff', '#bbf7d0'],
       speedMin: 12, speedMax: 28,
-      sizeMin: 1, sizeMax: 2,
+      sizeMin: 2, sizeMax: 3,
       lifeMin: 0.6, lifeMax: 1.1,
       gravity: -30,
       friction: 0.96,
       fadeOut: true,
       shrink: true,
       priority: 1,
+      shape: 'star',
+      rotate: true,
     });
   }
 
@@ -1266,6 +1303,7 @@ export class ParticleSystem {
       p.vy += p.gravity * dt;
       p.vx *= p.friction;
       p.vy *= p.friction;
+      if (p.rotVel !== 0) p.rotation += p.rotVel * dt;
     }
 
     // Ambient dust timer
@@ -1300,9 +1338,70 @@ export class ParticleSystem {
       }
 
       const size = p.shrink ? Math.max(0.5, p.size * (1 - progress)) : p.size;
+      const sCeil = Math.ceil(size);
 
       ctx.fillStyle = p.color;
-      ctx.fillRect(sx, sy, Math.ceil(size), Math.ceil(size));
+
+      switch (p.shape) {
+        case 'circle': {
+          ctx.beginPath();
+          ctx.arc(sx + sCeil / 2, sy + sCeil / 2, size / 2 + 0.5, 0, Math.PI * 2);
+          ctx.fill();
+          break;
+        }
+        case 'star': {
+          // 4-point star (cheap — 2 overlapping rects with rotation hint)
+          const cx = sx + sCeil / 2;
+          const cy = sy + sCeil / 2;
+          const s = size;
+          if (p.rotation !== 0) {
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(p.rotation);
+            ctx.fillRect(-s / 2, -0.5, s, 1);
+            ctx.fillRect(-0.5, -s / 2, 1, s);
+            ctx.restore();
+          } else {
+            ctx.fillRect(cx - s / 2, cy - 0.5, s, 1);
+            ctx.fillRect(cx - 0.5, cy - s / 2, 1, s);
+          }
+          // Bright center pixel
+          ctx.fillRect(sx + sCeil / 2 - 0.5, sy + sCeil / 2 - 0.5, 1, 1);
+          break;
+        }
+        case 'rune': {
+          // Rune: small ring with center dot — magical feel
+          const cx = sx + sCeil / 2;
+          const cy = sy + sCeil / 2;
+          ctx.beginPath();
+          ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.fillRect(cx - 0.5, cy - 0.5, 1, 1);
+          break;
+        }
+        case 'line': {
+          // Short streak in velocity direction
+          const vmag = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+          if (vmag > 0.01) {
+            const nx = p.vx / vmag;
+            const ny = p.vy / vmag;
+            const len = size * 2;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            ctx.lineTo(sx - nx * len, sy - ny * len);
+            ctx.strokeStyle = p.color;
+            ctx.lineWidth = Math.max(1, size * 0.5);
+            ctx.stroke();
+          } else {
+            ctx.fillRect(sx, sy, sCeil, sCeil);
+          }
+          break;
+        }
+        case 'square':
+        default:
+          ctx.fillRect(sx, sy, sCeil, sCeil);
+          break;
+      }
     }
 
     ctx.globalAlpha = 1;

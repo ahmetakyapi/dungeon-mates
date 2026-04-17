@@ -59,7 +59,10 @@ export function useSound() {
   const playDoorOpen = useCallback(() => getManager()?.playDoorOpen(), [getManager]);
   const playChestOpen = useCallback(() => getManager()?.playChestOpen(), [getManager]);
   const playStairsDescend = useCallback(() => getManager()?.playStairsDescend(), [getManager]);
-  const playFootstep = useCallback(() => getManager()?.playFootstep(), [getManager]);
+  const playFootstep = useCallback((floor?: number) => getManager()?.playFootstep(floor), [getManager]);
+  const playHolyBolt = useCallback(() => getManager()?.playHolyBolt(), [getManager]);
+  const playBossPhaseMusic = useCallback((phase: number) => getManager()?.playBossPhaseMusic(phase), [getManager]);
+  const duckMusic = useCallback((durationMs?: number, depth?: number) => getManager()?.duckMusic(durationMs, depth), [getManager]);
   const playDungeonMusic = useCallback(() => getManager()?.playDungeonMusic(), [getManager]);
   const playFloorMusic = useCallback((floor: number) => getManager()?.playFloorMusic(floor), [getManager]);
   const playBossMusic = useCallback(() => getManager()?.playBossMusic(), [getManager]);
@@ -76,7 +79,7 @@ export function useSound() {
   const getMusicVolume = useCallback(() => getManager()?.getMusicVolume() ?? 0.3, [getManager]);
 
   return useMemo(() => ({
-    playSwordSlash, playArrowShoot, playFireball,
+    playSwordSlash, playArrowShoot, playFireball, playHolyBolt,
     playHit, playCriticalHit, playFireHit, playIceHit, playPoisonHit, playHolyHit, playComboTier,
     playPlayerHurt, playMonsterHurt, playDeath,
     playLootPickup, playGoldPickup, playHealthPotion,
@@ -84,12 +87,12 @@ export function useSound() {
     playRoomCleared, playLevelUp, playBossAppear, playFloorComplete,
     playVictory, playDefeat, playDoorOpen, playChestOpen, playStairsDescend,
     playFootstep,
-    playDungeonMusic, playFloorMusic, playBossMusic, stopMusic,
+    playDungeonMusic, playFloorMusic, playBossMusic, playBossPhaseMusic, duckMusic, stopMusic,
     startAmbience, stopAmbience,
     setMasterVolume, setSfxVolume, setMusicVolume,
     toggleMute, isMuted, getMasterVolume, getSfxVolume, getMusicVolume,
   }), [
-    playSwordSlash, playArrowShoot, playFireball,
+    playSwordSlash, playArrowShoot, playFireball, playHolyBolt,
     playHit, playCriticalHit, playFireHit, playIceHit, playPoisonHit, playHolyHit, playComboTier,
     playPlayerHurt, playMonsterHurt, playDeath,
     playLootPickup, playGoldPickup, playHealthPotion,
@@ -97,7 +100,7 @@ export function useSound() {
     playRoomCleared, playLevelUp, playBossAppear, playFloorComplete,
     playVictory, playDefeat, playDoorOpen, playChestOpen, playStairsDescend,
     playFootstep,
-    playDungeonMusic, playFloorMusic, playBossMusic, stopMusic,
+    playDungeonMusic, playFloorMusic, playBossMusic, playBossPhaseMusic, duckMusic, stopMusic,
     startAmbience, stopAmbience,
     setMasterVolume, setSfxVolume, setMusicVolume,
     toggleMute, isMuted, getMasterVolume, getSfxVolume, getMusicVolume,

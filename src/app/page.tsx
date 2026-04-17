@@ -102,15 +102,21 @@ const STEPS = [
 function FloatingParticle({ index }: { index: number }) {
   const style = useMemo(() => {
     const left = `${(index * 17 + 5) % 100}%`;
+    // Depth: bigger particles are "closer" → move faster + more opaque
+    const depth = (index % 3) / 2; // 0, 0.5, 1
     const size = 2 + (index % 3) * 2;
-    const duration = 10 + (index % 5) * 3;
+    // Inverse duration: closer = faster
+    const duration = 14 - depth * 6; // 14→8 seconds
     const delay = (index * 0.9) % 5;
+    // Closer particles = more saturated, farther = more translucent
+    const alpha = 0.2 + depth * 0.3;
     const colors = [
-      'rgba(139,92,246,0.25)',
-      'rgba(245,158,11,0.18)',
-      'rgba(16,185,129,0.18)',
+      `rgba(139,92,246,${alpha})`,
+      `rgba(245,158,11,${alpha * 0.9})`,
+      `rgba(16,185,129,${alpha * 0.85})`,
     ] as const;
-    return { left, size, duration, delay, color: colors[index % 3] };
+    const blur = depth < 0.5 ? 1 : 0; // distant particles slightly blurred
+    return { left, size, duration, delay, color: colors[index % 3], blur };
   }, [index]);
 
   return (
@@ -121,11 +127,12 @@ function FloatingParticle({ index }: { index: number }) {
         width: style.size,
         height: style.size,
         backgroundColor: style.color,
+        filter: style.blur ? `blur(${style.blur}px)` : undefined,
       }}
       initial={{ y: '110vh', opacity: 0 }}
       animate={{
         y: '-10vh',
-        opacity: [0, 0.6, 0.6, 0],
+        opacity: [0, 0.7, 0.7, 0],
       }}
       transition={{
         duration: style.duration,
@@ -167,6 +174,18 @@ function Torch({ side }: { side: 'left' | 'right' }) {
 function DungeonGate() {
   return (
     <div className="relative mx-auto h-44 w-52 sm:h-64 sm:w-72 2xl:h-80 2xl:w-[22rem] 4xl:h-96 4xl:w-[28rem]">
+      {/* Radial aura glow pulse behind gate */}
+      <motion.div
+        className="pointer-events-none absolute -inset-8 rounded-full"
+        style={{
+          background: 'radial-gradient(circle, rgba(139,92,246,0.28), rgba(245,158,11,0.12) 40%, transparent 70%)',
+        }}
+        animate={{
+          scale: [0.9, 1.15, 0.9],
+          opacity: [0.5, 0.85, 0.5],
+        }}
+        transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
+      />
       <div className="glass absolute inset-0 rounded-t-2xl">
         {/* Arch */}
         <div className="absolute -top-1.5 left-1/2 h-7 w-32 -translate-x-1/2 rounded-t-xl border border-zinc-600/50 bg-zinc-800 sm:w-44 sm:h-9 2xl:w-52 2xl:h-11 4xl:w-64 4xl:h-14" />
@@ -228,14 +247,17 @@ function StatBar({
       <span className="w-8 font-pixel text-[7px] text-zinc-500 sm:text-[8px] lg:text-[9px] 2xl:text-[10px] 3xl:text-xs 4xl:text-sm 2xl:w-10 4xl:w-14">
         {label}
       </span>
-      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-800/80 2xl:h-2 4xl:h-2.5">
+      <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-800/80 2xl:h-2 4xl:h-2.5">
         <motion.div
           className="h-full rounded-full"
-          style={{ backgroundColor: color }}
+          style={{
+            backgroundColor: color,
+            boxShadow: `0 0 8px ${color}66`,
+          }}
           initial={{ width: 0 }}
           whileInView={{ width: `${pct}%` }}
           viewport={{ once: true, amount: 0.3 }}
-          transition={{ duration: 0.8, delay, ease: EASE }}
+          transition={{ type: 'spring', stiffness: 80, damping: 16, mass: 0.8, delay }}
         />
       </div>
       <span className="w-5 text-right font-pixel text-[7px] text-zinc-600 sm:text-[8px] lg:text-[9px] 2xl:text-[10px] 3xl:text-xs 4xl:text-sm 2xl:w-7 4xl:w-10">
@@ -768,14 +790,24 @@ export default function HomePage() {
                 initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.3 }}
-                transition={{ duration: 0.5, delay: i * 0.08, ease: EASE }}
+                transition={{ type: 'spring', stiffness: 200, damping: 24, delay: i * 0.08 }}
                 whileHover={{ y: -4, scale: 1.02 }}
+                style={{
+                  background: `linear-gradient(135deg, ${feat.color}14 0%, transparent 55%, rgba(20,20,30,0.35) 100%)`,
+                }}
               >
-                {/* Hover glow */}
+                {/* Hover glow — intensified radial */}
                 <div
                   className="pointer-events-none absolute inset-0 rounded-xl opacity-0 transition-opacity duration-500 group-hover:opacity-100"
                   style={{
-                    background: `radial-gradient(circle at 50% 50%, ${feat.color}10 0%, transparent 70%)`,
+                    background: `radial-gradient(circle at 50% 50%, ${feat.color}22 0%, transparent 70%)`,
+                  }}
+                />
+                {/* Subtle top-to-bottom gradient for depth */}
+                <div
+                  className="pointer-events-none absolute inset-x-0 top-0 h-px opacity-60"
+                  style={{
+                    background: `linear-gradient(90deg, transparent, ${feat.color}, transparent)`,
                   }}
                 />
 

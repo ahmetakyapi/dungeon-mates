@@ -187,8 +187,15 @@ export function LoadingScreen({ message, subMessage, floor }: LoadingScreenProps
           transition={{ duration: 3, repeat: Infinity, ease: EASE }}
           style={{ transformOrigin: 'left center' }}
         >
+          {/* Hinges (top + bottom, brass-colored circles) */}
+          <div className="absolute -left-[3px] top-2 h-2 w-2 rounded-full bg-gradient-to-br from-amber-500 to-amber-800 shadow-[inset_0_-1px_0_rgba(0,0,0,0.4)]" />
+          <div className="absolute -left-[3px] bottom-2 h-2 w-2 rounded-full bg-gradient-to-br from-amber-500 to-amber-800 shadow-[inset_0_-1px_0_rgba(0,0,0,0.4)]" />
+          {/* Vertical grain lines for wood texture */}
+          <div className="absolute inset-y-2 left-1/4 w-px bg-dm-border/50" />
+          <div className="absolute inset-y-2 left-1/2 w-px bg-dm-border/40" />
+          <div className="absolute inset-y-2 left-3/4 w-px bg-dm-border/50" />
           {/* Door handle */}
-          <div className="absolute right-1 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-dm-gold" />
+          <div className="absolute right-1 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-dm-gold shadow-[0_0_4px_rgba(245,158,11,0.7)]" />
         </motion.div>
 
         {/* Right door */}
@@ -198,8 +205,15 @@ export function LoadingScreen({ message, subMessage, floor }: LoadingScreenProps
           transition={{ duration: 3, repeat: Infinity, ease: EASE }}
           style={{ transformOrigin: 'right center' }}
         >
+          {/* Hinges */}
+          <div className="absolute -right-[3px] top-2 h-2 w-2 rounded-full bg-gradient-to-bl from-amber-500 to-amber-800 shadow-[inset_0_-1px_0_rgba(0,0,0,0.4)]" />
+          <div className="absolute -right-[3px] bottom-2 h-2 w-2 rounded-full bg-gradient-to-bl from-amber-500 to-amber-800 shadow-[inset_0_-1px_0_rgba(0,0,0,0.4)]" />
+          {/* Wood grain */}
+          <div className="absolute inset-y-2 right-1/4 w-px bg-dm-border/50" />
+          <div className="absolute inset-y-2 right-1/2 w-px bg-dm-border/40" />
+          <div className="absolute inset-y-2 right-3/4 w-px bg-dm-border/50" />
           {/* Door handle */}
-          <div className="absolute left-1 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-dm-gold" />
+          <div className="absolute left-1 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-dm-gold shadow-[0_0_4px_rgba(245,158,11,0.7)]" />
         </motion.div>
 
         {/* Glow behind doors */}

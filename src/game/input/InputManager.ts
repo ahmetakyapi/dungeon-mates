@@ -15,6 +15,7 @@ const KEY_BINDINGS = {
   ability: ['KeyE'] as const,
   interact: ['KeyR'] as const,
   dodge: ['KeyQ'] as const,
+  ultimate: ['KeyF'] as const,
   sprint: ['ShiftLeft', 'ShiftRight'] as const,
   toggleMap: ['Tab'] as const,
 } as const;
@@ -27,6 +28,7 @@ export class InputManager {
   private abilityPressed = false;
   private interactPressed = false;
   private dodgePressed = false;
+  private ultimatePressed = false;
   private toggleMapPressed = false;
   private attached = false;
 
@@ -69,6 +71,9 @@ export class InputManager {
       }
       if (this.isKeyInBinding(e.code, KEY_BINDINGS.dodge)) {
         this.dodgePressed = true;
+      }
+      if (this.isKeyInBinding(e.code, KEY_BINDINGS.ultimate)) {
+        this.ultimatePressed = true;
       }
       if (this.isKeyInBinding(e.code, KEY_BINDINGS.toggleMap)) {
         this.toggleMapPressed = true;
@@ -170,6 +175,7 @@ export class InputManager {
     const ability = this.abilityPressed || this.gamepadAbilityPressed;
     const interact = this.interactPressed || this.gamepadInteractPressed;
     const dodge = this.dodgePressed || this.isGamepadButtonDown(4); // L1 for gamepad dodge
+    const ultimate = this.ultimatePressed || this.isGamepadButtonDown(5); // R1 for gamepad ultimate
     const toggleMap = this.toggleMapPressed;
     const sprint = isSprinting;
 
@@ -178,12 +184,13 @@ export class InputManager {
     this.abilityPressed = false;
     this.interactPressed = false;
     this.dodgePressed = false;
+    this.ultimatePressed = false;
     this.toggleMapPressed = false;
     this.gamepadAttackPressed = false;
     this.gamepadAbilityPressed = false;
     this.gamepadInteractPressed = false;
 
-    return { dx, dy, attack, ability, interact, dodge, sprint, toggleMap };
+    return { dx, dy, attack, ability, interact, dodge, ultimate, sprint, toggleMap };
   }
 
   /** Check if device supports touch */

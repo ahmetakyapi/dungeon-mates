@@ -268,14 +268,31 @@ export function StoryIntro({ onComplete, floor }: StoryIntroProps) {
 
       {/* Content */}
       <div className="relative z-10 flex flex-col items-center gap-6 px-6 text-center">
-        {/* Title */}
+        {/* Title — letter by letter reveal with individual glow pulse */}
         <motion.h1
-          className="glow-gold font-pixel text-4xl text-dm-gold sm:text-5xl lg:text-6xl xl:text-7xl 2xl:text-8xl"
-          initial={{ scale: 0.5, opacity: 0, y: -20 }}
-          animate={{ scale: [0.5, 1.15, 1], opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: EASE }}
+          className="glow-gold flex gap-1 font-pixel text-4xl text-dm-gold sm:gap-2 sm:text-5xl lg:text-6xl xl:text-7xl 2xl:text-8xl"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3 }}
         >
-          ZEPHARA
+          {'ZEPHARA'.split('').map((ch, i) => (
+            <motion.span
+              key={i}
+              initial={{ scale: 0.2, opacity: 0, y: -40, rotate: -20 }}
+              animate={{ scale: [0.2, 1.25, 1], opacity: 1, y: 0, rotate: 0 }}
+              transition={{
+                delay: 0.15 + i * 0.09,
+                duration: 0.6,
+                ease: EASE,
+              }}
+              style={{
+                display: 'inline-block',
+                textShadow: '0 0 18px rgba(245,158,11,0.7), 0 0 36px rgba(245,158,11,0.3)',
+              }}
+            >
+              {ch}
+            </motion.span>
+          ))}
         </motion.h1>
 
         {/* Divider */}
