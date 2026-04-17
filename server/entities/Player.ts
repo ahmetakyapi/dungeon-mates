@@ -180,6 +180,7 @@ export class Player {
       comboExpiry: 0,
       ultimateCooldownTicks: 0,
       ultimateReady: false,
+      auraFrom: '',
     };
   }
 
@@ -1042,6 +1043,13 @@ export class Player {
   }
 
   getState(): PlayerState {
+    // Derive aura source list from buff values (fast — no extra per-tick state)
+    const auraParts: string[] = [];
+    if (this.auraBuffs.defense > 0) auraParts.push('warrior');
+    if (this.auraBuffs.eleDmgMult > 0) auraParts.push('mage');
+    if (this.auraBuffs.critChance > 0) auraParts.push('archer');
+    if (this.auraBuffs.hpRegenPerTick > 0) auraParts.push('healer');
+
     return {
       ...this.state,
       abilityActive: this.shieldActive || this.abilityActiveTicks > 0,
@@ -1052,6 +1060,7 @@ export class Player {
       slowed: this.slowTicks > 0,
       ultimateCooldownTicks: this.ultimateCooldownTicks,
       ultimateReady: this.state.level >= ULTIMATE_UNLOCK_LEVEL && this.ultimateCooldownTicks <= 0 && this.state.mana >= Math.floor(ULTIMATE_MANA_COST * (1 - this.talentBonuses.manaCostReduction)),
+      auraFrom: auraParts.join(','),
     };
   }
 

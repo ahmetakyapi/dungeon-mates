@@ -812,6 +812,11 @@ export class GameRoom {
       if (input.ultimate) {
         const ultResult = player.useUltimate(monsterTargets);
         if (ultResult) {
+          this.io.to(this.roomCode).emit('game:ultimate_activated', {
+            playerId: player.state.id,
+            playerClass: player.state.class,
+            kind: ultResult.type,
+          });
           switch (ultResult.type) {
             case 'berserker_rush': {
               for (const slash of ultResult.slashes) {

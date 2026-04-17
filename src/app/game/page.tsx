@@ -119,6 +119,7 @@ function GamePage() {
     shopDone,
     damageEvents,
     bossPhaseEvent,
+    ultimateActivatedEvents,
   } = useGameSocket();
 
   const [gameOverStats, setGameOverStats] = useState<{
@@ -621,12 +622,50 @@ function GamePage() {
     prevComboTierRef.current = tier;
   }, [players, playerId, sound]);
 
-  // Boss phase music layering — on boss_phase event, add corresponding music layer
+  // Boss phase music layering + visual burst on phase transition
   useEffect(() => {
     if (!bossPhaseEvent) return;
     sound.playBossPhaseMusic(bossPhaseEvent.phase);
     sound.duckMusic(600, 0.35);
-  }, [bossPhaseEvent, sound]);
+
+    // Visual burst at boss position
+    const monster = gameState?.monsters[bossPhaseEvent.monsterId];
+    const renderer = rendererRef.current as {
+      triggerBossPhase?: (wx: number, wy: number, phase: number) => void;
+    } | null;
+    if (monster && renderer?.triggerBossPhase) {
+      const TILE = 16;
+      renderer.triggerBossPhase(
+        monster.position.x * TILE + TILE / 2,
+        monster.position.y * TILE + TILE / 2,
+        bossPhaseEvent.phase,
+      );
+    }
+  }, [bossPhaseEvent, sound, gameState, rendererRef]);
+
+  // Ultimate activation — visual burst at caster's position + audio fanfare
+  const lastUltIdxRef = useRef(0);
+  useEffect(() => {
+    const renderer = rendererRef.current as {
+      triggerUltimateBurst?: (wx: number, wy: number, kind: string, playerClass: string) => void;
+    } | null;
+    for (let i = lastUltIdxRef.current; i < ultimateActivatedEvents.length; i++) {
+      const ev = ultimateActivatedEvents[i];
+      const caster = gameState?.players[ev.playerId];
+      if (caster && renderer?.triggerUltimateBurst) {
+        const TILE = 16;
+        renderer.triggerUltimateBurst(
+          caster.position.x * TILE + TILE / 2,
+          caster.position.y * TILE + TILE / 2,
+          ev.kind,
+          ev.playerClass,
+        );
+      }
+      sound.playLevelUp();
+      sound.duckMusic(400, 0.5);
+    }
+    lastUltIdxRef.current = ultimateActivatedEvents.length;
+  }, [ultimateActivatedEvents, gameState, rendererRef, sound]);
 
   const handleToggleFps = useCallback(() => {
     setShowFps((prev) => !prev);

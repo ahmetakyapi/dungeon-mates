@@ -542,6 +542,55 @@ export class GameRenderer {
     this.screenFlashColor = color;
   }
 
+  /** Trigger an ultimate activation burst at player position — class-colored flash + particles */
+  triggerUltimateBurst(wx: number, wy: number, kind: string, playerClass: string): void {
+    const classColor: Record<string, string> = {
+      warrior: '#ef4444',
+      mage: '#a78bfa',
+      archer: '#22c55e',
+      healer: '#fde68a',
+    };
+    const color = classColor[playerClass] ?? '#ffffff';
+
+    this.triggerScreenFlash(color, 0.55);
+    this.freezeFrame(140);
+    this.camera.shake(7, 450);
+    this.particles.emitCriticalHit(wx, wy);
+    this.particles.emitLevelUp(wx, wy); // reuse — rune+star burst
+
+    // Kind-specific extra particles
+    switch (kind) {
+      case 'berserker_rush':
+        this.particles.emitBossSlam(wx, wy);
+        break;
+      case 'arcane_nova':
+        this.particles.emitIceStorm(wx, wy);
+        this.particles.emitBurnFlare(wx, wy);
+        this.particles.emitPoisonCloud(wx, wy);
+        break;
+      case 'piercing_volley':
+        this.particles.emitBossSlam(wx, wy);
+        break;
+      case 'divine_intervention':
+        this.particles.emitHealSparkles(wx, wy);
+        break;
+    }
+  }
+
+  /** Trigger boss phase transition visual — red flash + enrage particles at boss */
+  triggerBossPhase(wx: number, wy: number, phase: number): void {
+    this.triggerScreenFlash('#dc2626', 0.55);
+    this.freezeFrame(160);
+    this.camera.shakeBossSlam();
+    this.particles.emitBossSlam(wx, wy);
+    this.particles.emitBurnFlare(wx, wy);
+    if (phase >= 3) {
+      // Final enrage — extra dramatic
+      this.particles.emitDeathSoul(wx, wy, '#dc2626');
+      this.particles.emitCriticalHit(wx, wy);
+    }
+  }
+
   /** Resize the output canvas */
   resize(_w: number, _h: number): void {
     this.resizeCanvas();
@@ -1933,6 +1982,39 @@ export class GameRenderer {
         this.sprites.setCurrentLightSource(this.computeNearestTorchLight(pwcx, pwcy));
       } else {
         this.sprites.setCurrentLightSource(null);
+      }
+
+      // Co-op aura rings — one ring per active aura source, class-colored
+      const auraFrom = (player as PlayerState & { auraFrom?: string }).auraFrom ?? '';
+      if (auraFrom.length > 0) {
+        const fcx = sx + TILE_SIZE / 2;
+        const fcy = sy + TILE_SIZE / 2 + 1;
+        const sources = auraFrom.split(',');
+        const auraColors: Record<string, string> = {
+          warrior: '#ef4444',
+          mage: '#a78bfa',
+          archer: '#22c55e',
+          healer: '#fde68a',
+        };
+        const baseR = TILE_SIZE * 0.55;
+        for (let ai = 0; ai < sources.length; ai++) {
+          const c = auraColors[sources[ai]];
+          if (!c) continue;
+          const phase = this.animFrame * 0.08 + ai * 1.5;
+          const pulse = Math.sin(phase) * 0.12;
+          const r = baseR + ai * 2 + pulse * 3;
+          ctx.save();
+          ctx.globalAlpha = 0.35 + pulse * 0.15;
+          ctx.strokeStyle = c;
+          ctx.lineWidth = 1;
+          ctx.setLineDash([3, 2]);
+          ctx.lineDashOffset = -this.animFrame * 0.7;
+          ctx.beginPath();
+          ctx.arc(fcx, fcy, r, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.restore();
+        }
       }
 
       // Hit squash for player — same pattern

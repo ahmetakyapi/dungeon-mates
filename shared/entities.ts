@@ -65,6 +65,9 @@ export type PlayerState = {
   // Ultimate ability (level 5+ unlock, F key)
   ultimateCooldownTicks: number;
   ultimateReady: boolean;
+  // Co-op aura — which classes are currently providing aura to this player
+  // (used by client to render class-colored halo rings)
+  auraFrom: string; // bitmask-like string "warrior,mage" for cheap serialization
 };
 
 export type MonsterState = {

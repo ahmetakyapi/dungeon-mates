@@ -67,6 +67,7 @@ type UseGameSocketReturn = {
   floorModifiers: FloorModifier[];
   bossDialogue: { bossType: string; dialogue: string; phase: number } | null;
   bossPhaseEvent: { monsterId: string; phase: number } | null;
+  ultimateActivatedEvents: Array<{ playerId: string; playerClass: string; kind: string; _ts: number }>;
   selectTalent: (talentId: string) => void;
   buyItem: (itemId: string) => void;
   shopDone: () => void;
@@ -106,6 +107,7 @@ export function useGameSocket(): UseGameSocketReturn {
   const [floorModifiers, setFloorModifiers] = useState<FloorModifier[]>([]);
   const [bossDialogue, setBossDialogue] = useState<{ bossType: string; dialogue: string; phase: number } | null>(null);
   const [bossPhaseEvent, setBossPhaseEvent] = useState<{ monsterId: string; phase: number } | null>(null);
+  const [ultimateActivatedEvents, setUltimateActivatedEvents] = useState<Array<{ playerId: string; playerClass: string; kind: string; _ts: number }>>([]);
 
   // Timer refs for proper cleanup
   const levelUpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -405,6 +407,13 @@ export function useGameSocket(): UseGameSocketReturn {
       setBossPhaseEvent(data);
     });
 
+    socket.on('game:ultimate_activated', (data) => {
+      setUltimateActivatedEvents((prev) => [
+        ...prev.slice(-7),
+        { ...data, _ts: Date.now() },
+      ]);
+    });
+
     socket.on('game:boss_dialogue', (data: { monsterId: string; bossType: string; dialogue: string; phase: number }) => {
       setBossDialogue({ bossType: data.bossType, dialogue: data.dialogue, phase: data.phase });
       if (bossDialogueTimerRef.current) clearTimeout(bossDialogueTimerRef.current);
@@ -612,6 +621,7 @@ export function useGameSocket(): UseGameSocketReturn {
     floorModifiers,
     bossDialogue,
     bossPhaseEvent,
+    ultimateActivatedEvents,
     selectTalent,
     buyItem,
     shopDone,

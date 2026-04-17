@@ -69,6 +69,7 @@ export type ServerEvents = {
   'game:shop_open': (data: { items: ShopItem[]; playerGold: Record<string, number> }) => void;
   'game:item_purchased': (data: { playerId: string; itemId: string; remainingGold: number }) => void;
   'game:boss_phase': (data: { monsterId: string; phase: number }) => void;
+  'game:ultimate_activated': (data: { playerId: string; playerClass: string; kind: 'berserker_rush' | 'arcane_nova' | 'piercing_volley' | 'divine_intervention' }) => void;
   'game:boss_dialogue': (data: { monsterId: string; bossType: string; dialogue: string; phase: number }) => void;
   'game:floor_modifier': (data: { modifiers: FloorModifier[] }) => void;
   'chat:message': (data: { playerId: string; name: string; text: string }) => void;
