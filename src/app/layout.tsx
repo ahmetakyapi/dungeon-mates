@@ -45,21 +45,14 @@ export const metadata: Metadata = {
     title: 'Dungeon Mates — Arkadaşlarınla Zindan Derinliklerine Dal',
     description:
       'Zephara\'nın 10 katı, 14 canavar, 4 sınıf. Kurulum yok, tarayıcıda anında başla. Solo ya da 2-4 kişi co-op.',
-    images: [
-      {
-        url: '/og.png',
-        width: 1200,
-        height: 630,
-        alt: 'Dungeon Mates — Co-op Dungeon Crawler',
-      },
-    ],
+    // Image auto-discovered from src/app/opengraph-image.tsx (1200×630, edge-generated)
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Dungeon Mates — Co-op Zindan Macerası',
     description:
       'Zephara\'nın derinliklerine dal. 10 kat, 14 canavar, 4 sınıf. Tarayıcıda anında başla.',
-    images: ['/og.png'],
+    // Image auto-discovered from src/app/twitter-image.tsx
   },
   robots: {
     index: true,
