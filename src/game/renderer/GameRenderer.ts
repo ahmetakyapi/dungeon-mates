@@ -6,7 +6,7 @@
 // ==========================================
 
 import type { GameState, PlayerState, MonsterState, ProjectileState, LootState, TileType, DamageType } from '../../../shared/types';
-import { TILE_SIZE, CLASS_STATS, MONSTER_STATS, LOOT_TABLE, ELITE_AFFIXES, TELEGRAPH_NONE, TELEGRAPH_CONE, TELEGRAPH_LINE } from '../../../shared/types';
+import { TILE_SIZE, CLASS_STATS, MONSTER_STATS, LOOT_TABLE, ELITE_AFFIXES, floorTheme, TELEGRAPH_NONE, TELEGRAPH_CONE, TELEGRAPH_LINE } from '../../../shared/types';
 import { Camera } from './Camera';
 import { SpriteRenderer, isTorchWall, TORCH_ANCHOR_X, TORCH_ANCHOR_Y } from './SpriteRenderer';
 import { ParticleSystem } from './ParticleSystem';
@@ -376,21 +376,14 @@ export class GameRenderer {
   /** Apply color grading tint — boss rooms and themed floors get atmospheric shift */
   private renderColorGrade(ctx: CanvasRenderingContext2D, floor: number, inBossRoom: boolean): void {
     ctx.save();
-    // Base thematic tint by floor
-    let tintColor = '';
-    let tintAlpha = 0;
-    if (floor === 5) { tintColor = '#7c3aed'; tintAlpha = 0.08; }       // spider queen — purple
-    else if (floor === 7) { tintColor = '#a3a3a3'; tintAlpha = 0.06; }  // stone warden — gray
-    else if (floor === 8) { tintColor = '#ea580c'; tintAlpha = 0.10; }  // lava — warm
-    else if (floor === 9) { tintColor = '#9ca3af'; tintAlpha = 0.07; }  // spirits — cool
-    else if (floor === 10) { tintColor = '#991b1b'; tintAlpha = 0.12; } // throne — blood
-
-    if (tintAlpha > 0) {
-      ctx.globalCompositeOperation = 'multiply';
-      ctx.globalAlpha = tintAlpha;
-      ctx.fillStyle = tintColor;
-      ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
-    }
+    // The tiles themselves now carry each floor's palette, so this pass is only a
+    // light unifying wash. It used to be the ONLY per-floor differentiation, and at
+    // full strength on top of themed tiles it just muddied them.
+    const theme = floorTheme(floor);
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.globalAlpha = 0.05;
+    ctx.fillStyle = theme.light;
+    ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
     // Boss-room warm/danger overlay on top
     if (inBossRoom) {
       ctx.globalCompositeOperation = 'multiply';
@@ -1622,6 +1615,9 @@ export class GameRenderer {
     endY: number,
   ): void {
     const tiles = state.dungeon.tiles;
+    // Palette follows the floor. setFloorTheme is a no-op unless the floor actually
+    // changed, and it clears the tile cache so nothing carries over between themes.
+    this.sprites.setFloorTheme(state.dungeon.currentFloor);
     // Check if current room is cleared (avoid .find() per frame)
     const rooms = state.dungeon.rooms;
     let roomCleared = false;

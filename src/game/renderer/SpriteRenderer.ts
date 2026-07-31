@@ -4,7 +4,8 @@
 // ==========================================
 
 import type { Direction, PlayerClass, MonsterType, TileType, LootType, ProjectileState } from '../../../shared/types';
-import { CLASS_STATS, MONSTER_STATS, LOOT_TABLE, TILE_SIZE } from '../../../shared/types';
+import { CLASS_STATS, MONSTER_STATS, LOOT_TABLE, TILE_SIZE, floorTheme } from '../../../shared/types';
+import type { FloorTheme } from '../../../shared/types';
 
 // --- Color utilities ---
 const hexToRgb = (hex: string): [number, number, number] => {
@@ -53,18 +54,107 @@ export const TORCH_ANCHOR_Y = 3;
 export const isTorchWall = (tileX: number, tileY: number): boolean =>
   (tileHash(tileX + 1000, tileY + 1000) >> 8) % TORCH_WALL_MODULO === 0;
 
+// --- Autotiling ---
+// Bitmask of same-kind cardinal neighbours: N=1, E=2, S=4, W=8.
+// Lets a wall know whether it has an exposed top face, which side it should cast
+// its shadow on, and whether it is an inner or outer corner.
+const N = 1, E = 2, S = 4, W = 8;
+
+const TILE_CACHE_MAX = 1400;
+
+/** True for tiles that visually belong to the same "solid" family as `kind`. */
+function sameKind(t: TileType | undefined, kind: TileType): boolean {
+  if (t === undefined) return true; // treat out-of-bounds as solid
+  if (kind === 'wall') return t === 'wall' || t === 'void';
+  return t === 'floor' || t === 'door' || t === 'door_locked' || t === 'stairs' || t === 'chest';
+}
+
+function neighbourMask(tiles: TileType[][] | undefined, tx: number, ty: number, kind: TileType): number {
+  if (!tiles) return 0;
+  let m = 0;
+  if (sameKind(tiles[ty - 1]?.[tx], kind)) m |= N;
+  if (sameKind(tiles[ty]?.[tx + 1], kind)) m |= E;
+  if (sameKind(tiles[ty + 1]?.[tx], kind)) m |= S;
+  if (sameKind(tiles[ty]?.[tx - 1], kind)) m |= W;
+  return m;
+}
+
 // --- Off-screen sprite cache with LRU eviction ---
 type CacheKey = string;
-const SPRITE_CACHE_MAX = 256;
+// Sprites are 16x16 (bosses ~40x40) canvases, so a larger cache costs ~1-2MB and
+// removes the eviction thrash that widening the animation period would otherwise
+// cause.
+const SPRITE_CACHE_MAX = 768;
+
+// Animation period used for BOTH the cache key and the frame passed to the draw
+// call. These must match: the sprite used to be drawn with the raw frame counter
+// but cached under `frame % 4`, so every sub-animation with a longer period
+// (sword glint %12, slime blink %24, demon eyes %24) aliased into four slots and
+// froze at whatever phase happened to bake first — then visibly popped to a new
+// phase on LRU eviction.
+const ANIM_PERIOD = 12;      // covers %2 %3 %4 %6 %12 cycles
+const BOSS_ANIM_PERIOD = 24; // covers %8 and %24 as well
+
+// Monsters whose sprites actually read `facing`. The rest ignore it entirely, so
+// caching four identical variants of them was pure waste.
+const DIRECTIONAL_MONSTERS: ReadonlySet<string> = new Set([
+  'rat', 'dark_knight', 'boss_flame_knight',
+]);
 const spriteCache = new Map<CacheKey, HTMLCanvasElement>();
 
 // Tile cache moved to SpriteRenderer instance to avoid HMR stale cache issues
+
+/**
+ * Stamp a 1px dark outline around whatever is already drawn on `target`.
+ *
+ * Done once at bake time rather than per frame, which is what made it affordable:
+ * drawSpriteOutline used to be an empty stub with a comment saying a real outline
+ * "would require reading pixel data which is too expensive per frame". Baked into
+ * the cache it costs nothing at runtime, and at 16px it is what separates a
+ * character from the floor tiles behind it.
+ */
+const bakeOutline = (target: HTMLCanvasElement): void => {
+  const w = target.width;
+  const h = target.height;
+
+  // Silhouette of the sprite in solid dark
+  const sil = document.createElement('canvas');
+  sil.width = w;
+  sil.height = h;
+  const silCtx = sil.getContext('2d');
+  if (!silCtx) return;
+  silCtx.imageSmoothingEnabled = false;
+  silCtx.drawImage(target, 0, 0);
+  silCtx.globalCompositeOperation = 'source-in';
+  silCtx.fillStyle = 'rgba(8, 6, 16, 0.85)';
+  silCtx.fillRect(0, 0, w, h);
+
+  // Sprite on top of its own offset silhouettes
+  const body = document.createElement('canvas');
+  body.width = w;
+  body.height = h;
+  const bodyCtx = body.getContext('2d');
+  if (!bodyCtx) return;
+  bodyCtx.imageSmoothingEnabled = false;
+  bodyCtx.drawImage(target, 0, 0);
+
+  const ctx = target.getContext('2d');
+  if (!ctx) return;
+  ctx.clearRect(0, 0, w, h);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(sil, -1, 0);
+  ctx.drawImage(sil, 1, 0);
+  ctx.drawImage(sil, 0, -1);
+  ctx.drawImage(sil, 0, 1);
+  ctx.drawImage(body, 0, 0);
+};
 
 const getCachedSprite = (
   key: CacheKey,
   width: number,
   height: number,
   drawFn: (ctx: CanvasRenderingContext2D) => void,
+  outline = false,
 ): HTMLCanvasElement => {
   let cached = spriteCache.get(key);
   if (cached) {
@@ -87,6 +177,7 @@ const getCachedSprite = (
   const ctx = cached.getContext('2d')!;
   ctx.imageSmoothingEnabled = false;
   drawFn(ctx);
+  if (outline) bakeOutline(cached);
   spriteCache.set(key, cached);
   return cached;
 };
@@ -100,9 +191,25 @@ const LEG_CYCLE = [0, 1, 2, 1] as const; // smooth stride: neutral, forward, ful
 export class SpriteRenderer {
   private readonly hitFlashTimers: Map<string, number> = new Map();
   private readonly tileCache: Map<string, HTMLCanvasElement> = new Map();
+  /** Current floor's palette. Set by GameRenderer whenever the floor changes. */
+  private theme: FloorTheme = floorTheme(1);
+  private themeFloor = 1;
 
   /** Current light source for dynamic shadows — set by renderer per-entity before draw */
   private currentLightSource: { dx: number; dy: number; strength: number } | null = null;
+
+  /** Switch the tile palette. Invalidates the tile cache so nothing carries over. */
+  setFloorTheme(floor: number): void {
+    if (floor === this.themeFloor) return;
+    this.themeFloor = floor;
+    this.theme = floorTheme(floor);
+    this.tileCache.clear();
+  }
+
+  /** Current floor palette — GameRenderer uses it for decor and lighting tints. */
+  getTheme(): FloorTheme {
+    return this.theme;
+  }
 
   setCurrentLightSource(src: { dx: number; dy: number; strength: number } | null): void {
     this.currentLightSource = src;
@@ -214,25 +321,25 @@ export class SpriteRenderer {
     }
 
     // Cache player sprite per animation state — avoids 50+ px() calls per frame
-    const walkFrame = frame % 4;
     const atkFrame = attacking ? 1 : 0;
-    const cacheKey = `player_${playerClass}_${facing}_${atkFrame}_${walkFrame}`;
+    const animIdx = ((frame % ANIM_PERIOD) + ANIM_PERIOD) % ANIM_PERIOD;
+    const cacheKey = `player_${playerClass}_${facing}_${atkFrame}_${animIdx}`;
     const cached = getCachedSprite(cacheKey, 16, 16, (sprCtx) => {
       switch (playerClass) {
         case 'warrior':
-          this.drawWarrior(sprCtx, 0, 0, facing, attacking, frame);
+          this.drawWarrior(sprCtx, 0, 0, facing, attacking, animIdx);
           break;
         case 'mage':
-          this.drawMage(sprCtx, 0, 0, facing, attacking, frame);
+          this.drawMage(sprCtx, 0, 0, facing, attacking, animIdx);
           break;
         case 'archer':
-          this.drawArcher(sprCtx, 0, 0, facing, attacking, frame);
+          this.drawArcher(sprCtx, 0, 0, facing, attacking, animIdx);
           break;
         case 'healer':
-          this.drawHealer(sprCtx, 0, 0, facing, attacking, frame);
+          this.drawHealer(sprCtx, 0, 0, facing, attacking, animIdx);
           break;
       }
-    });
+    }, true);
     ctx.drawImage(cached, Math.floor(x), Math.floor(y + breatheY));
 
     // Shield glow overlay for warrior ability
@@ -1194,17 +1301,19 @@ export class SpriteRenderer {
     }
 
     // Cache monster sprites per animation state (including bosses now)
-    const walkFrame = frame % 4;
     const atkFrame = attacking ? 1 : 0;
-    const bossFrame = type.startsWith('boss_') ? (frame % 8) : walkFrame;
-    const mCacheKey = `mon_${type}_${facing}_${atkFrame}_${bossFrame}`;
+    const period = type.startsWith('boss_') ? BOSS_ANIM_PERIOD : ANIM_PERIOD;
+    const animIdx = ((frame % period) + period) % period;
+    // Collapse facing for types whose sprites ignore it.
+    const facingKey = DIRECTIONAL_MONSTERS.has(type) ? facing : '-';
+    const mCacheKey = `mon_${type}_${facingKey}_${atkFrame}_${animIdx}`;
     const cachedMon = getCachedSprite(mCacheKey, renderSize, renderSize, (sprCtx) => {
-      this.drawMonsterSprite(sprCtx, 0, 0, type, facing, frame, attacking);
-    });
+      this.drawMonsterSprite(sprCtx, 0, 0, type, facing, animIdx, attacking);
+    }, true);
 
     // Elite gold outline — 4-offset silhouette pass (uses cached tinted variant)
     if (isElite) {
-      const outlineKey = `mon_${type}_${facing}_${atkFrame}_${bossFrame}_goldOutline`;
+      const outlineKey = `mon_${type}_${facingKey}_${atkFrame}_${animIdx}_goldOutline`;
       const outlineCanvas = getCachedSprite(outlineKey, renderSize, renderSize, (sprCtx) => {
         // Draw sprite then tint gold via source-atop
         this.drawMonsterSprite(sprCtx, 0, 0, type, facing, frame, attacking);
@@ -3005,7 +3114,7 @@ export class SpriteRenderer {
     roomCleared = false,
     tileX = 0,
     tileY = 0,
-    _tiles?: unknown,
+    tiles?: TileType[][],
     _mapWidth?: number,
     _mapHeight?: number,
     _animFrame?: number,
@@ -3013,10 +3122,17 @@ export class SpriteRenderer {
     // Use tile grid position for deterministic variation (not screen coords)
     const hash = tileHash(tileX + 1000, tileY + 1000);
 
-    // Cache each tile as an offscreen canvas — tiles are fully deterministic per hash
-    // Use only bits that affect visual output (bits 0-10 cover all tile drawing branches)
+    // Neighbour bitmask for autotiling. These parameters were already being passed
+    // in and then ignored, so every wall was drawn as the same flat slab with no
+    // top face, corners or floor transition.
+    const mask = type === 'wall' || type === 'floor'
+      ? neighbourMask(tiles, tileX, tileY, type)
+      : 0;
+
+    // Cache each tile as an offscreen canvas — tiles are fully deterministic per
+    // hash, neighbour mask and floor theme.
     const reducedHash = hash & 0x7ff;
-    const cacheKey = `tile_${type}_${reducedHash}_${roomCleared ? 1 : 0}`;
+    const cacheKey = `t${type}_${reducedHash}_${roomCleared ? 1 : 0}_${mask}_${this.themeFloor}`;
     let cached = this.tileCache.get(cacheKey);
     if (!cached) {
       cached = document.createElement('canvas');
@@ -3025,8 +3141,8 @@ export class SpriteRenderer {
       const sprCtx = cached.getContext('2d');
       if (sprCtx) {
         switch (type) {
-          case 'floor': this.drawFloorTile(sprCtx, 0, 0, hash); break;
-          case 'wall': this.drawWallTile(sprCtx, 0, 0, hash); break;
+          case 'floor': this.drawFloorTile(sprCtx, 0, 0, hash, mask); break;
+          case 'wall': this.drawWallTile(sprCtx, 0, 0, hash, mask); break;
           case 'door': this.drawDoorTile(sprCtx, 0, 0, roomCleared); break;
           case 'door_locked': this.drawLockedDoorTile(sprCtx, 0, 0); break;
           case 'stairs': this.drawStairsTile(sprCtx, 0, 0); break;
@@ -3034,154 +3150,157 @@ export class SpriteRenderer {
           case 'void': px(sprCtx, 0, 0, TILE_SIZE, TILE_SIZE, '#000000'); break;
         }
       }
+      // Bound the cache. It previously grew without limit and was never cleared,
+      // and adding theme + neighbour mask to the key multiplies the key space.
+      if (this.tileCache.size >= TILE_CACHE_MAX) this.tileCache.clear();
       this.tileCache.set(cacheKey, cached);
     }
     ctx.drawImage(cached, Math.floor(x), Math.floor(y));
   }
 
-  private drawFloorTile(ctx: CanvasRenderingContext2D, x: number, y: number, hash: number): void {
+  /**
+   * Themed stone floor. Colours come from the floor's palette rather than the old
+   * hardcoded #3e3e5c, and the neighbour mask adds a contact shadow wherever the
+   * tile meets a wall — that shading is what gives the dungeon depth.
+   */
+  private drawFloorTile(ctx: CanvasRenderingContext2D, x: number, y: number, hash: number, mask: number): void {
+    const t = this.theme;
+    const [dark, base, light, hi] = t.floor;
     const variation = hash % 5;
 
-    // Base stone floor — bright enough to be visible through fog
-    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#3e3e5c');
+    px(ctx, x, y, TILE_SIZE, TILE_SIZE, base);
 
-    // Grid lines (mortar)
-    ctx.fillStyle = '#4a4a68';
-    ctx.fillRect(x + TILE_SIZE - 1, y, 1, TILE_SIZE);
-    ctx.fillRect(x, y + TILE_SIZE - 1, TILE_SIZE, 1);
+    // Mortar seams on the far edges so tiles read as discrete slabs
+    px(ctx, x + TILE_SIZE - 1, y, 1, TILE_SIZE, t.mortar);
+    px(ctx, x, y + TILE_SIZE - 1, TILE_SIZE, 1, t.mortar);
 
-    // Stone tile variation (5 types)
-    if (variation === 0) {
-      // Clean stone
-      px(ctx, x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2, '#424266');
-    } else if (variation === 1) {
-      // Cracked stone
-      px(ctx, x + 3, y + 5, 1, 4, '#32324c');
-      px(ctx, x + 4, y + 8, 1, 3, '#32324c');
-      px(ctx, x + 5, y + 10, 1, 2, '#32324c');
-      px(ctx, x + 2, y + 6, 1, 1, '#2c2c44');
-      px(ctx, x + 4, y + 9, 1, 1, '#2c2c44');
-      px(ctx, x + 6, y + 11, 1, 1, '#32324c');
-      px(ctx, x + 9, y + 3, 1, 3, '#32324c');
-      px(ctx, x + 10, y + 5, 1, 2, '#2c2c44');
-    } else if (variation === 2) {
-      // Moss with mushroom
-      px(ctx, x + 10, y + 3, 2, 1, '#3a6e3a');
-      px(ctx, x + 11, y + 4, 1, 1, '#3a6e3a');
-      px(ctx, x + 4, y + 11, 2, 1, '#3a6e3a');
-      px(ctx, x + 3, y + 12, 1, 1, '#2e8848');
-      px(ctx, x + 12, y + 5, 1, 1, '#c87020');
-      px(ctx, x + 11, y + 4, 2, 1, '#d88e20');
-      if ((hash >> 4) % 3 === 0) {
-        px(ctx, x + 5, y + 12, 1, 1, '#a86822');
-        px(ctx, x + 4, y + 11, 2, 1, '#d88e20');
+    switch (variation) {
+      case 0:
+        px(ctx, x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2, light);
+        break;
+      case 1: // cracked
+        px(ctx, x + 3, y + 5, 1, 4, dark);
+        px(ctx, x + 4, y + 8, 1, 3, dark);
+        px(ctx, x + 5, y + 10, 1, 2, dark);
+        px(ctx, x + 9, y + 3, 1, 3, dark);
+        px(ctx, x + 10, y + 5, 1, 2, dark);
+        break;
+      case 2: // growth
+        px(ctx, x + 10, y + 3, 2, 1, t.growth);
+        px(ctx, x + 11, y + 4, 1, 1, t.growth);
+        px(ctx, x + 4, y + 11, 2, 1, t.growth);
+        px(ctx, x + 3, y + 12, 1, 1, t.growth);
+        if ((hash >> 4) % 3 === 0) px(ctx, x + 12, y + 5, 1, 1, t.accent);
+        break;
+      case 3: // stain
+        ctx.globalAlpha = 0.45;
+        px(ctx, x + 5, y + 6, 4, 3, dark);
+        px(ctx, x + 6, y + 5, 2, 1, dark);
+        px(ctx, x + 4, y + 8, 2, 1, dark);
+        ctx.globalAlpha = 1;
+        break;
+      default: { // pooled liquid, tinted by the floor's accent
+        px(ctx, x + 4, y + 5, 7, 5, dark);
+        px(ctx, x + 5, y + 4, 5, 1, dark);
+        px(ctx, x + 5, y + 10, 5, 1, dark);
+        ctx.globalAlpha = 0.28;
+        px(ctx, x + 5, y + 6, 3, 1, t.accent);
+        px(ctx, x + 7, y + 8, 2, 1, t.accent);
+        ctx.globalAlpha = 1;
+        break;
       }
-    } else if (variation === 3) {
-      // Blood stain
-      ctx.globalAlpha = 0.5;
-      px(ctx, x + 5, y + 6, 4, 3, '#6a2424');
-      px(ctx, x + 6, y + 5, 2, 1, '#5a1818');
-      px(ctx, x + 4, y + 8, 2, 1, '#5a1818');
-      ctx.globalAlpha = 0.3;
-      px(ctx, x + 8, y + 7, 2, 2, '#6a2424');
-      px(ctx, x + 3, y + 5, 1, 1, '#5a1818');
-      px(ctx, x + 10, y + 8, 1, 1, '#5a1818');
-      ctx.globalAlpha = 1;
-    } else {
-      // Water puddle
-      px(ctx, x + 4, y + 5, 7, 5, '#384858');
-      px(ctx, x + 5, y + 4, 5, 1, '#384858');
-      px(ctx, x + 5, y + 10, 5, 1, '#384858');
-      const shimmerOffset = (hash >> 6) % 4;
-      ctx.globalAlpha = 0.3;
-      px(ctx, x + 5 + shimmerOffset, y + 6, 2, 1, '#80c0ff');
-      px(ctx, x + 7 - shimmerOffset, y + 8, 2, 1, '#80c0ff');
-      ctx.globalAlpha = 0.15;
-      px(ctx, x + 6, y + 7, 3, 1, '#b0d8ff');
-      ctx.globalAlpha = 1;
     }
 
-    // Occasional stone detail
-    if ((hash >> 8) % 5 === 0) {
-      px(ctx, x + 7, y + 7, 2, 2, '#464666');
-    }
+    // Speck of lighter aggregate for texture
+    if ((hash >> 8) % 5 === 0) px(ctx, x + 2 + (hash >> 3) % 11, y + 2 + (hash >> 5) % 11, 1, 1, hi);
+
+    // Contact shadow against adjacent walls. `mask` here marks FLOOR neighbours,
+    // so a missing bit means a wall on that side.
+    ctx.globalAlpha = 0.32;
+    if (!(mask & N)) px(ctx, x, y, TILE_SIZE, 2, '#000000');
+    if (!(mask & W)) px(ctx, x, y, 2, TILE_SIZE, '#000000');
+    ctx.globalAlpha = 0.16;
+    if (!(mask & E)) px(ctx, x + TILE_SIZE - 1, y, 1, TILE_SIZE, '#000000');
+    if (!(mask & S)) px(ctx, x, y + TILE_SIZE - 1, TILE_SIZE, 1, '#000000');
+    ctx.globalAlpha = 1;
   }
 
-  private drawWallTile(ctx: CanvasRenderingContext2D, x: number, y: number, hash: number): void {
-    // Base wall — vibrant purple, clearly distinct from floor
-    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#5038a0');
+  /**
+   * Themed wall with autotiling.
+   *
+   * `mask` marks which cardinal neighbours are also solid. A wall with no solid
+   * neighbour to the south is a "face" wall — the player is looking at its front,
+   * so it gets a lit cap on top and a dark base. Fully enclosed walls are drawn
+   * flat and dark since they only ever read as bulk rock. This is what gives the
+   * dungeon a sense of height; before, every wall was one flat purple slab.
+   */
+  private drawWallTile(ctx: CanvasRenderingContext2D, x: number, y: number, hash: number, mask: number): void {
+    const t = this.theme;
+    const [dark, base, light, hi] = t.wall;
+    const exposedSouth = !(mask & S);
+    const exposedNorth = !(mask & N);
 
-    // Top slightly lighter
-    px(ctx, x, y, TILE_SIZE, 3, '#6048b0');
+    px(ctx, x, y, TILE_SIZE, TILE_SIZE, base);
 
-    // Brick mortar lines
-    const mortarColor = '#3a2878';
-    // Horizontal mortar lines
-    ctx.fillStyle = mortarColor;
-    ctx.fillRect(x, y + 4, TILE_SIZE, 1);
-    ctx.fillRect(x, y + 9, TILE_SIZE, 1);
-    ctx.fillRect(x, y + 14, TILE_SIZE, 1);
-
-    // Vertical mortar lines (offset per row)
-    ctx.fillRect(x + 4, y, 1, 4);
-    ctx.fillRect(x + 12, y, 1, 4);
-    ctx.fillRect(x + 8, y + 5, 1, 4);
-    ctx.fillRect(x, y + 5, 1, 4); // edge
-    ctx.fillRect(x + 4, y + 10, 1, 4);
-    ctx.fillRect(x + 12, y + 10, 1, 4);
-
-    // Individual brick color variation (based on hash bits)
-    const brickVar1 = ((hash >> 2) % 3);
-    const brickVar2 = ((hash >> 5) % 3);
-    if (brickVar1 === 0) {
-      px(ctx, x + 1, y + 1, 3, 3, '#5838a8');
-    } else if (brickVar1 === 1) {
-      px(ctx, x + 5, y + 1, 6, 3, '#483095');
-    }
-    if (brickVar2 === 0) {
-      px(ctx, x + 1, y + 5, 7, 4, '#4a2e9a');
-    } else if (brickVar2 === 2) {
-      px(ctx, x + 9, y + 5, 6, 4, '#5a3caa');
-    }
-    if (((hash >> 7) % 2) === 0) {
-      px(ctx, x + 5, y + 10, 6, 4, '#4a2e9a');
+    // Interior bulk rock — no detail needed, it never faces the camera
+    if (!exposedSouth && !exposedNorth && (mask & E) !== 0 && (mask & W) !== 0) {
+      px(ctx, x, y, TILE_SIZE, TILE_SIZE, dark);
+      if ((hash >> 3) % 4 === 0) px(ctx, x + 4 + (hash % 6), y + 4 + ((hash >> 6) % 7), 2, 1, base);
+      return;
     }
 
-    // Brick highlights
-    px(ctx, x + 1, y + 1, 2, 1, '#6040b0');
-    px(ctx, x + 6, y + 6, 2, 1, '#6040b0');
-    px(ctx, x + 1, y + 11, 2, 1, '#6040b0');
-    px(ctx, x + 9, y + 1, 2, 1, '#6040b0');
-    px(ctx, x + 13, y + 11, 2, 1, '#6040b0');
+    // Brick courses
+    px(ctx, x, y + 4, TILE_SIZE, 1, t.mortar);
+    px(ctx, x, y + 9, TILE_SIZE, 1, t.mortar);
+    px(ctx, x, y + 14, TILE_SIZE, 1, t.mortar);
+    px(ctx, x + 4, y, 1, 4, t.mortar);
+    px(ctx, x + 12, y, 1, 4, t.mortar);
+    px(ctx, x + 8, y + 5, 1, 4, t.mortar);
+    px(ctx, x, y + 5, 1, 4, t.mortar);
+    px(ctx, x + 4, y + 10, 1, 4, t.mortar);
+    px(ctx, x + 12, y + 10, 1, 4, t.mortar);
 
-    // Border edges
-    ctx.fillStyle = '#3a2878';
-    ctx.fillRect(x, y, TILE_SIZE, 1);
-    ctx.fillRect(x, y, 1, TILE_SIZE);
-    ctx.fillStyle = '#6048b0';
-    ctx.fillRect(x, y + TILE_SIZE - 1, TILE_SIZE, 1);
-    ctx.fillRect(x + TILE_SIZE - 1, y, 1, TILE_SIZE);
+    // Per-brick tonal variation
+    if (((hash >> 2) % 3) === 0) px(ctx, x + 1, y + 1, 3, 3, light);
+    else if (((hash >> 2) % 3) === 1) px(ctx, x + 5, y + 1, 6, 3, dark);
+    if (((hash >> 5) % 3) === 0) px(ctx, x + 1, y + 5, 7, 4, dark);
+    else if (((hash >> 5) % 3) === 2) px(ctx, x + 9, y + 5, 6, 4, light);
+    if (((hash >> 7) % 2) === 0) px(ctx, x + 5, y + 10, 6, 4, dark);
 
-    // Moss/vine
-    if ((hash >> 4) % 4 === 0) {
-      px(ctx, x + 2, y + 13, 1, 2, '#2a4e2a');
-      px(ctx, x + 3, y + 12, 1, 3, '#1e6838');
-      px(ctx, x + 4, y + 14, 1, 1, '#2a4e2a');
-      px(ctx, x + 1, y + 14, 1, 1, '#164428');
-      px(ctx, x + 5, y + 13, 1, 2, '#1e6838');
-      px(ctx, x + 3, y + 11, 1, 1, '#266038');
-    }
-    if ((hash >> 10) % 3 === 0) {
-      px(ctx, x + 12, y + 14, 2, 1, '#2a4e2a');
-      px(ctx, x + 13, y + 13, 1, 1, '#1e6838');
+    // Lit top cap where the wall's top edge is exposed
+    if (exposedNorth) {
+      px(ctx, x, y, TILE_SIZE, 2, hi);
+      px(ctx, x, y + 2, TILE_SIZE, 1, light);
+    } else {
+      px(ctx, x, y, TILE_SIZE, 1, t.mortar);
     }
 
-    // Skull decoration
-    if ((hash >> 14) % 9 === 0) {
+    // Front-face grounding where the wall meets the floor below
+    if (exposedSouth) {
+      px(ctx, x, y + TILE_SIZE - 2, TILE_SIZE, 2, dark);
+      px(ctx, x, y + TILE_SIZE - 1, TILE_SIZE, 1, t.mortar);
+    }
+
+    // Vertical seams only where the neighbour is not wall — avoids a grid of
+    // seams across a solid rock face.
+    if (!(mask & W)) px(ctx, x, y, 1, TILE_SIZE, t.mortar);
+    if (!(mask & E)) px(ctx, x + TILE_SIZE - 1, y, 1, TILE_SIZE, t.mortar);
+
+    // Growth clinging to exposed faces
+    if (exposedSouth && ((hash >> 4) % 4) === 0) {
+      px(ctx, x + 2, y + TILE_SIZE - 5, 2, 3, t.growth);
+      px(ctx, x + 3, y + TILE_SIZE - 6, 1, 1, t.growth);
+    }
+    if (((hash >> 10) % 5) === 0) {
+      px(ctx, x + 11, y + 6, 2, 2, t.growth);
+    }
+
+    // Rare skull inset — kept from the original wall for flavour
+    if (((hash >> 14) % 9) === 0 && exposedSouth) {
       px(ctx, x + 6, y + 10, 4, 3, '#d1d5db');
       px(ctx, x + 7, y + 10, 2, 1, '#e5e7eb');
-      px(ctx, x + 6, y + 11, 1, 1, '#2a2a48');
-      px(ctx, x + 9, y + 11, 1, 1, '#2a2a48');
+      px(ctx, x + 6, y + 11, 1, 1, dark);
+      px(ctx, x + 9, y + 11, 1, 1, dark);
       px(ctx, x + 7, y + 12, 2, 1, '#b0b0b0');
     }
 
@@ -3916,11 +4035,13 @@ export class SpriteRenderer {
   // ===== UTILITY =====
 
   /** Draw a 1px black outline around a sprite region */
-  private drawSpriteOutline(ctx: CanvasRenderingContext2D, _x: number, _y: number): void {
-    // For performance, we skip full outline computation.
-    // Instead we rely on the 1px black shadow beneath + dark border pixels
-    // already placed in each sprite. Full outline would require reading
-    // pixel data which is too expensive per frame.
+  /**
+   * Outlines are baked into the sprite cache by bakeOutline(), so this per-sprite
+   * hook is intentionally empty — the call sites are kept as documentation of
+   * where an outline is expected.
+   */
+  private drawSpriteOutline(_ctx: CanvasRenderingContext2D, _x: number, _y: number): void {
+    // no-op: handled at cache-bake time
   }
 
   /** Simple outline helper -- draws black border rect */
