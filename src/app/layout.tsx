@@ -1,11 +1,23 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Press_Start_2P } from 'next/font/google';
+import { Space_Grotesk, IBM_Plex_Mono, Press_Start_2P } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 
-const inter = Inter({
+// Body face. Space Grotesk has a slightly mechanical, drawn quality that sits
+// next to pixel type without fighting it — Inter read as a neutral default and
+// gave the page no voice of its own.
+const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
-  variable: '--font-inter',
+  variable: '--font-body',
+  display: 'swap',
+});
+
+// Utility face for depth readings, floor numerals and stat values. Monospace is
+// the honest choice for instrument-style data.
+const plexMono = IBM_Plex_Mono({
+  weight: ['400', '500', '600'],
+  subsets: ['latin'],
+  variable: '--font-mono',
   display: 'swap',
 });
 
@@ -77,7 +89,7 @@ export default function RootLayout({
   return (
     <html
       lang="tr"
-      className={`dark ${inter.variable} ${pressStart2P.variable}`}
+      className={`dark ${spaceGrotesk.variable} ${plexMono.variable} ${pressStart2P.variable}`}
       suppressHydrationWarning
     >
       <body className="font-body antialiased safe-area-padding">

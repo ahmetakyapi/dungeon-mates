@@ -22,8 +22,9 @@ const config: Config = {
         },
       },
       fontFamily: {
-        pixel: ['"Press Start 2P"', 'monospace'],
-        body: ['Inter', 'sans-serif'],
+        pixel: ['var(--font-pixel)', '"Press Start 2P"', 'monospace'],
+        body: ['var(--font-body)', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', 'ui-monospace', 'monospace'],
       },
     },
   },
