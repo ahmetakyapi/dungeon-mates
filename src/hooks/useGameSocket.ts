@@ -15,6 +15,7 @@ import type {
   FloorModifier,
   DamageType,
   MonsterType,
+  MetaBonusPayload,
 } from '../../shared/types';
 import type { ChatMessage } from '@/components/game/ChatBox';
 
@@ -56,7 +57,7 @@ type UseGameSocketReturn = {
   createRoom: (playerName: string) => void;
   createSoloRoom: (playerName: string) => void;
   joinRoom: (roomCode: string, playerName: string) => void;
-  selectClass: (playerClass: PlayerClass) => void;
+  selectClass: (playerClass: PlayerClass, meta?: MetaBonusPayload) => void;
   ready: () => void;
   sendInput: (input: PlayerInput) => void;
   sendChat: (text: string) => void;
@@ -500,8 +501,8 @@ export function useGameSocket(): UseGameSocketReturn {
     [executeRoomIntent],
   );
 
-  const selectClass = useCallback((playerClass: PlayerClass) => {
-    socketRef.current?.emit('player:class_select', { playerClass });
+  const selectClass = useCallback((playerClass: PlayerClass, meta?: MetaBonusPayload) => {
+    socketRef.current?.emit('player:class_select', { playerClass, meta });
   }, []);
 
   const ready = useCallback(() => {

@@ -15,6 +15,7 @@ import {
   ShopItem,
   DamageType,
   DamageEventMeta,
+  MetaBonusPayload,
   TICK_MS,
   TICK_RATE,
   MAX_PLAYERS,
@@ -122,6 +123,15 @@ const MONSTER_POOL_BY_FLOOR: Record<number, WeightedMonster[]> = {
 
 // A monster stays awake while any player is this close, even outside its spawn room.
 // Slightly beyond a screen width so nothing visibly pops into motion.
+// Each permanent upgrade can be bought this many times per run.
+const SHOP_UPGRADE_LIMIT = 2;
+
+/** Clamp a client-supplied meta bonus into its designed range. */
+function clampMeta(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.max(min, Math.min(max, value));
+}
+
 const MONSTER_ACTIVATION_RADIUS = 14; // tiles
 const MONSTER_ACTIVATION_RADIUS_SQ = MONSTER_ACTIVATION_RADIUS * MONSTER_ACTIVATION_RADIUS;
 
@@ -179,6 +189,8 @@ export class GameRoom {
   private floorAttackMultiplier: number;
   private playerCount: number;
   private shopReadyPlayers: Set<string> = new Set();
+  /** Per-player, per-item purchase counts for permanent upgrades this run. */
+  private readonly shopPurchaseCounts: Map<string, Map<string, number>> = new Map();
   private shopTimeout: ReturnType<typeof setTimeout> | null = null;
   private currentFloorModifiers: FloorModifier[] = [];
   private bossPhaseTracker: Map<string, number> = new Map();
@@ -477,7 +489,7 @@ export class GameRoom {
     }
   }
 
-  handleClassSelect(socketId: string, playerClass: PlayerClass): void {
+  handleClassSelect(socketId: string, playerClass: PlayerClass, meta?: MetaBonusPayload): void {
     const player = this.players.get(socketId);
     const readyState = this.readyStates.get(socketId);
     if (!player || !readyState) return;
@@ -489,6 +501,17 @@ export class GameRoom {
     if (this.phase !== 'class_select') return;
 
     player.selectClass(playerClass);
+    // Apply persistent between-run bonuses. Values are clamped because they arrive
+    // from client storage, which the player can edit.
+    if (meta) {
+      player.applyMetaBonuses({
+        maxHp: clampMeta(meta.maxHp, 0, 40),
+        attack: clampMeta(meta.attack, 0, 10),
+        goldMult: clampMeta(meta.goldMult, 1, 1.3),
+        dodgeCdrMult: clampMeta(meta.dodgeCdrMult, 0.76, 1),
+        xpMult: clampMeta(meta.xpMult, 1, 1.32),
+      });
+    }
     readyState.classSelected = true;
 
     this.broadcastState();
@@ -582,8 +605,22 @@ export class GameRoom {
     if (!item) return;
     if (item.floorRequirement && this.currentFloor < item.floorRequirement) return;
     if (item.levelRequirement && player.state.level < item.levelRequirement) return;
+
+    // Permanent upgrades are limited per run. Without a cap a player could buy
+    // battle_axe ten times and simply out-stat the rest of the game.
+    if (item.type === 'upgrade') {
+      const bought = this.shopPurchaseCounts.get(socketId);
+      const count = bought?.get(itemId) ?? 0;
+      if (count >= SHOP_UPGRADE_LIMIT) return;
+    }
+
     const success = player.buyShopItem(item.effect, item.cost);
     if (success) {
+      if (item.type === 'upgrade') {
+        let bought = this.shopPurchaseCounts.get(socketId);
+        if (!bought) { bought = new Map(); this.shopPurchaseCounts.set(socketId, bought); }
+        bought.set(itemId, (bought.get(itemId) ?? 0) + 1);
+      }
       this.io.to(this.roomCode).emit('game:item_purchased', {
         playerId: socketId,
         itemId,
@@ -1637,7 +1674,7 @@ export class GameRoom {
       const clampedPlayers = Math.max(1, Math.min(4, this.playerCount));
       const xpScale = xpMultipliers[clampedPlayers] ?? 1.0;
       const eliteXpMult = monster.state.isElite ? 3 : 1;
-      const scaledXp = Math.max(1, Math.floor(stats.xp * xpScale * eliteXpMult));
+      const scaledXp = Math.max(1, Math.floor(stats.xp * xpScale * eliteXpMult * killer.getXpMultiplier()));
       const leveled = killer.addXp(scaledXp);
       killer.state.score += scaledXp;
 
@@ -1757,14 +1794,19 @@ export class GameRoom {
       }
     }
 
+    // Roll the next floor's modifiers BEFORE opening the shop. They used to be
+    // rolled after it closed, so players were shopping blind against a curse they
+    // could not yet see.
+    this.rollFloorModifiers();
+
     // Dükkan fazı aç (final boss katı hariç)
     if (this.currentFloor <= this.maxFloors) {
       this.startShoppingPhase();
     }
   }
 
-  private generateNextFloor(): void {
-    // Floor modifier ata (kat 4+)
+  /** Pick the curses for the current floor and announce them. */
+  private rollFloorModifiers(): void {
     this.currentFloorModifiers = [];
     if (this.currentFloor >= 4) {
       const allModIds = Object.keys(FLOOR_MODIFIERS) as Array<keyof typeof FLOOR_MODIFIERS>;
@@ -1779,7 +1821,9 @@ export class GameRoom {
       }
       this.io.to(this.roomCode).emit('game:floor_modifier', { modifiers: this.currentFloorModifiers });
     }
+  }
 
+  private generateNextFloor(): void {
     // Generate new floor
     this.generateFloor(this.currentFloor);
     this.setPhase('playing');

@@ -33,6 +33,10 @@ type GameOverScreenProps = {
   stats: GameOverStats;
   isSolo?: boolean;
   soloDeathsRemaining?: number;
+  /** Meta currency awarded for this run. */
+  earnedShards?: number;
+  /** Deepest floor ever reached, for context on the summary. */
+  bestFloor?: number;
   onPlayAgain: () => void;
   onMainMenu: () => void;
 };
@@ -159,6 +163,8 @@ export function GameOverScreen({
   stats,
   isSolo = false,
   soloDeathsRemaining = 0,
+  earnedShards = 0,
+  bestFloor = 0,
   onPlayAgain,
   onMainMenu,
 }: GameOverScreenProps) {
@@ -183,9 +189,6 @@ export function GameOverScreen({
     return Math.max(1, Math.min(3, score));
   }, [stats.deaths, stats.timePlayed, stats.monstersKilled]);
 
-  // Calculate total XP (estimate based on kills and floors)
-  const totalXP = stats.monstersKilled * 10 + stats.floorsCleared * 50;
-
   const statRows = useMemo(() => {
     const rows: Array<{ label: string; value: string | number; icon: string }> = [
       { label: 'Canavarlar Öldürüldü', value: stats.monstersKilled, icon: '💀' },
@@ -194,14 +197,20 @@ export function GameOverScreen({
       { label: 'Ulaşılan Kat', value: stats.floorsCleared, icon: '🏰' },
       { label: 'Süre', value: formatTime(stats.timePlayed), icon: '⏱️' },
       { label: 'Seviye', value: stats.level, icon: '⭐' },
-      { label: 'Toplam XP', value: totalXP, icon: '✨' },
       { label: 'Ölüm Sayısı', value: stats.deaths, icon: '☠️' },
     ];
+    // Meta currency earned this run — the reason to start another one.
+    if (earnedShards > 0) {
+      rows.push({ label: 'Kadim Şard', value: `+${earnedShards}`, icon: '🔷' });
+    }
+    if (bestFloor > 0) {
+      rows.push({ label: 'En İyi Kat', value: `${Math.max(bestFloor, stats.floorsCleared)}/10`, icon: '🏆' });
+    }
     if (isSolo) {
       rows.push({ label: 'Kalan Can', value: `${soloDeathsRemaining}/3`, icon: '❤️' });
     }
     return rows;
-  }, [stats, totalXP, isSolo, soloDeathsRemaining]);
+  }, [stats, isSolo, soloDeathsRemaining, earnedShards, bestFloor]);
 
   const ringDelays = [0, 1, 2] as const;
 

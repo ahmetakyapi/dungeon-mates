@@ -52,6 +52,11 @@ const DODGE_MANA_COST = 5;
 // Manual aim snaps onto an enemy within this angular tolerance (radians, ~35°).
 const AIM_SNAP_TOLERANCE = 0.61;
 
+// Per-level gains once the talent tree (which ends at level 7) is exhausted.
+const POST_CAP_HP_PER_LEVEL = 12;
+const POST_CAP_ATTACK_PER_LEVEL = 3;
+const POST_CAP_DEFENSE_PER_LEVEL = 2;
+
 // Premium combat feel — tick counts @ 20 TPS
 const HITSTOP_NORMAL_TICKS = 2;   // ~100ms
 const HITSTOP_CRIT_TICKS = 3;     // ~150ms
@@ -113,6 +118,10 @@ export class Player {
   private dodgeDir: Vec2;
   // Dükkan bonusları (kalıcı)
   private shopBonuses: { maxHp: number; maxMana: number; attack: number; defense: number; speed: number };
+  /** Stat gains from levels earned after the talent tree is exhausted. */
+  private postCapBonuses: { maxHp: number; attack: number; defense: number };
+  /** Persistent between-run bonuses from the player's meta progression. */
+  private metaBonuses: { maxHp: number; attack: number; goldMult: number; dodgeCdrMult: number; xpMult: number };
 
   constructor(id: string, name: string, spawnPos: Vec2) {
     this.spawnPosition = { ...spawnPos };
@@ -144,6 +153,8 @@ export class Player {
       killRefund: 0, auraBoost: 0, ultimateCdr: 0,
     };
     this.shopBonuses = { maxHp: 0, maxMana: 0, attack: 0, defense: 0, speed: 0 };
+    this.postCapBonuses = { maxHp: 0, attack: 0, defense: 0 };
+    this.metaBonuses = { maxHp: 0, attack: 0, goldMult: 1, dodgeCdrMult: 1, xpMult: 1 };
 
     this.state = {
       id,
@@ -365,7 +376,7 @@ export class Player {
     if (input.dodge && !this.dodging && this.dodgeCooldownTicks <= 0 && this.state.mana >= DODGE_MANA_COST) {
       this.dodging = true;
       this.dodgeTicks = DODGE_DURATION_TICKS;
-      this.dodgeCooldownTicks = DODGE_COOLDOWN_TICKS;
+      this.dodgeCooldownTicks = Math.round(DODGE_COOLDOWN_TICKS * this.metaBonuses.dodgeCdrMult);
       this.state.mana -= DODGE_MANA_COST;
       // Dodge in movement direction, or facing direction if standing still
       if (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1) {
@@ -764,28 +775,59 @@ export class Player {
         this.speedBoostMultiplier = 1 + loot.value; // value is 0.3 → 1.3x speed
         this.speedBoostTicks = 10 * TICK_RATE; // 10 seconds
         break;
-      case 'gold':
-        this.state.gold += loot.value;
-        this.state.score += loot.value;
-        this.state.goldCollected += loot.value;
+      case 'gold': {
+        const amount = Math.max(1, Math.floor(loot.value * this.metaBonuses.goldMult));
+        this.state.gold += amount;
+        this.state.score += amount;
+        this.state.goldCollected += amount;
         break;
+      }
     }
   }
 
   addXp(amount: number): boolean {
     this.state.xp += amount;
     const newLevel = levelFromXp(this.state.xp);
+    if (newLevel <= this.state.level) return false;
 
-    if (newLevel > this.state.level) {
-      this.state.level = newLevel;
-      this.recalculateStats();
-      this.state.hp = this.state.maxHp;
-      this.state.mana = this.state.maxMana;
+    const gained = newLevel - this.state.level;
+    this.state.level = newLevel;
+
+    // The talent tree ends at level 7. Beyond that, levels used to give nothing but
+    // a free full-heal while pendingTalentChoice stuck true forever (there were no
+    // talents left to offer). Past the tree, each level grants a small permanent
+    // stat gain instead, so levelling never becomes inert.
+    if (this.getAvailableTalents().length > 0) {
       this.state.pendingTalentChoice = true;
-      return true;
+    } else {
+      this.state.pendingTalentChoice = false;
+      this.postCapBonuses.maxHp += POST_CAP_HP_PER_LEVEL * gained;
+      this.postCapBonuses.attack += POST_CAP_ATTACK_PER_LEVEL * gained;
+      this.postCapBonuses.defense += POST_CAP_DEFENSE_PER_LEVEL * gained;
     }
 
-    return false;
+    this.recalculateStats();
+    this.state.hp = this.state.maxHp;
+    this.state.mana = this.state.maxMana;
+    return true;
+  }
+
+  /** Apply persistent meta-progression bonuses. Called once, at class select. */
+  applyMetaBonuses(bonuses: { maxHp: number; attack: number; goldMult: number; dodgeCdrMult: number; xpMult: number }): void {
+    this.metaBonuses = bonuses;
+    this.recalculateStats();
+    this.state.hp = this.state.maxHp;
+    this.state.mana = this.state.maxMana;
+  }
+
+  /** Gold multiplier from meta progression (Fortune). */
+  getGoldMultiplier(): number {
+    return this.metaBonuses.goldMult;
+  }
+
+  /** XP multiplier from meta progression (Insight). */
+  getXpMultiplier(): number {
+    return this.metaBonuses.xpMult;
   }
 
   /** Talent seçme */
@@ -925,10 +967,10 @@ export class Player {
     const prevMaxHp = this.state.maxHp;
     const prevMaxMana = this.state.maxMana;
 
-    this.state.maxHp = baseStats.maxHp + this.talentBonuses.maxHp + this.shopBonuses.maxHp;
+    this.state.maxHp = baseStats.maxHp + this.talentBonuses.maxHp + this.shopBonuses.maxHp + this.postCapBonuses.maxHp + this.metaBonuses.maxHp;
     this.state.maxMana = baseStats.maxMana + this.talentBonuses.maxMana + this.shopBonuses.maxMana;
-    this.state.attack = baseStats.attack + this.talentBonuses.attack + this.shopBonuses.attack;
-    this.state.defense = baseStats.defense + this.talentBonuses.defense + this.shopBonuses.defense;
+    this.state.attack = baseStats.attack + this.talentBonuses.attack + this.shopBonuses.attack + this.postCapBonuses.attack + this.metaBonuses.attack;
+    this.state.defense = baseStats.defense + this.talentBonuses.defense + this.shopBonuses.defense + this.postCapBonuses.defense;
 
     // HP/Mana artışlarını koru
     if (this.state.maxHp > prevMaxHp) {

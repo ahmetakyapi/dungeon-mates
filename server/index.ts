@@ -205,14 +205,14 @@ io.on('connection', (socket) => {
     console.log(`[Room] ${name} joined ${code}`);
   });
 
-  socket.on('player:class_select', ({ playerClass }) => {
+  socket.on('player:class_select', ({ playerClass, meta }) => {
     if (!checkRateLimit(socket.id)) return;
     if (!currentRoomCode) return;
     const validClasses = ['warrior', 'mage', 'archer', 'healer'];
     if (!validClasses.includes(playerClass)) return;
     const room = rooms.get(currentRoomCode);
     if (!room) return;
-    room.handleClassSelect(socket.id, playerClass);
+    room.handleClassSelect(socket.id, playerClass, meta);
   });
 
   socket.on('player:ready', () => {

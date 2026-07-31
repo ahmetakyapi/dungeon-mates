@@ -27,6 +27,8 @@ import { PixelHero } from '@/components/game/PixelHero';
 import { GameErrorBoundary } from '@/components/game/ErrorBoundary';
 import type { PlayerInput, GamePhase, PlayerState } from '../../../shared/types';
 import { CLASS_STATS, DIFFICULTY_INFO, ABILITY_MAX_COOLDOWNS, TICK_RATE, monsterDisplay } from '../../../shared/types';
+import type { PlayerClass } from '../../../shared/types';
+import { loadMeta, saveMeta, recordRun, metaBonuses, shardsForRun } from '@/lib/meta-progression';
 
 // Mirrors DODGE_COOLDOWN_TICKS in server/entities/Player.ts
 const DODGE_COOLDOWN_TICKS = 30;
@@ -167,6 +169,8 @@ function GamePage() {
   const prevLevelRef = useRef<number | null>(null);
   const prevAttackingRef = useRef(false);
   const gameOverBuiltRef = useRef(false);
+  const [earnedShards, setEarnedShards] = useState(0);
+  const [bestFloorEver, setBestFloorEver] = useState(0);
 
   // Cinematics and blocking overlays must actually suspend control. Previously only
   // phase and the pause menu were checked, so the player kept moving — and could be
@@ -219,6 +223,12 @@ function GamePage() {
     previousPhaseRef.current = phase;
 
     if (!prevPhase || prevPhase === phase) return;
+
+    // The run clock starts when play begins. It used to start at component mount,
+    // so reported run time included lobby and class-select idling.
+    if (phase === 'playing' && prevPhase !== 'playing' && prevPhase !== 'boss' && prevPhase !== 'shopping') {
+      gameStartTime.current = Date.now();
+    }
 
     // Show prologue cinematic when first entering playing phase
     if (prevPhase === 'class_select' && phase === 'playing') {
@@ -527,6 +537,7 @@ function GamePage() {
 
       const localPlayer = gameState?.players[playerId];
       const allPlayers = gameState ? Object.values(gameState.players) : [];
+      const runSeconds = Math.floor((Date.now() - gameStartTime.current) / 1000);
       const maxScore = allPlayers.length > 0
         ? Math.max(...allPlayers.map((p) => p.score))
         : 0;
@@ -559,15 +570,39 @@ function GamePage() {
         damage: localPlayer?.totalDamageDealt ?? 0,
         gold: localPlayer?.goldCollected ?? 0,
         floors: gameState?.dungeon.currentFloor ?? 1,
-        time: Math.floor((Date.now() - gameStartTime.current) / 1000),
+        time: runSeconds,
         level: localPlayer?.level ?? 1,
         deaths: localPlayer?.alive === false ? 1 : 0,
         isMVP: playerIsMVP,
         partyStats,
         defeatCause,
       });
+
+      // Persist the run and award meta currency. Guarded by gameOverBuiltRef above,
+      // so this happens exactly once per run.
+      const outcome: 'victory' | 'defeat' = phase === 'victory' ? 'victory' : 'defeat';
+      const record = {
+        at: Date.now(),
+        outcome,
+        playerClass: (localPlayer?.class ?? 'warrior') as PlayerClass,
+        floors: gameState?.dungeon.currentFloor ?? 1,
+        kills: localPlayer?.score ?? 0,
+        damage: localPlayer?.totalDamageDealt ?? 0,
+        gold: localPlayer?.goldCollected ?? 0,
+        level: localPlayer?.level ?? 1,
+        time: runSeconds,
+      };
+      setEarnedShards(shardsForRun(record));
+      const nextMeta = recordRun(loadMeta(), record);
+      saveMeta(nextMeta);
+      setBestFloorEver(nextMeta.bestFloor);
     }
   }, [phase, gameState, playerId]);
+
+  // Hand the player's persistent bonuses to the server when the run starts.
+  const handleSelectClass = useCallback((playerClass: PlayerClass) => {
+    selectClass(playerClass, metaBonuses(loadMeta()));
+  }, [selectClass]);
 
   const handlePlayAgain = useCallback(() => {
     if (isSolo) {
@@ -945,7 +980,7 @@ function GamePage() {
         <ClassSelect
           players={players}
           localPlayerId={playerId}
-          onSelectClass={selectClass}
+          onSelectClass={handleSelectClass}
           onReady={ready}
           isSolo={isSolo}
         />
@@ -1050,6 +1085,8 @@ function GamePage() {
       <AnimatePresence>
         {gameOverStats && (
           <GameOverScreen
+            earnedShards={earnedShards}
+            bestFloor={bestFloorEver}
             result={gameOverStats.phase}
             stats={{
               monstersKilled: gameOverStats.kills,

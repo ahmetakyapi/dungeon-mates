@@ -3,6 +3,20 @@
 // ==========================================
 
 import type { PlayerClass } from './classes';
+
+/**
+ * Persistent between-run bonuses, owned by the client's localStorage and handed
+ * to the server at class-select. Clamped server-side — this is a single-player-
+ * facing convenience feature, not a competitive ladder, but it should still never
+ * be able to send absurd values.
+ */
+export type MetaBonusPayload = {
+  maxHp: number;
+  attack: number;
+  goldMult: number;
+  dodgeCdrMult: number;
+  xpMult: number;
+};
 import type { MonsterType } from './monsters';
 import type { TalentId, TalentDef } from './talents';
 import type { ShopItem } from './shop';
@@ -31,7 +45,7 @@ export type ClientEvents = {
   'room:create': (data: { playerName: string }) => void;
   'room:create_solo': (data: { playerName: string }) => void;
   'room:join': (data: { roomCode: string; playerName: string }) => void;
-  'player:class_select': (data: { playerClass: PlayerClass }) => void;
+  'player:class_select': (data: { playerClass: PlayerClass; meta?: MetaBonusPayload }) => void;
   'player:ready': () => void;
   'player:input': (data: PlayerInput) => void;
   'player:attack': () => void;
