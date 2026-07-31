@@ -48,8 +48,18 @@ export class InputManager {
   private readonly handleGamepadConnected: (e: GamepadEvent) => void;
   private readonly handleGamepadDisconnected: (e: GamepadEvent) => void;
 
+  private static isTypingTarget(target: EventTarget | null): boolean {
+    const el = target as HTMLElement | null;
+    if (!el || !el.tagName) return false;
+    const tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+  }
+
   constructor(_canvas?: HTMLCanvasElement) {
     this.handleKeyDown = (e: KeyboardEvent) => {
+      // Listeners are on window, so without this guard typing in the chat box moved
+      // the character and preventDefault ate the space/E/R characters outright.
+      if (InputManager.isTypingTarget(e.target)) return;
       if (this.isGameKey(e.code)) {
         e.preventDefault();
       }
@@ -81,6 +91,8 @@ export class InputManager {
     };
 
     this.handleKeyUp = (e: KeyboardEvent) => {
+      // Always clear on keyup, even from a text field — otherwise a key held while
+      // focus moves into chat stays stuck down forever.
       this.keysDown.delete(e.code);
     };
 

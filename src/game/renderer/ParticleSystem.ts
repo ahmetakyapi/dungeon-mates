@@ -1409,9 +1409,15 @@ export class ParticleSystem {
 
   /** Clear all particles */
   clear(): void {
+    // The free list has to be rebuilt too. Resetting only `active`/`activeCount`
+    // left freeCount at whatever it was, so acquire() kept missing the free-list
+    // fast path and eventually returned null — particles silently stopped emitting
+    // after a clear (floor transitions, room resets).
     for (let i = 0; i < MAX_PARTICLES; i++) {
       this.pool[i].active = false;
+      this.freeList[i] = i;
     }
+    this.freeCount = MAX_PARTICLES;
     this.activeCount = 0;
     this.screenFlashRequested = false;
   }

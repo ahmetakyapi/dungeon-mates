@@ -14,6 +14,7 @@ import type {
   ShopItem,
   FloorModifier,
   DamageType,
+  MonsterType,
 } from '../../shared/types';
 import type { ChatMessage } from '@/components/game/ChatBox';
 
@@ -44,7 +45,7 @@ type UseGameSocketReturn = {
   chatMessages: ChatMessage[];
   isSolo: boolean;
   soloDeathsRemaining: number;
-  monsterKillEvents: Array<{ monsterId: string; killerId: string; xp: number }>;
+  monsterKillEvents: Array<{ monsterId: string; killerId: string; xp: number; monsterType: MonsterType }>;
   roomClearedEvents: number[];
   playerDiedEvents: string[];
   floorCompleteEvent: number | null;
@@ -92,6 +93,7 @@ export function useGameSocket(): UseGameSocketReturn {
     monsterId: string;
     killerId: string;
     xp: number;
+    monsterType: MonsterType;
   }>>([]);
   const [roomClearedEvents, setRoomClearedEvents] = useState<number[]>([]);
   const [playerDiedEvents, setPlayerDiedEvents] = useState<string[]>([]);
@@ -512,23 +514,33 @@ export function useGameSocket(): UseGameSocketReturn {
   const pendingAbilityRef = useRef(false);
   const pendingInteractRef = useRef(false);
   const pendingUltimateRef = useRef(false);
+  const pendingDodgeRef = useRef(false);
+  const pendingToggleMapRef = useRef(false);
 
   const sendInput = useCallback((input: PlayerInput) => {
     const socket = socketRef.current;
     if (!socket) return;
 
-    // Buffer one-shot actions so they're never lost
+    // Buffer one-shot actions so they're never lost. dodge and toggleMap are
+    // edge-triggered too and InputManager consumes them every frame, so without
+    // latching, any press landing inside the 45ms throttle window was dropped.
     if (input.attack) pendingAttackRef.current = true;
     if (input.ability) pendingAbilityRef.current = true;
     if (input.interact) pendingInteractRef.current = true;
     if (input.ultimate) pendingUltimateRef.current = true;
+    if (input.dodge) pendingDodgeRef.current = true;
+    if (input.toggleMap) pendingToggleMapRef.current = true;
 
     // Throttle: only send at ~20fps (matching server tick rate)
     const now = performance.now();
     if (now - lastInputTimeRef.current < 45) return; // ~22fps
     lastInputTimeRef.current = now;
 
-    // Send movement/sprint as continuous input
+    // Send movement/sprint as continuous input, folding in the latched edge flags
+    input.dodge = pendingDodgeRef.current;
+    input.toggleMap = pendingToggleMapRef.current;
+    pendingDodgeRef.current = false;
+    pendingToggleMapRef.current = false;
     socket.emit('player:input', input);
 
     // Send buffered one-shot actions as separate events

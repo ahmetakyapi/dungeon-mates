@@ -2,8 +2,8 @@
 
 import { useMemo, useState, useCallback, useEffect, useRef, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { PlayerState, GameState, DungeonRoom, PlayerClass, MonsterState, TileType, FloorModifier } from '../../../shared/types';
-import { CLASS_STATS, DIFFICULTY_INFO, xpForLevel, totalXpForLevel } from '../../../shared/types';
+import type { PlayerState, GameState, DungeonRoom, PlayerClass, MonsterState, MonsterType, TileType, FloorModifier } from '../../../shared/types';
+import { CLASS_STATS, DIFFICULTY_INFO, xpForLevel, totalXpForLevel, monsterDisplay } from '../../../shared/types';
 import { KillFeed, createKillFeedEntry } from './KillFeed';
 import type { KillFeedEntry } from './KillFeed';
 import { PlayerHoverCard } from './PlayerHoverCard';
@@ -326,13 +326,6 @@ function ToastList({ toasts }: { toasts: Toast[] }) {
   );
 }
 
-const BOSS_DISPLAY_NAMES: Record<string, { name: string; emoji: string }> = {
-  boss_demon: { name: 'Yozlaşmış Kral Karanmir', emoji: '👑' },
-  boss_spider_queen: { name: 'Selvira — Dokumacı', emoji: '🕸️' },
-  boss_forge_guardian: { name: 'Demirci Koruyucu', emoji: '🔨' },
-  boss_stone_warden: { name: 'Taş Muhafız', emoji: '🗿' },
-  boss_flame_knight: { name: 'Alev Şövalyesi', emoji: '🔥' },
-} as const;
 
 function BossHPBar({ gameState, bossDialogue }: { gameState: GameState; bossDialogue?: { bossType: string; dialogue: string; phase: number } | null }) {
   const boss = useMemo(() => {
@@ -374,11 +367,11 @@ function BossHPBar({ gameState, bossDialogue }: { gameState: GameState; bossDial
       <PixelFrame className="p-2 sm:p-3">
         {/* Boss name with icons */}
         <div className="mb-1.5 flex items-center justify-center gap-2">
-          <span className="text-xs sm:text-sm">{BOSS_DISPLAY_NAMES[boss.type]?.emoji ?? '💀'}</span>
+          <span className="text-xs sm:text-sm">{monsterDisplay(boss.type).emoji}</span>
           <span className="boss-pulse font-pixel text-[9px] text-dm-health sm:text-[11px] lg:text-[12px] xl:text-[13px] 2xl:text-[15px]">
-            {BOSS_DISPLAY_NAMES[boss.type]?.name ?? 'Boss'}
+            {monsterDisplay(boss.type).name}
           </span>
-          <span className="text-xs sm:text-sm">{BOSS_DISPLAY_NAMES[boss.type]?.emoji ?? '💀'}</span>
+          <span className="text-xs sm:text-sm">{monsterDisplay(boss.type).emoji}</span>
         </div>
 
         {/* Boss dialogue subtitle */}
@@ -1179,7 +1172,7 @@ type HUDProps = {
   abilityCooldownPct?: number;
   abilityActive?: boolean;
   playerClass?: PlayerClass;
-  monsterKillEvents?: Array<{ monsterId: string; killerId: string; xp: number }>;
+  monsterKillEvents?: Array<{ monsterId: string; killerId: string; xp: number; monsterType: MonsterType }>;
   lootPickupEvents?: Array<{ playerId: string; lootType: string; value: number }>;
   isTouchDevice?: boolean;
   bossDialogue?: { bossType: string; dialogue: string; phase: number } | null;
@@ -1267,11 +1260,9 @@ export function HUD({ player, gameState, fps, showFps = false, attackCooldownPct
           );
           return dist < closestDist ? m : closest;
         });
-        const XP_TO_NAME: Record<number, string> = {
-          5: 'Balçık', 7: 'Yarasa', 10: 'İskelet', 15: 'Goblin', 18: 'Lav Balçığı', 20: 'Gargoil', 25: 'Fantom', 30: 'Kara Şövalye', 80: 'Örümcek Kraliçe', 100: 'Mor\'Khan',
-        };
-        const monsterXp = nearest.maxHp <= 20 ? 5 : nearest.maxHp <= 30 ? 7 : nearest.maxHp <= 50 ? 10 : nearest.maxHp <= 60 ? 15 : 100;
-        setLastKillerMonster(XP_TO_NAME[monsterXp] ?? 'Canavar');
+        // The monster carries its own type — the old code guessed from maxHp
+        // buckets, which stopped matching anything once floor scaling applied.
+        setLastKillerMonster(monsterDisplay(nearest.type).name);
       }
       setRespawnCountdown(5);
     }
@@ -1352,23 +1343,10 @@ export function HUD({ player, gameState, fps, showFps = false, attackCooldownPct
     const newEvents = monsterKillEvents.slice(prevKillEventsLenRef.current);
     prevKillEventsLenRef.current = monsterKillEvents.length;
 
-    const XP_TO_NAME: Record<number, string> = {
-      5: 'Balçık',
-      7: 'Yarasa',
-      10: 'İskelet',
-      15: 'Goblin',
-      18: 'Lav Balçığı',
-      20: 'Gargoil',
-      25: 'Fantom',
-      30: 'Kara Şövalye',
-      80: 'Örümcek Kraliçe',
-      100: 'Mor\'Khan',
-    };
-
     for (const event of newEvents) {
       const killerPlayer = gameState.players[event.killerId];
       if (killerPlayer) {
-        const monsterName = XP_TO_NAME[event.xp] ?? 'Canavar';
+        const monsterName = monsterDisplay(event.monsterType).name;
         addKillFeedEntry(
           killerPlayer.name,
           killerPlayer.class,

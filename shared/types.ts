@@ -8,6 +8,7 @@ export * from './constants';
 export * from './classes';
 export * from './talents';
 export * from './monsters';
+export * from './monster-names';
 export * from './shop';
 export * from './loot';
 export * from './floor-modifiers';

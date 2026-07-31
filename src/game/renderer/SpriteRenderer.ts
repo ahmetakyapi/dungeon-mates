@@ -35,11 +35,23 @@ const px = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: n
 };
 
 // Simple position-based hash for tile variation
-const tileHash = (tx: number, ty: number): number => {
+export const tileHash = (tx: number, ty: number): number => {
   let h = tx * 374761393 + ty * 668265263;
   h = (h ^ (h >> 13)) * 1274126177;
   return (h ^ (h >> 16)) & 0x7fffffff;
 };
+
+// --- Wall torch placement (single source of truth) ---
+// GameRenderer used to re-derive this with its own `% 7`, so painted torches and
+// their lights landed on different walls entirely.
+const TORCH_WALL_MODULO = 5; // 1 in 5 wall tiles carries a torch
+/** Tile-local pixel position of the torch flame (light anchor). */
+export const TORCH_ANCHOR_X = 7;
+export const TORCH_ANCHOR_Y = 3;
+
+/** Whether the wall tile at these tile coords carries a torch. */
+export const isTorchWall = (tileX: number, tileY: number): boolean =>
+  (tileHash(tileX + 1000, tileY + 1000) >> 8) % TORCH_WALL_MODULO === 0;
 
 // --- Off-screen sprite cache with LRU eviction ---
 type CacheKey = string;
@@ -3172,29 +3184,20 @@ export class SpriteRenderer {
       px(ctx, x + 7, y + 12, 2, 1, '#b0b0b0');
     }
 
-    // Torch placement more frequent (1 in 5 walls instead of 1 in 7)
-    if ((hash >> 8) % 5 === 0) {
-      this.drawWallTorch(ctx, x + 6, y + 3, hash);
+    if ((hash >> 8) % TORCH_WALL_MODULO === 0) {
+      this.drawWallTorch(ctx, x + 6, y + 3);
     }
   }
 
-  /** Draw a small torch on wall */
-  drawWallTorch(ctx: CanvasRenderingContext2D, x: number, y: number, hash: number): void {
-    // Torch holder
+  /**
+   * Draw the torch bracket only. The flame itself is drawn per-frame by
+   * GameRenderer.renderTorchLights so it can actually animate — baking it into the
+   * tile cache froze the flicker at whatever phase was current on first bake.
+   */
+  drawWallTorch(ctx: CanvasRenderingContext2D, x: number, y: number): void {
     px(ctx, x + 1, y + 2, 2, 4, '#78350f');
     px(ctx, x, y + 5, 4, 1, '#92400e');
-
-    // Flame (2 frames based on hash trick -- flickers)
-    const flicker = (hash >> 12) % 2;
-    if (flicker === 0) {
-      px(ctx, x + 1, y, 2, 2, '#fbbf24');
-      px(ctx, x + 1, y - 1, 1, 1, '#f97316');
-      px(ctx, x + 2, y + 1, 1, 1, '#ef4444');
-    } else {
-      px(ctx, x, y, 3, 2, '#f97316');
-      px(ctx, x + 1, y - 1, 1, 1, '#fbbf24');
-      px(ctx, x + 2, y, 1, 1, '#fef3c7');
-    }
+    px(ctx, x + 1, y + 2, 1, 1, '#a16207'); // lit edge facing the flame
   }
 
   private drawDoorTile(ctx: CanvasRenderingContext2D, x: number, y: number, roomCleared: boolean): void {

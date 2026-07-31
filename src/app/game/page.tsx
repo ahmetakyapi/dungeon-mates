@@ -26,7 +26,7 @@ import { PixelButton } from '@/components/ui/PixelButton';
 import { PixelHero } from '@/components/game/PixelHero';
 import { GameErrorBoundary } from '@/components/game/ErrorBoundary';
 import type { PlayerInput, GamePhase, PlayerState } from '../../../shared/types';
-import { CLASS_STATS, DIFFICULTY_INFO, ABILITY_MAX_COOLDOWNS } from '../../../shared/types';
+import { CLASS_STATS, DIFFICULTY_INFO, ABILITY_MAX_COOLDOWNS, monsterDisplay } from '../../../shared/types';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -163,14 +163,22 @@ function GamePage() {
   const prevHpRef = useRef<number | null>(null);
   const prevLevelRef = useRef<number | null>(null);
   const prevAttackingRef = useRef(false);
+  const gameOverBuiltRef = useRef(false);
+
+  // Cinematics and blocking overlays must actually suspend control. Previously only
+  // phase and the pause menu were checked, so the player kept moving — and could be
+  // killed — behind the prologue, boss intro, tutorial and floor transition screens.
+  const inputBlocked =
+    showPauseMenu || showPrologue || showBossIntro || showTutorial ||
+    showFloorTransition || showLoading || talentChoiceEvent !== null || shopOpenEvent !== null;
 
   const handleInput = useCallback(
     (input: PlayerInput) => {
-      if ((phase === 'playing' || phase === 'boss') && !showPauseMenu) {
+      if ((phase === 'playing' || phase === 'boss') && !inputBlocked) {
         sendInput(input);
       }
     },
-    [phase, sendInput, showPauseMenu],
+    [phase, sendInput, inputBlocked],
   );
 
   const { fps, isTouchDevice, setTouchCooldowns, setTouchInteractVisible, setTouchPlayerHp, rendererRef } = useGameLoop({
@@ -259,24 +267,10 @@ function GamePage() {
     prevMonsterCountRef.current = currentMonsterCount;
   }, [gameState?.monsters]);
 
-  // Floor transition from server event
-  useEffect(() => {
-    if (floorCompleteEvent !== null && floorCompleteEvent > previousFloorRef.current) {
-      const floorTime = Math.floor((Date.now() - floorStartTime.current) / 1000);
-      setFloorTransitionData({
-        completed: previousFloorRef.current,
-        next: floorCompleteEvent + 1,
-        kills: floorKillsRef.current,
-        time: floorTime,
-      });
-      setShowFloorTransition(true);
-      floorKillsRef.current = 0;
-      floorStartTime.current = Date.now();
-      previousFloorRef.current = floorCompleteEvent;
-    }
-  }, [floorCompleteEvent]);
-
-  // Floor transition detection
+  // Floor transition — driven solely by the authoritative dungeon floor.
+  // There used to be a second effect racing this one off `floorCompleteEvent`; the
+  // two disagreed about the `next` floor number and only this one restarts the
+  // music, so whichever won the race decided whether the soundtrack changed.
   useEffect(() => {
     if (!gameState) return;
     const currentFloor = gameState.dungeon.currentFloor;
@@ -478,9 +472,16 @@ function GamePage() {
     return () => window.removeEventListener('keydown', handler);
   }, [phase]);
 
-  // Handle game over
+  // Handle game over. `game_over` was never handled, so that phase dropped through
+  // to the live canvas with no summary and no way out.
   useEffect(() => {
-    if (phase === 'victory' || phase === 'defeat') {
+    if (phase === 'victory' || phase === 'defeat' || phase === 'game_over') {
+      // Snapshot once. gameState ticks at 20Hz, so without this guard the summary
+      // rebuilt its stats object every tick and the elapsed `time` kept climbing
+      // while the player was reading it.
+      if (gameOverBuiltRef.current) return;
+      gameOverBuiltRef.current = true;
+
       const localPlayer = gameState?.players[playerId];
       const allPlayers = gameState ? Object.values(gameState.players) : [];
       const maxScore = allPlayers.length > 0
@@ -497,19 +498,20 @@ function GamePage() {
         gold: p.goldCollected,
       }));
 
-      // Defeat cause
+      // Defeat cause — check every boss, not just Mor'Khan. Dying to any of the
+      // other four bosses used to report the generic "dungeon monsters" line.
       let defeatCause: string | undefined;
-      if (phase === 'defeat') {
+      if (phase !== 'victory') {
         const bossAlive = gameState
-          ? Object.values(gameState.monsters).find((m) => m.type === 'boss_demon' && m.alive)
+          ? Object.values(gameState.monsters).find((m) => m.type.startsWith('boss_') && m.alive)
           : null;
         defeatCause = bossAlive
-          ? 'Kral Mor\'Khan tarafından yenildiniz'
+          ? `${monsterDisplay(bossAlive.type).name} tarafından yenildiniz`
           : `Kat ${gameState?.dungeon.currentFloor ?? 1} zindan canavarları tarafından yenildiniz`;
       }
 
       setGameOverStats({
-        phase,
+        phase: phase === 'victory' ? 'victory' : 'defeat',
         kills: localPlayer?.score ?? 0,
         damage: localPlayer?.totalDamageDealt ?? 0,
         gold: localPlayer?.goldCollected ?? 0,
@@ -685,7 +687,11 @@ function GamePage() {
   // Only show WaitingScreen in pre-game phases (lobby, class_select).
   // During gameplay (playing/boss/victory/defeat), let the game view render
   // with DisconnectOverlay on top so the player doesn't lose the game view.
-  const hasActiveGameView = phase === 'playing' || phase === 'boss' || phase === 'victory' || phase === 'defeat';
+  // `shopping` and `game_over` belong here too — leaving them out meant a transient
+  // disconnect mid-shop replaced the whole screen with WaitingScreen and destroyed
+  // the open ShopScreen.
+  const hasActiveGameView = phase === 'playing' || phase === 'boss' || phase === 'victory'
+    || phase === 'defeat' || phase === 'shopping' || phase === 'game_over';
   if ((connectionState === 'connecting' || connectionState === 'disconnected') && !hasActiveGameView) {
     return (
       <WaitingScreen

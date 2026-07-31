@@ -1400,6 +1400,7 @@ export class GameRoom {
       monsterId: monster.state.id,
       killerId,
       xp: stats.xp,
+      monsterType: monster.state.type,
     });
 
     // Grant XP to killer (scaled for multiplayer to prevent over-leveling)

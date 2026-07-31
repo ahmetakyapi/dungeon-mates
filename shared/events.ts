@@ -3,6 +3,7 @@
 // ==========================================
 
 import type { PlayerClass } from './classes';
+import type { MonsterType } from './monsters';
 import type { TalentId, TalentDef } from './talents';
 import type { ShopItem } from './shop';
 import type { FloorModifier } from './floor-modifiers';
@@ -55,7 +56,7 @@ export type ServerEvents = {
   'game:damage': (data: DamageEventMeta) => void;
   'game:damage_batch': (data: DamageEventMeta[]) => void;
   'game:loot_pickup': (data: { playerId: string; loot: LootState }) => void;
-  'game:monster_killed': (data: { monsterId: string; killerId: string; xp: number }) => void;
+  'game:monster_killed': (data: { monsterId: string; killerId: string; xp: number; monsterType: MonsterType }) => void;
   'game:player_died': (data: { playerId: string }) => void;
   'game:room_cleared': (data: { roomId: number }) => void;
   'game:floor_complete': (data: { floor: number }) => void;

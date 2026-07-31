@@ -8,7 +8,7 @@
 import type { GameState, PlayerState, MonsterState, ProjectileState, LootState, TileType, DamageType } from '../../../shared/types';
 import { TILE_SIZE, CLASS_STATS, MONSTER_STATS, LOOT_TABLE } from '../../../shared/types';
 import { Camera } from './Camera';
-import { SpriteRenderer } from './SpriteRenderer';
+import { SpriteRenderer, isTorchWall, TORCH_ANCHOR_X, TORCH_ANCHOR_Y } from './SpriteRenderer';
 import { ParticleSystem } from './ParticleSystem';
 
 // Logical render resolution
@@ -877,6 +877,11 @@ export class GameRenderer {
     // 10. Render damage numbers
     this.renderDamageNumbers(ctx, camX, camY);
 
+    // Pop the zoom transform here — everything past this point is screen-space.
+    // These passes all fillRect(0, 0, logicalW, logicalH); under the boss zoom of
+    // 0.85 that covered only ~85% of the screen and left raw, ungraded borders.
+    ctx.restore();
+
     // 10b. Boss health bar at top of screen
     if (isBossPhase) {
       this.drawBossHealthBar(ctx, monstersArr);
@@ -962,8 +967,6 @@ export class GameRenderer {
       ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
       ctx.globalAlpha = 1;
     }
-
-    ctx.restore(); // Pop zoom transform
 
     // --- Scale offscreen to main canvas ---
     this.ctx.imageSmoothingEnabled = false;
@@ -1348,17 +1351,18 @@ export class GameRenderer {
       ctx.drawImage(this._torchLightCanvas, sx - r, sy - r, r * 2, r * 2);
       ctx.globalAlpha = 1;
 
-      // Enhanced flame sprite (5x8px, animated 3 patterns)
-      this.drawEnhancedFlame(ctx, Math.floor(sx) - 2, Math.floor(sy) - 8, this.torchFlameFrame, i);
+      // Enhanced flame sprite (5x7px, animated 3 patterns). Sits on the bracket that
+      // drawWallTorch painted — the old -8 offset floated it clear of the tile.
+      this.drawEnhancedFlame(ctx, Math.floor(sx) - 2, Math.floor(sy) - 4, this.torchFlameFrame, i);
 
       // Smoke wisps above flame (2-3 gray pixels rising)
       const smokeAlpha = 0.2 + Math.sin(this.animFrame * 0.5 + i * 2) * 0.1;
       ctx.globalAlpha = smokeAlpha;
       ctx.fillStyle = '#6b7280';
-      ctx.fillRect(Math.floor(sx) + (this.torchFlameFrame % 2), Math.floor(sy) - 11, 1, 1);
-      ctx.fillRect(Math.floor(sx) - 1 + ((this.torchFlameFrame + 1) % 2), Math.floor(sy) - 13, 1, 1);
+      ctx.fillRect(Math.floor(sx) + (this.torchFlameFrame % 2), Math.floor(sy) - 7, 1, 1);
+      ctx.fillRect(Math.floor(sx) - 1 + ((this.torchFlameFrame + 1) % 2), Math.floor(sy) - 9, 1, 1);
       if (this.torchFlameFrame === 2) {
-        ctx.fillRect(Math.floor(sx) + 1, Math.floor(sy) - 14, 1, 1);
+        ctx.fillRect(Math.floor(sx) + 1, Math.floor(sy) - 10, 1, 1);
       }
       ctx.globalAlpha = 1;
 
@@ -1472,15 +1476,12 @@ export class GameRenderer {
       if (!row) continue;
       for (let tx = startX; tx < endX; tx++) {
         if (row[tx] !== 'wall') continue;
-        // Same hash logic as SpriteRenderer to match torch placement
-        const sx = tx * TILE_SIZE;
-        const sy = ty * TILE_SIZE;
-        const hash = this.tileHash(Math.floor(sx / TILE_SIZE + 1000), Math.floor(sy / TILE_SIZE + 1000));
-        if ((hash >> 8) % 7 === 0) {
-          // Torch at this wall tile
+        // Placement comes from SpriteRenderer so lights can never drift away from the
+        // painted torches (this used to re-derive it with a different modulo).
+        if (isTorchWall(tx, ty)) {
           this.torchPositions.push({
-            x: sx + 7, // center of torch drawing
-            y: sy + 3,
+            x: tx * TILE_SIZE + TORCH_ANCHOR_X,
+            y: ty * TILE_SIZE + TORCH_ANCHOR_Y,
           });
         }
       }
