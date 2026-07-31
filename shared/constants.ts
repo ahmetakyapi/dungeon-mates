@@ -13,6 +13,13 @@ export const DUNGEON_WIDTH = 64;
 export const DUNGEON_HEIGHT = 64;
 export const MAX_PLAYERS = 4;
 export const ROOM_CODE_LENGTH = 4;
+
+// --- Savunma Formülü ---
+// Hasar çarpanı = DEF_K / (DEF_K + defense).
+// Düz çıkarma (damage - defense) yerine azalan-getiri: yüksek savunma her zaman
+// anlamlı kalır ama hiçbir zaman hasarı 1'e sabitlemez.
+// def 10 → %77 hasar alır, def 30 → %53, def 75 → %31.
+export const DEF_K = 34;
 // --- XP Eğrisi (exponential) ---
 // Level N→N+1 için gereken XP: floor(40 * 1.35^(N-1))
 export function xpForLevel(level: number): number {

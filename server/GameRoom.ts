@@ -116,6 +116,11 @@ const MONSTER_POOL_BY_FLOOR: Record<number, WeightedMonster[]> = {
   ],
 };
 
+// A monster stays awake while any player is this close, even outside its spawn room.
+// Slightly beyond a screen width so nothing visibly pops into motion.
+const MONSTER_ACTIVATION_RADIUS = 14; // tiles
+const MONSTER_ACTIVATION_RADIUS_SQ = MONSTER_ACTIVATION_RADIUS * MONSTER_ACTIVATION_RADIUS;
+
 /** Pick a random monster type from a weighted pool. */
 function pickWeightedMonster(pool: WeightedMonster[]): MonsterType {
   const totalWeight = pool.reduce((sum, entry) => sum + entry.weight, 0);
@@ -218,6 +223,19 @@ export class GameRoom {
     this.floorAttackMultiplier = 1.0;
     this.playerCount = 1;
     this.onEmpty = onEmpty;
+  }
+
+  /** True if any alive player is within MONSTER_ACTIVATION_RADIUS of this monster. */
+  private isMonsterNearAnyPlayer(monster: Monster): boolean {
+    const mx = monster.state.position.x;
+    const my = monster.state.position.y;
+    for (const p of this.players.values()) {
+      if (!p.state.alive) continue;
+      const dx = p.state.position.x - mx;
+      const dy = p.state.position.y - my;
+      if (dx * dx + dy * dy <= MONSTER_ACTIVATION_RADIUS_SQ) return true;
+    }
+    return false;
   }
 
   private posKey(x: number, y: number): string {
@@ -553,6 +571,10 @@ export class GameRoom {
 
     for (const room of this.rooms) {
       if (room.isStartRoom) continue;
+      // Rest rooms are pre-marked cleared by the generator as a safe haven. Spawning
+      // monsters in them anyway produced a room that was full of enemies yet already
+      // counted as cleared, which falsely opened the full-clear stairs gate.
+      if (room.category === 'rest') continue;
 
       if (room.isBossRoom) {
         // Boss room: spawn boss type based on floor
@@ -905,14 +927,16 @@ export class GameRoom {
         if (monster.state.burnTicks > 0) {
           const burnDot = 4 + Math.floor(this.currentFloor * 0.8);
           const actual = monster.takeDamage(burnDot, 'normal', 'physical');
-          this.queueDamage(monsterId, actual, 'burning', { damageType: 'fire', shake: 0.05 });
-          if (!monster.state.alive) this.handleMonsterKilled(monster, 'burning');
+          const burnSrc = monster.burnSourceId ?? 'burning';
+          this.queueDamage(monsterId, actual, burnSrc, { damageType: 'fire', shake: 0.05 });
+          if (!monster.state.alive) this.handleMonsterKilled(monster, burnSrc);
         }
         if (monster.state.poisonTicks > 0) {
           const poisonDot = 3 + Math.floor(this.currentFloor * 0.5);
           const actual = monster.takeDamage(poisonDot, 'normal', 'physical');
-          this.queueDamage(monsterId, actual, 'poison', { damageType: 'poison', shake: 0.05 });
-          if (!monster.state.alive) this.handleMonsterKilled(monster, 'poison');
+          const poisonSrc = monster.poisonSourceId ?? 'poison';
+          this.queueDamage(monsterId, actual, poisonSrc, { damageType: 'poison', shake: 0.05 });
+          if (!monster.state.alive) this.handleMonsterKilled(monster, poisonSrc);
         }
       }
     }
@@ -928,7 +952,10 @@ export class GameRoom {
 
     for (const [monsterId, monster] of this.monsters) {
       if (!monster.state.alive) continue;
-      if (!activeRoomIds.has(monster.roomId)) continue;
+      // Activate on spawn-room occupancy OR proximity to any living player.
+      // Room-only activation froze any monster that chased a player into a corridor
+      // (corridors belong to no room), which made corridor-kiting strictly dominant.
+      if (!activeRoomIds.has(monster.roomId) && !this.isMonsterNearAnyPlayer(monster)) continue;
 
       const attackResult = monster.update(alivePlayers, this.tiles);
 
@@ -1008,10 +1035,10 @@ export class GameRoom {
         }
       }
 
-      // Side boss stun targets (stone warden petrify)
+      // Side boss stun targets (stone warden petrify, spider queen web)
       for (const stunTarget of monster.stunTargets) {
         const stunPlayer = this.players.get(stunTarget.playerId);
-        if (stunPlayer && stunPlayer.state.alive) {
+        if (stunPlayer && stunPlayer.state.alive && stunPlayer.canBeCrowdControlled()) {
           stunPlayer.state.stunTicks = Math.max(stunPlayer.state.stunTicks, stunTarget.ticks);
         }
       }
@@ -1137,8 +1164,13 @@ export class GameRoom {
                 if (comboCrit) projDmg = Math.floor(projDmg * 1.2); // +20% combo bonus
               }
             }
+            // Mage co-op aura (+15% elemental damage). getElementalDamageMult()
+            // existed but had no callers, so the mage's aura was purely cosmetic.
+            if (owner && dmgType !== 'physical') {
+              projDmg = Math.floor(projDmg * owner.getElementalDamageMult());
+            }
             const severity: 'normal' | 'crit' | 'heavy' = isCrit ? 'crit' : 'normal';
-            const actualDamage = monster.takeDamage(projDmg, severity, dmgType);
+            const actualDamage = monster.takeDamage(projDmg, severity, dmgType, projectile.state.ownerId);
             if (owner) {
               owner.state.totalDamageDealt += actualDamage;
               owner.applyLifesteal(actualDamage);

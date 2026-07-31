@@ -13,6 +13,7 @@ import {
   CLASS_STATS,
   PLAYER_SPEED,
   TICK_RATE,
+  DEF_K,
   TALENT_TREE,
   levelFromXp,
   xpForLevel,
@@ -33,7 +34,10 @@ export type ServerUltimateResult =
   | { type: 'divine_intervention'; healAmount: number; immunityTicks: number };
 
 const ULTIMATE_UNLOCK_LEVEL = 5;
-const ULTIMATE_MANA_COST = 60;
+// Ultimate cost is a fraction of the class's own mana pool. A flat 60 made the
+// ultimate literally uncastable for warrior (30 max mana) and archer (50 max, with
+// no maxMana talent anywhere in its tree) — two of four classes could never use it.
+const ULTIMATE_MANA_COST_RATIO = 0.6;
 const ULTIMATE_BASE_CD_TICKS = 45 * TICK_RATE; // 45s
 const IMMUNITY_TICKS_DEFAULT = 3 * TICK_RATE;
 
@@ -218,6 +222,20 @@ export class Player {
 
   getRadius(): number {
     return PLAYER_RADIUS;
+  }
+
+  /**
+   * Whether a stun/root may land right now. Boss crowd control is applied by writing
+   * `stunTicks` directly rather than going through takeDamage, so without this check
+   * petrify and web bypassed dodge i-frames and ultimate immunity entirely.
+   */
+  canBeCrowdControlled(): boolean {
+    return !this.dodging && this.immunityTicks <= 0;
+  }
+
+  /** Ultimate mana cost, scaled to this class's own pool. */
+  private getUltimateManaCost(costReduction: number): number {
+    return Math.floor(this.state.maxMana * ULTIMATE_MANA_COST_RATIO * costReduction);
   }
 
   selectClass(playerClass: PlayerClass): void {
@@ -406,11 +424,16 @@ export class Player {
       const tickCooldown = Math.ceil(cooldown / (1000 / TICK_RATE));
 
       if (currentTick - this.state.lastAttackTime >= tickCooldown) {
-        this.attackAnimTicks = 4;
-        this.state.attacking = true;
-        this.state.lastAttackTime = currentTick;
         const aimDir = this.findNearestTarget(monsters);
         projectile = this.createAttack(aimDir ?? undefined);
+        // Only commit the cooldown and swing animation if the attack actually
+        // happened. createAttack returns null when mage/healer lack mana, and
+        // committing first burned the cooldown on a swing that never fired.
+        if (projectile) {
+          this.attackAnimTicks = 4;
+          this.state.attacking = true;
+          this.state.lastAttackTime = currentTick;
+        }
       }
     }
 
@@ -593,7 +616,10 @@ export class Player {
       damage = Math.floor(damage * (1 - this.auraBuffs.defense));
     }
 
-    const effectiveDamage = Math.max(1, damage - this.state.defense);
+    // Hybrid mitigation — see DEF_K in shared/constants.ts. Flat subtraction let
+    // stacked defense (warrior Kale + shop reaches ~76) reduce every hit to the
+    // max(1, …) floor, which made the whole late game damage-immune.
+    const effectiveDamage = Math.max(1, Math.floor(damage * (DEF_K / (DEF_K + this.state.defense))));
     this.state.hp -= effectiveDamage;
 
     // Thorns hasarı
@@ -636,12 +662,17 @@ export class Player {
     return !this.state.alive && this.respawnTimer > 0;
   }
 
-  /** Revive this player (co-op mechanic) — reviver must channel for ~3 seconds */
+  /**
+   * Revive this player (co-op mechanic). Must return MORE than the 5s auto-respawn
+   * (50% HP) or the mechanic is strictly worse than standing still and waiting,
+   * which is what the old 30% did.
+   */
   revive(): void {
     if (this.state.alive) return;
     this.state.alive = true;
-    this.state.hp = Math.floor(this.state.maxHp * 0.3); // Revive with 30% HP
-    this.state.mana = Math.floor(this.state.maxMana * 0.2);
+    this.state.hp = Math.floor(this.state.maxHp * 0.65);
+    this.state.mana = Math.floor(this.state.maxMana * 0.5);
+    this.immunityTicks = Math.max(this.immunityTicks, TICK_RATE); // 1s to reposition
     this.slowMultiplier = 1;
     this.slowTicks = 0;
     this.respawnTimer = 0;
@@ -923,7 +954,10 @@ export class Player {
             x: this.state.position.x + dir.x * 0.5,
             y: this.state.position.y + dir.y * 0.5,
           };
-          arrows.push(new Projectile(this.state.id, spawnPos, dir, this.state.attack, 'arrow'));
+          // abilityDamageBonus was omitted here, which left the archer's whole
+          // Tuzakçı branch (built entirely around ability damage) half-inert.
+          const arrowDmg = Math.floor(this.state.attack * (1 + this.talentBonuses.abilityDamageBonus));
+          arrows.push(new Projectile(this.state.id, spawnPos, dir, arrowDmg, 'arrow'));
         }
         return { type: 'arrow_rain', projectiles: arrows };
       }
@@ -949,7 +983,7 @@ export class Player {
     if (this.state.level < ULTIMATE_UNLOCK_LEVEL) return null;
     if (this.ultimateCooldownTicks > 0) return null;
     const costReduction = 1 - this.talentBonuses.manaCostReduction;
-    const cost = Math.floor(ULTIMATE_MANA_COST * costReduction);
+    const cost = this.getUltimateManaCost(costReduction);
     if (this.state.mana < cost) return null;
 
     this.state.mana -= cost;
@@ -1059,7 +1093,7 @@ export class Player {
       poisoned: false, // will be set by GameRoom if poison aura active
       slowed: this.slowTicks > 0,
       ultimateCooldownTicks: this.ultimateCooldownTicks,
-      ultimateReady: this.state.level >= ULTIMATE_UNLOCK_LEVEL && this.ultimateCooldownTicks <= 0 && this.state.mana >= Math.floor(ULTIMATE_MANA_COST * (1 - this.talentBonuses.manaCostReduction)),
+      ultimateReady: this.state.level >= ULTIMATE_UNLOCK_LEVEL && this.ultimateCooldownTicks <= 0 && this.state.mana >= this.getUltimateManaCost(1 - this.talentBonuses.manaCostReduction),
       auraFrom: auraParts.join(','),
     };
   }

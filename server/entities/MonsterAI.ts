@@ -90,9 +90,12 @@ export interface MonsterContext {
   petrifyGazeCooldown: number;
   shieldActive: boolean;
   shieldTicks: number;
+  shieldCooldownTicks: number;
   flameChargeCooldown: number;
   flameChargeTimer: number;
   flameChargeDir: Vec2;
+  /** Players already hit by the current charge (reset when a new charge starts) */
+  chargeHitPlayerIds: string[];
 
   // Movement helpers — bound methods from Monster class
   moveToward(target: Vec2, speed: number, tiles: TileType[][]): void;

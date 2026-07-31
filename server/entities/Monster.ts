@@ -7,6 +7,7 @@ import {
   DamageType,
   MONSTER_STATS,
   TICK_RATE,
+  DEF_K,
   DUNGEON_WIDTH,
   DUNGEON_HEIGHT,
 } from '../../shared/types';
@@ -48,6 +49,9 @@ import {
 
 const MONSTER_RADIUS_BASE = 0.4;
 
+// How far a monster may drift from its spawn before it walks home (squared, tiles).
+const LEASH_RANGE_SQ = 10 * 10;
+
 // Premium combat feel
 const MON_HITSTOP_NORMAL_TICKS = 2;
 const MON_HITSTOP_CRIT_TICKS = 3;
@@ -74,9 +78,12 @@ export class Monster implements MonsterContext {
   public attackCooldown: number;
   public radius: number;
   public roomId: number;
+  /** Where this monster spawned — leash anchor */
+  public readonly spawnPosition: Vec2;
   public shouldSummon: boolean;
 
   public scaledAttack: number;
+  public scaledDefense: number;
   private slowTicks: number;
   public slowMultiplier: number;
 
@@ -99,9 +106,15 @@ export class Monster implements MonsterContext {
   public petrifyGazeCooldown: number;
   public shieldActive: boolean;
   public shieldTicks: number;
+  public shieldCooldownTicks: number;
   public flameChargeCooldown: number;
   public flameChargeTimer: number;
   public flameChargeDir: Vec2;
+  /** Players already hit by the current charge — prevents per-tick multi-hits */
+  public chargeHitPlayerIds: string[];
+  /** Who applied the active burn/poison — used to credit XP on DoT kills */
+  public burnSourceId: string | null;
+  public poisonSourceId: string | null;
   /** AoE hits to apply this tick (populated by boss AI, consumed by GameRoom) */
   public aoeHits: { playerId: string; damage: number }[];
   /** Stun targets to apply this tick */
@@ -137,6 +150,7 @@ export class Monster implements MonsterContext {
 
     this.monsterType = type;
     this.scaledAttack = stats.attack;
+    this.scaledDefense = stats.defense;
     this.aiState = 'idle';
     this.wanderDir = { x: 0, y: 0 };
     this.wanderTimer = 0;
@@ -146,6 +160,7 @@ export class Monster implements MonsterContext {
     this.attackCooldown = 0;
     this.radius = MONSTER_RADIUS_BASE * stats.size;
     this.roomId = roomId;
+    this.spawnPosition = { x: position.x, y: position.y };
     this.shouldSummon = false;
     this.slowTicks = 0;
     this.slowMultiplier = 1;
@@ -164,9 +179,13 @@ export class Monster implements MonsterContext {
     this.petrifyGazeCooldown = STONE_PETRIFY_COOLDOWN;
     this.shieldActive = false;
     this.shieldTicks = 0;
+    this.shieldCooldownTicks = 0;
     this.flameChargeCooldown = FLAME_CHARGE_COOLDOWN;
     this.flameChargeTimer = 0;
     this.flameChargeDir = { x: 0, y: 0 };
+    this.chargeHitPlayerIds = [];
+    this.burnSourceId = null;
+    this.poisonSourceId = null;
     this.aoeHits = [];
     this.stunTargets = [];
   }
@@ -176,6 +195,9 @@ export class Monster implements MonsterContext {
     this.state.maxHp = scaledHp;
     this.state.hp = scaledHp;
     this.scaledAttack = Math.floor(MONSTER_STATS[this.monsterType].attack * attackMultiplier);
+    // Defense scales alongside attack — otherwise late-game player damage faces
+    // floor-1 mitigation and every hit collapses to raw damage.
+    this.scaledDefense = Math.floor(MONSTER_STATS[this.monsterType].defense * attackMultiplier);
   }
 
   scaleForSolo(): void {
@@ -193,8 +215,10 @@ export class Monster implements MonsterContext {
     const atkScale = 1 + (playerCount - 1) * 0.15;
     this.state.maxHp = Math.floor(this.state.maxHp * hpScale);
     this.state.hp = this.state.maxHp;
-    const stats = MONSTER_STATS[this.state.type];
-    this.scaledAttack = Math.floor(stats.attack * atkScale);
+    // Compound onto the already floor-scaled attack. Recomputing from base stats
+    // here silently discarded scaleForFloor's multiplier, which froze co-op monster
+    // damage near floor-1 values while solo kept the full floor scaling.
+    this.scaledAttack = Math.floor(this.scaledAttack * atkScale);
   }
 
   /** Elite canavar yap: 2.5x HP, 1.5x saldırı, 1.2x boyut */
@@ -203,6 +227,7 @@ export class Monster implements MonsterContext {
     this.state.maxHp = Math.floor(this.state.maxHp * 2.5);
     this.state.hp = this.state.maxHp;
     this.scaledAttack = Math.floor(this.scaledAttack * 1.5);
+    this.scaledDefense = Math.floor(this.scaledDefense * 1.4);
     this.radius *= 1.2;
   }
 
@@ -287,6 +312,19 @@ export class Monster implements MonsterContext {
     }
 
     const nearest = this.findNearestPlayer(players);
+
+    // Leash: with nobody in aggro range and the monster dragged far from where it
+    // spawned, walk back instead of idling wherever the last chase ended.
+    if (!this.monsterType.startsWith('boss_') && (!nearest || nearest.distance > DETECTION_RANGE)) {
+      const hdx = this.spawnPosition.x - this.state.position.x;
+      const hdy = this.spawnPosition.y - this.state.position.y;
+      if (hdx * hdx + hdy * hdy > LEASH_RANGE_SQ) {
+        this.aiState = 'idle';
+        this.state.targetPlayerId = null;
+        this.moveToward(this.spawnPosition, MONSTER_STATS[this.monsterType].speed * 0.8, tiles);
+        return null;
+      }
+    }
 
     switch (this.monsterType) {
       case 'slime':
@@ -468,7 +506,12 @@ export class Monster implements MonsterContext {
     return this.monsterType === 'wraith' && this.phaseActive;
   }
 
-  takeDamage(damage: number, severity: 'normal' | 'crit' | 'heavy' = 'normal', damageType: DamageType = 'physical'): number {
+  takeDamage(
+    damage: number,
+    severity: 'normal' | 'crit' | 'heavy' = 'normal',
+    damageType: DamageType = 'physical',
+    sourceId?: string,
+  ): number {
     if (!this.state.alive) return 0;
 
     // Wraith is invulnerable while phased
@@ -479,13 +522,18 @@ export class Monster implements MonsterContext {
       damage = Math.floor(damage * (1 - STONE_SHIELD_DR));
     }
 
-    const stats = MONSTER_STATS[this.monsterType];
-    const effectiveDamage = Math.max(1, damage - stats.defense);
+    // Hybrid mitigation: flat subtraction bottomed out at max(1, …) and made high
+    // defense meaningless once player damage scaled. Diminishing-returns keeps
+    // armour relevant at every tier without ever hard-flooring damage.
+    const effectiveDamage = Math.max(1, Math.floor(damage * (DEF_K / (DEF_K + this.scaledDefense))));
     this.state.hp -= effectiveDamage;
 
-    // Elemental status application
+    // Elemental status application. Remember who applied the DoT so its ticks can
+    // be credited back — DoT kills previously passed a literal 'burning'/'poison'
+    // as killerId, which resolved to no player and silently awarded zero XP.
     if (damageType === 'fire') {
       this.state.burnTicks = Math.max(this.state.burnTicks, 40); // 2s burn
+      if (sourceId) this.burnSourceId = sourceId;
     } else if (damageType === 'ice') {
       // Ice slows; if already burning, triggers freeze (Faz 3 elemental reaction)
       if (this.state.burnTicks > 0) {
@@ -496,6 +544,7 @@ export class Monster implements MonsterContext {
       }
     } else if (damageType === 'poison') {
       this.state.poisonTicks = Math.max(this.state.poisonTicks, 60); // 3s poison
+      if (sourceId) this.poisonSourceId = sourceId;
     }
 
     // Hit-stop by severity

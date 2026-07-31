@@ -122,8 +122,13 @@ export class DungeonGenerator {
       this.forceCreateRooms(root);
     }
 
-    // Trim to max
+    // Trim to max. The dropped rooms' tiles were already carved, so uncarve them —
+    // otherwise they stay as walkable floor belonging to no room: no monsters spawn
+    // there, the tile→room grid returns -1, and standing in them activates nothing.
     if (this.rooms.length > targetMax) {
+      for (let i = targetMax; i < this.rooms.length; i++) {
+        this.uncarveRoom(this.rooms[i]);
+      }
       this.rooms = this.rooms.slice(0, targetMax);
     }
 
@@ -141,8 +146,8 @@ export class DungeonGenerator {
     // Place walls around floors
     this.placeWalls();
 
-    // Place doors, chests, stairs
-    this.placeDoors();
+    // Doors are placed by designateSpecialRooms(); calling it again here carved the
+    // same doorways twice.
     this.placeChests();
     this.placeStairs(config.hasBoss);
 
@@ -444,6 +449,17 @@ export class DungeonGenerator {
 
     // Place doors at room edges where corridors connect
     this.placeDoors();
+  }
+
+  /** Return a trimmed room's carved tiles to void so no orphan floor area remains. */
+  private uncarveRoom(room: DungeonRoom): void {
+    for (let y = room.y; y < room.y + room.height; y++) {
+      const row = this.tiles[y];
+      if (!row) continue;
+      for (let x = room.x; x < room.x + room.width; x++) {
+        if (row[x] === 'floor') row[x] = 'void';
+      }
+    }
   }
 
   private placeDoors(): void {

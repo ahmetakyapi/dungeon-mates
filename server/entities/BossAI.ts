@@ -29,12 +29,18 @@ export const FORGE_SLAM_RANGE = 2.5; // tiles
 export const FORGE_SLAM_DAMAGE_MULT = 1.8;
 export const FORGE_OVERHEAT_HP = 0.5; // enrage at 50% HP
 
+// --- Spider Queen constants ---
+// Phase-2 web roots every player in range. Kept well under the phase-2 web cooldown
+// (SPIDER_WEB_COOLDOWN * 0.5 = 35 ticks) so there is always a free window between webs.
+export const SPIDER_WEB_ROOT_TICKS = 18; // 0.9s root vs 1.75s cooldown
+
 // --- Stone Warden constants ---
 export const STONE_PETRIFY_COOLDOWN = 150; // ticks — petrify gaze every 7.5s
 export const STONE_PETRIFY_RANGE = 4; // tiles
 export const STONE_PETRIFY_STUN_TICKS = 40; // 2 seconds
 export const STONE_SHIELD_HP = 0.4; // rock shield at 40% HP
 export const STONE_SHIELD_DURATION = 80; // 4 seconds
+export const STONE_SHIELD_COOLDOWN = 200; // 10 seconds between shields
 export const STONE_SHIELD_DR = 0.7; // %70 damage reduction
 
 // --- Flame Knight constants ---
@@ -71,13 +77,15 @@ export function updateBossSpiderQueen(
   if (m.webCooldown <= 0 && nearest && nearest.distance <= DETECTION_RANGE) {
     m.webCooldown = webCd;
     if (phase2) {
-      // Web all nearby players
+      // Web all nearby players. Root duration MUST stay below webCd, otherwise the
+      // next web lands before the previous root expires and the fight becomes a
+      // permanent, unbreakable stun-lock.
       for (const player of players) {
         if (!player.alive) continue;
         const dx = player.position.x - m.state.position.x;
         const dy = player.position.y - m.state.position.y;
         if (Math.sqrt(dx * dx + dy * dy) <= DETECTION_RANGE) {
-          m.stunTargets.push({ playerId: player.id, ticks: SPIDER_WEB_SLOW_DURATION });
+          m.stunTargets.push({ playerId: player.id, ticks: SPIDER_WEB_ROOT_TICKS });
         }
       }
     } else {
@@ -275,17 +283,22 @@ export function updateBossStoneWarden(
   if (m.petrifyGazeCooldown > 0) m.petrifyGazeCooldown -= 1;
   if (m.slamCooldown > 0) m.slamCooldown -= 1;
 
-  // Rock shield — activate at 40% HP, lasts 4 seconds, recharges
+  // Rock shield — activate at 40% HP, lasts 4 seconds, recharges.
+  // Cooldown is tracked in its own counter; the old version keyed off
+  // `shieldTicks <= -200`, but shieldTicks stops decrementing at 0 and can never
+  // go negative, so the shield (and STONE_SHIELD_DR) never activated at all.
   if (m.shieldActive) {
     m.shieldTicks -= 1;
     if (m.shieldTicks <= 0) {
       m.shieldActive = false;
+      m.shieldCooldownTicks = STONE_SHIELD_COOLDOWN;
     }
+  } else if (m.shieldCooldownTicks > 0) {
+    m.shieldCooldownTicks -= 1;
   }
 
   const hpRatio = m.state.hp / m.state.maxHp;
-  if (!m.shieldActive && hpRatio <= STONE_SHIELD_HP && m.shieldTicks <= -200) {
-    // Activate shield (cooldown tracked via negative shieldTicks)
+  if (!m.shieldActive && m.shieldCooldownTicks <= 0 && hpRatio <= STONE_SHIELD_HP) {
     m.shieldActive = true;
     m.shieldTicks = STONE_SHIELD_DURATION;
   }
@@ -349,12 +362,16 @@ export function updateBossFlameKnight(
     const speed = stats.speed * FLAME_CHARGE_SPEED_MULT / TICK_RATE;
     m.tryMove(m.flameChargeDir.x * speed, m.flameChargeDir.y * speed, tiles);
 
-    // Hit players during charge
+    // Hit players during charge — once per player per charge. Without this guard the
+    // charge pushed an aoeHit every tick it overlapped, landing up to 15 separate
+    // attack*1.5 hits in 0.75s (an unavoidable instant kill on later floors).
     for (const player of players) {
       if (!player.alive) continue;
+      if (m.chargeHitPlayerIds.includes(player.id)) continue;
       const dx = player.position.x - m.state.position.x;
       const dy = player.position.y - m.state.position.y;
       if (Math.sqrt(dx * dx + dy * dy) <= ATTACK_RANGE * 1.5) {
+        m.chargeHitPlayerIds.push(player.id);
         m.aoeHits.push({ playerId: player.id, damage: Math.floor(m.scaledAttack * 1.5) });
       }
     }
@@ -384,6 +401,7 @@ export function updateBossFlameKnight(
   ) {
     m.flameChargeCooldown = FLAME_CHARGE_COOLDOWN;
     m.flameChargeTimer = FLAME_CHARGE_DURATION;
+    m.chargeHitPlayerIds.length = 0;
     const dx = nearest.position.x - m.state.position.x;
     const dy = nearest.position.y - m.state.position.y;
     const dist = nearest.distance;
