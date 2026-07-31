@@ -8,10 +8,11 @@ import type { MonsterType } from './monsters';
 import type { AttackPhase, TelegraphKind } from './combat';
 import type { LootType } from './loot';
 import type { FloorModifier } from './floor-modifiers';
+import type { EliteAffix } from './elites';
 
 // --- Enum'lar ---
 export type GamePhase = 'lobby' | 'class_select' | 'playing' | 'boss' | 'victory' | 'defeat' | 'game_over' | 'shopping';
-export type TileType = 'floor' | 'wall' | 'door' | 'stairs' | 'chest' | 'void';
+export type TileType = 'floor' | 'wall' | 'door' | 'door_locked' | 'stairs' | 'chest' | 'void';
 export type Direction = 'up' | 'down' | 'left' | 'right';
 
 // --- Entity Tipleri ---
@@ -82,6 +83,8 @@ export type MonsterState = {
   targetPlayerId: string | null;
   facing: Direction;
   isElite: boolean;
+  /** Elite modifier, '' when not an elite. Drives both behaviour and visuals. */
+  eliteAffix: EliteAffix;
   bossPhase: number;
   // Visual state for client rendering
   shieldActive: boolean;
@@ -148,6 +151,10 @@ export type DungeonRoom = {
   centerY: number;
   isBossRoom: boolean;
   isStartRoom: boolean;
+  /** Combat is sealed in this room — monsters cannot leave until it is cleared. */
+  locked: boolean;
+  /** Remaining reinforcement waves for this encounter. */
+  wavesRemaining: number;
   category: RoomCategory;
   cleared: boolean;
   monsterIds: string[];

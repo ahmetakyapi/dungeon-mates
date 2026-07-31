@@ -6,7 +6,7 @@
 // ==========================================
 
 import type { GameState, PlayerState, MonsterState, ProjectileState, LootState, TileType, DamageType } from '../../../shared/types';
-import { TILE_SIZE, CLASS_STATS, MONSTER_STATS, LOOT_TABLE, TELEGRAPH_NONE, TELEGRAPH_CONE, TELEGRAPH_LINE } from '../../../shared/types';
+import { TILE_SIZE, CLASS_STATS, MONSTER_STATS, LOOT_TABLE, ELITE_AFFIXES, TELEGRAPH_NONE, TELEGRAPH_CONE, TELEGRAPH_LINE } from '../../../shared/types';
 import { Camera } from './Camera';
 import { SpriteRenderer, isTorchWall, TORCH_ANCHOR_X, TORCH_ANCHOR_Y } from './SpriteRenderer';
 import { ParticleSystem } from './ParticleSystem';
@@ -1978,12 +1978,16 @@ export class GameRenderer {
       const isAttacking = monster.attackPhase === 'active' || monster.attackPhase === 'recovery';
       const isWindingUp = monster.attackPhase === 'windup';
 
-      // Elite golden glow — drawn before monster sprite
+      // Elite glow, tinted by affix so the threat is identifiable before it acts —
+      // a vampiric elite and a volatile one demand very different play.
       if (monster.isElite) {
+        const affixColor = monster.eliteAffix
+          ? (ELITE_AFFIXES[monster.eliteAffix]?.color ?? '#fbbf24')
+          : '#fbbf24';
         const glowAlpha = 0.3 + Math.sin(this.animFrame * 0.15) * 0.15;
         ctx.save();
         ctx.globalAlpha = glowAlpha;
-        ctx.shadowColor = '#fbbf24';
+        ctx.shadowColor = affixColor;
         ctx.shadowBlur = 12;
         ctx.fillStyle = 'rgba(251, 191, 36, 0.15)';
         ctx.beginPath();

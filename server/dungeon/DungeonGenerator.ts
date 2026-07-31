@@ -331,6 +331,8 @@ export class DungeonGenerator {
       isStartRoom: false,
       category: 'normal',
       cleared: false,
+      locked: false,
+      wavesRemaining: 0,
       monsterIds: [],
     });
   }

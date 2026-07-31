@@ -21,6 +21,10 @@ const seen = {
   lastMonsterCount: 0,
   lastPos: '',
   lastNearest: 0,
+  lockedDoorsSeen: false,
+  wavesSpawned: 0,
+  eliteAffixes: new Set(),
+  roomsCleared: 0,
 };
 
 let myId = '';
@@ -44,6 +48,8 @@ socket.on('game:phase_change', (d) => {
 });
 
 socket.on('game:monster_killed', () => { seen.kills += 1; });
+socket.on('game:wave_spawned', () => { seen.wavesSpawned += 1; });
+socket.on('game:room_cleared', () => { seen.roomsCleared += 1; });
 socket.on('game:damage_batch', (batch) => {
   for (const d of batch) {
     if (d.targetId === myId) seen.monsterDamageToPlayer += d.damage;
@@ -107,6 +113,13 @@ socket.on('game:state', (state) => {
     if (m.telegraphKind !== 0) seen.telegraphKinds.add(m.telegraphKind);
     if (m.staggerTicks > 0) seen.staggerObserved = true;
   }
+  for (const id in state.monsters) {
+    const m = state.monsters[id];
+    if (m.isElite && m.eliteAffix) seen.eliteAffixes.add(m.eliteAffix);
+  }
+  for (const row of state.dungeon.tiles) {
+    if (row.includes('door_locked')) { seen.lockedDoorsSeen = true; break; }
+  }
   for (const id in state.projectiles) {
     seen.projectileTypes.add(state.projectiles[id].type);
   }
@@ -152,6 +165,7 @@ setTimeout(() => {
   console.log('--- telegraph kinds observed:', [...seen.telegraphKinds].join(', '));
   console.log('--- projectile types observed:', [...seen.projectileTypes].join(', '));
   console.log('--- monsters alive:', seen.lastMonsterCount, '| my pos:', seen.lastPos, '| nearest dist:', seen.lastNearest?.toFixed(2));
+  console.log('--- rooms cleared:', seen.roomsCleared, '| waves:', seen.wavesSpawned, '| locked doors seen:', seen.lockedDoorsSeen, '| elite affixes:', [...seen.eliteAffixes].join(',') || 'none');
   console.log('--- kills:', seen.kills, '| dmg dealt:', seen.damageToMonsters, '| dmg taken:', seen.monsterDamageToPlayer);
   console.log('');
   ok('server streamed state', seen.ticks > 50);
@@ -165,5 +179,7 @@ setTimeout(() => {
   ok('monsters damage player', seen.monsterDamageToPlayer > 0);
   ok('kills registered', seen.kills > 0);
   ok('stagger/interrupt fires', seen.staggerObserved);
+  ok('rooms lock during combat', seen.lockedDoorsSeen);
+  ok('rooms get cleared', seen.roomsCleared > 0);
   process.exit(0);
 }, 60000);

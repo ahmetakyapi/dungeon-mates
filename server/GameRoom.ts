@@ -23,6 +23,10 @@ import {
   SHOP_ITEMS,
   FLOOR_MODIFIERS,
   goldValueForFloor,
+  SUMMONER_COOLDOWN_TICKS,
+  VOLATILE_DEATH_DAMAGE_MULT,
+  VOLATILE_DEATH_RADIUS,
+  VAMPIRIC_LIFESTEAL,
 } from '../shared/types';
 import { Player } from './entities/Player';
 import { Monster } from './entities/Monster';
@@ -223,6 +227,127 @@ export class GameRoom {
     this.floorAttackMultiplier = 1.0;
     this.playerCount = 1;
     this.onEmpty = onEmpty;
+  }
+
+  /**
+   * Apply rest-room regeneration and trap-room damage to players standing in them.
+   * Runs on a 1s cadence (every 20 ticks).
+   */
+  private processSpecialRooms(): void {
+    for (const player of this.players.values()) {
+      if (!player.state.alive) continue;
+      const roomId = this.getRoomAtPosition(player.state.position);
+      if (roomId === null) continue;
+      const room = this.rooms.find((r) => r.id === roomId);
+      if (!room) continue;
+
+      if (room.category === 'rest') {
+        // Safe haven: steady regen so a battered party can actually recover
+        // before pushing on.
+        const before = player.state.hp;
+        player.state.hp = Math.min(player.state.maxHp, player.state.hp + Math.ceil(player.state.maxHp * 0.04));
+        player.state.mana = Math.min(player.state.maxMana, player.state.mana + Math.ceil(player.state.maxMana * 0.05));
+        const healed = player.state.hp - before;
+        if (healed > 0) {
+          this.queueDamage(player.state.id, healed, player.state.id, { isHeal: true });
+        }
+      } else if (room.category === 'trap' && !room.cleared) {
+        // Hazard floor: constant chip damage until the room is cleared, so the
+        // extra loot it holds costs something to collect.
+        const trapDamage = 3 + Math.floor(this.currentFloor * 0.7);
+        const res = player.takeDamage(trapDamage);
+        if (!res.dodged && res.effectiveDamage > 0) {
+          this.queueDamage(player.state.id, res.effectiveDamage, 'trap', { shake: 0.25, damageType: 'fire' });
+        }
+        if (!player.state.alive) this.handlePlayerDeath(player);
+      }
+    }
+  }
+
+  /** Seal a room's doorways so its monsters cannot leak into the corridors. */
+  private lockRoom(room: DungeonRoom): void {
+    if (room.locked || room.cleared) return;
+    room.locked = true;
+    this.forEachDoorTile(room, (x, y) => {
+      if (this.tiles[y][x] === 'door') this.tiles[y][x] = 'door_locked';
+    });
+  }
+
+  private unlockRoom(room: DungeonRoom): void {
+    if (!room.locked) return;
+    room.locked = false;
+    this.forEachDoorTile(room, (x, y) => {
+      if (this.tiles[y][x] === 'door_locked') this.tiles[y][x] = 'door';
+    });
+  }
+
+  /**
+   * Visit the room's own border ring. DungeonGenerator.placeDoors carves doors on
+   * the innermost row/column of the room itself, not on the ring outside it.
+   */
+  private forEachDoorTile(room: DungeonRoom, fn: (x: number, y: number) => void): void {
+    const x0 = room.x;
+    const y0 = room.y;
+    const x1 = room.x + room.width - 1;
+    const y1 = room.y + room.height - 1;
+    for (let x = x0; x <= x1; x++) {
+      if (this.tiles[y0]?.[x] !== undefined) fn(x, y0);
+      if (this.tiles[y1]?.[x] !== undefined) fn(x, y1);
+    }
+    for (let y = y0; y <= y1; y++) {
+      if (this.tiles[y]?.[x0] !== undefined) fn(x0, y);
+      if (this.tiles[y]?.[x1] !== undefined) fn(x1, y);
+    }
+  }
+
+  /** Spawn a reinforcement wave inside an already-active room. */
+  private spawnWave(room: DungeonRoom): void {
+    const clampedPlayers = Math.max(1, Math.min(4, this.playerCount));
+    const pool = MONSTER_POOL_BY_FLOOR[this.currentFloor] ?? MONSTER_POOL_BY_FLOOR[1];
+    const count = Math.max(2, Math.round((2 + this.currentFloor * 0.3) * (clampedPlayers > 1 ? 1.4 : 1)));
+
+    for (let i = 0; i < count; i++) {
+      const type = pickWeightedMonster(pool);
+      const pos = {
+        x: room.x + 1 + Math.random() * Math.max(1, room.width - 2),
+        y: room.y + 1 + Math.random() * Math.max(1, room.height - 2),
+      };
+      const monster = new Monster(type, pos, room.id);
+      monster.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
+      if (this.isSolo) monster.scaleForSolo();
+      monster.scaleForPlayerCount(clampedPlayers);
+      if (this.hasModifier('haste_monsters')) monster.floorSpeedMultiplier = 1.3;
+      this.monsters.set(monster.state.id, monster);
+      room.monsterIds.push(monster.state.id);
+    }
+
+    this.io.to(this.roomCode).emit('game:wave_spawned', {
+      roomId: room.id,
+      wavesRemaining: room.wavesRemaining,
+    });
+  }
+
+  /**
+   * Reward for clearing a room. `game:room_cleared` previously granted nothing at
+   * all, so the core loop had no payoff beyond the monsters' own drops.
+   */
+  private grantRoomClearReward(room: DungeonRoom): void {
+    const isTreasure = room.category === 'treasure';
+    const drops = isTreasure ? 4 : 2;
+    for (let i = 0; i < drops; i++) {
+      this.dropLoot({
+        x: room.centerX + (Math.random() - 0.5) * 2,
+        y: room.centerY + (Math.random() - 0.5) * 2,
+      });
+    }
+
+    // Small top-up so a clean clear is rewarded and chip damage does not compound
+    // across a whole floor.
+    const healPct = isTreasure ? 0.08 : 0.05;
+    for (const player of this.players.values()) {
+      if (!player.state.alive) continue;
+      player.state.hp = Math.min(player.state.maxHp, player.state.hp + Math.floor(player.state.maxHp * healPct));
+    }
   }
 
   /** True if any alive player is within MONSTER_ACTIVATION_RADIUS of this monster. */
@@ -576,6 +701,29 @@ export class GameRoom {
       // counted as cleared, which falsely opened the full-clear stairs gate.
       if (room.category === 'rest') continue;
 
+      // Combat rooms get reinforcement waves from floor 2 onward, scaling with
+      // depth. Boss and special rooms stay single-encounter.
+      if (!room.isBossRoom && room.category === 'normal') {
+        room.wavesRemaining = this.currentFloor >= 6 ? 2 : this.currentFloor >= 2 ? 1 : 0;
+      }
+
+      // Treasure rooms: fewer but nastier defenders guarding a real payout, so the
+      // detour is a genuine risk/reward call rather than a free room.
+      if (room.category === 'treasure') {
+        const guard = new Monster(
+          pickWeightedMonster(MONSTER_POOL_BY_FLOOR[this.currentFloor] ?? MONSTER_POOL_BY_FLOOR[1]),
+          { x: room.centerX, y: room.centerY },
+          room.id,
+        );
+        guard.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
+        if (this.isSolo) guard.scaleForSolo();
+        guard.scaleForPlayerCount(clampedPlayers);
+        guard.makeElite(this.currentFloor);
+        this.monsters.set(guard.state.id, guard);
+        room.monsterIds.push(guard.state.id);
+        continue;
+      }
+
       if (room.isBossRoom) {
         // Boss room: spawn boss type based on floor
         const bossTypeMap: Record<number, MonsterType> = {
@@ -670,7 +818,7 @@ export class GameRoom {
           elite.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
           if (this.isSolo) elite.scaleForSolo();
           elite.scaleForPlayerCount(clampedPlayers);
-          elite.makeElite();
+          elite.makeElite(this.currentFloor);
           this.monsters.set(elite.state.id, elite);
           room.monsterIds.push(elite.state.id);
         }
@@ -729,6 +877,11 @@ export class GameRoom {
       const roomId = this.getRoomAtPosition(player.state.position);
       if (roomId !== null) {
         activeRoomIds.add(roomId);
+        // Entering an uncleared combat room seals it.
+        const entered = this.rooms.find((r) => r.id === roomId);
+        if (entered && !entered.cleared && !entered.isStartRoom && entered.monsterIds.length > 0) {
+          this.lockRoom(entered);
+        }
         const prev = roomCounts.get(roomId) ?? 0;
         roomCounts.set(roomId, prev + 1);
       }
@@ -920,6 +1073,12 @@ export class GameRoom {
       }
     }
 
+    // Special room effects. Rest rooms restore, trap rooms punish — both were
+    // assigned by the generator and then read by nothing at all.
+    if (this.tick % 20 === 0) {
+      this.processSpecialRooms();
+    }
+
     // Elemental DoT ticks on monsters (burn/poison) every 20 ticks
     if (this.tick % 20 === 0) {
       for (const [monsterId, monster] of this.monsters) {
@@ -985,6 +1144,13 @@ export class GameRoom {
           const severity: 'normal' | 'crit' | 'boss' = isBoss ? 'boss' : 'normal';
           const result = targetPlayer.takeDamage(Math.floor(attackResult.damage * fragileMultiplier), severity);
           if (!result.dodged && result.effectiveDamage > 0) {
+            // Vampiric elites heal off the damage they land.
+            if (monster.state.isElite && monster.state.eliteAffix === 'vampiric') {
+              monster.state.hp = Math.min(
+                monster.state.maxHp,
+                monster.state.hp + Math.floor(result.effectiveDamage * VAMPIRIC_LIFESTEAL),
+              );
+            }
             // Knockback player away from monster
             const ndx = targetPlayer.state.position.x - monster.state.position.x;
             const ndy = targetPlayer.state.position.y - monster.state.position.y;
@@ -1059,6 +1225,22 @@ export class GameRoom {
         if (stunPlayer && stunPlayer.state.alive && stunPlayer.canBeCrowdControlled()) {
           stunPlayer.state.stunTicks = Math.max(stunPlayer.state.stunTicks, stunTarget.ticks);
         }
+      }
+
+      // Summoner elites call for help too, not just bosses.
+      if (monster.state.isElite && monster.state.eliteAffix === 'summoner' && monster.summonCooldown <= 0) {
+        monster.summonCooldown = SUMMONER_COOLDOWN_TICKS;
+        const pool = MONSTER_POOL_BY_FLOOR[this.currentFloor] ?? MONSTER_POOL_BY_FLOOR[1];
+        const helper = new Monster(pickWeightedMonster(pool), {
+          x: monster.state.position.x + (Math.random() - 0.5) * 2,
+          y: monster.state.position.y + (Math.random() - 0.5) * 2,
+        }, monster.roomId);
+        helper.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
+        if (this.isSolo) helper.scaleForSolo();
+        helper.scaleForPlayerCount(Math.max(1, Math.min(4, this.playerCount)));
+        this.monsters.set(helper.state.id, helper);
+        const parentRoom = this.rooms.find((r) => r.id === monster.roomId);
+        if (parentRoom) parentRoom.monsterIds.push(helper.state.id);
       }
 
       // Boss summon minions
@@ -1412,6 +1594,31 @@ export class GameRoom {
   }
 
   private handleMonsterKilled(monster: Monster, killerId: string): void {
+    // Volatile elites detonate on death — the corpse is still a threat, so the
+    // kill is not automatically the end of the exchange.
+    if (monster.state.isElite && monster.state.eliteAffix === 'volatile') {
+      const blastDamage = Math.floor(monster.scaledAttack * VOLATILE_DEATH_DAMAGE_MULT);
+      for (const player of this.players.values()) {
+        if (!player.state.alive) continue;
+        const dx = player.state.position.x - monster.state.position.x;
+        const dy = player.state.position.y - monster.state.position.y;
+        if (Math.sqrt(dx * dx + dy * dy) > VOLATILE_DEATH_RADIUS) continue;
+        const res = player.takeDamage(blastDamage, 'boss');
+        if (!res.dodged && res.effectiveDamage > 0) {
+          player.applyKnockback(dx, dy, 7);
+          this.queueDamage(player.state.id, res.effectiveDamage, monster.state.id, {
+            kx: dx, ky: dy, shake: 0.8, damageType: 'fire',
+          });
+        }
+        if (!player.state.alive) this.handlePlayerDeath(player);
+      }
+      this.io.to(this.roomCode).emit('game:elite_explosion', {
+        x: monster.state.position.x,
+        y: monster.state.position.y,
+        radius: VOLATILE_DEATH_RADIUS,
+      });
+    }
+
     const stats = MONSTER_STATS[monster.state.type];
 
     this.io.to(this.roomCode).emit('game:monster_killed', {
@@ -1495,7 +1702,18 @@ export class GameRoom {
       });
 
       if (allDead && room.monsterIds.length > 0) {
+        // Reinforcement wave — the encounter is not over until every wave is spent.
+        // Previously every monster on the floor existed from generation and simply
+        // stood still, so a room was one flat blob with no pacing.
+        if (room.wavesRemaining > 0 && !room.isBossRoom) {
+          room.wavesRemaining -= 1;
+          this.spawnWave(room);
+          continue;
+        }
+
         room.cleared = true;
+        this.unlockRoom(room);
+        this.grantRoomClearReward(room);
         this.io.to(this.roomCode).emit('game:room_cleared', { roomId: room.id });
 
         // Check if boss room cleared

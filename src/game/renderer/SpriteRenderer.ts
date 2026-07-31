@@ -3028,6 +3028,7 @@ export class SpriteRenderer {
           case 'floor': this.drawFloorTile(sprCtx, 0, 0, hash); break;
           case 'wall': this.drawWallTile(sprCtx, 0, 0, hash); break;
           case 'door': this.drawDoorTile(sprCtx, 0, 0, roomCleared); break;
+          case 'door_locked': this.drawLockedDoorTile(sprCtx, 0, 0); break;
           case 'stairs': this.drawStairsTile(sprCtx, 0, 0); break;
           case 'chest': this.drawChestTile(sprCtx, 0, 0, roomCleared); break;
           case 'void': px(sprCtx, 0, 0, TILE_SIZE, TILE_SIZE, '#000000'); break;
@@ -3198,6 +3199,28 @@ export class SpriteRenderer {
     px(ctx, x + 1, y + 2, 2, 4, '#78350f');
     px(ctx, x, y + 5, 4, 1, '#92400e');
     px(ctx, x + 1, y + 2, 1, 1, '#a16207'); // lit edge facing the flame
+  }
+
+  /**
+   * Sealed doorway during an active encounter. Reads as barred rather than solid
+   * wall, because players can still walk through it — only monsters are blocked.
+   */
+  private drawLockedDoorTile(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+    // Dark stone frame
+    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#2a2438');
+    px(ctx, x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2, '#1c1828');
+
+    // Vertical iron bars
+    for (let i = 2; i < TILE_SIZE - 1; i += 4) {
+      px(ctx, x + i, y + 1, 2, TILE_SIZE - 2, '#4b5563');
+      px(ctx, x + i, y + 1, 1, TILE_SIZE - 2, '#6b7280');
+    }
+    // Horizontal braces
+    px(ctx, x + 1, y + 4, TILE_SIZE - 2, 1, '#374151');
+    px(ctx, x + 1, y + 11, TILE_SIZE - 2, 1, '#374151');
+
+    // Faint amber glow at the base so it reads as "active encounter"
+    px(ctx, x + 1, y + TILE_SIZE - 2, TILE_SIZE - 2, 1, '#78350f');
   }
 
   private drawDoorTile(ctx: CanvasRenderingContext2D, x: number, y: number, roomCleared: boolean): void {

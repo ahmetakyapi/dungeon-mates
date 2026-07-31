@@ -12,6 +12,10 @@ import {
   TELEGRAPH_NONE,
   STAGGER_TICKS,
   RANGED_MONSTERS,
+  rollEliteAffix,
+  ARMORED_DEFENSE_MULT,
+  SWIFT_SPEED_MULT,
+  SUMMONER_COOLDOWN_TICKS,
   DUNGEON_WIDTH,
   DUNGEON_HEIGHT,
 } from '../../shared/types';
@@ -156,6 +160,7 @@ export class Monster implements MonsterContext {
       targetPlayerId: null,
       facing: 'down',
       isElite: false,
+      eliteAffix: '',
       bossPhase: 0,
       shieldActive: false,
       phased: false,
@@ -258,14 +263,35 @@ export class Monster implements MonsterContext {
     this.scaledAttack = Math.floor(this.scaledAttack * atkScale);
   }
 
-  /** Elite canavar yap: 2.5x HP, 1.5x saldırı, 1.2x boyut */
-  makeElite(): void {
+  /**
+   * Promote to elite. Beyond the stat bump each elite carries an affix that
+   * changes how the fight plays, not just how long it lasts.
+   */
+  makeElite(floor: number): void {
     this.state.isElite = true;
     this.state.maxHp = Math.floor(this.state.maxHp * 2.5);
     this.state.hp = this.state.maxHp;
     this.scaledAttack = Math.floor(this.scaledAttack * 1.5);
     this.scaledDefense = Math.floor(this.scaledDefense * 1.4);
     this.radius *= 1.2;
+
+    const affix = rollEliteAffix(floor);
+    this.state.eliteAffix = affix;
+    switch (affix) {
+      case 'armored':
+        this.scaledDefense = Math.floor(this.scaledDefense * ARMORED_DEFENSE_MULT);
+        break;
+      case 'swift':
+        this.floorSpeedMultiplier *= SWIFT_SPEED_MULT;
+        break;
+      case 'summoner':
+        this.summonCooldown = SUMMONER_COOLDOWN_TICKS;
+        break;
+      case 'vampiric':
+      case 'volatile':
+        // Handled at damage/death time in GameRoom.
+        break;
+    }
   }
 
   getRadius(): number {
@@ -569,14 +595,18 @@ export class Monster implements MonsterContext {
 
     if (x0 < 0 || y0 < 0 || x1 >= w || y1 >= h) return true;
 
+    // door_locked seals the arena for monsters only. Players pass freely so a
+    // teammate is never shut out of a fight and retreat stays possible — the
+    // point of the lock is to stop enemies leaking into corridors, not to trap
+    // the party.
     const t00 = tiles[y0][x0];
-    if (t00 === 'wall' || t00 === 'void') return true;
+    if (t00 === 'wall' || t00 === 'void' || t00 === 'door_locked') return true;
     const t10 = tiles[y0][x1];
-    if (t10 === 'wall' || t10 === 'void') return true;
+    if (t10 === 'wall' || t10 === 'void' || t10 === 'door_locked') return true;
     const t01 = tiles[y1][x0];
-    if (t01 === 'wall' || t01 === 'void') return true;
+    if (t01 === 'wall' || t01 === 'void' || t01 === 'door_locked') return true;
     const t11 = tiles[y1][x1];
-    if (t11 === 'wall' || t11 === 'void') return true;
+    if (t11 === 'wall' || t11 === 'void' || t11 === 'door_locked') return true;
 
     return false;
   }
