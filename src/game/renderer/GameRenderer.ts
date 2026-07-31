@@ -136,6 +136,11 @@ export class GameRenderer {
   // Hybrid aim — set each frame by the game loop; null = auto-targeting.
   private aimAngle: number | null = null;
 
+  // Accessibility
+  private shakeScale = 1;
+  private flashEnabled = true;
+  private ambientEnabled = true;
+
   private screenFlashAlpha = 0;
   private screenFlashColor = '#ffffff';
 
@@ -405,6 +410,18 @@ export class GameRenderer {
   }
 
   /** Manually set quality */
+  /**
+   * Accessibility toggles. Screen shake and full-screen flashes are the two
+   * effects most likely to cause trouble (motion sickness, photosensitivity), so
+   * both are user-controllable rather than baked in.
+   */
+  setAccessibility(opts: { screenShake: number; screenFlash: boolean; ambientEffects: boolean }): void {
+    this.shakeScale = Math.max(0, Math.min(1, opts.screenShake));
+    this.camera.setShakeMultiplier(this.shakeScale);
+    this.flashEnabled = opts.screenFlash;
+    this.ambientEnabled = opts.ambientEffects;
+  }
+
   /** Manual aim angle in radians, or null when the server is auto-targeting. */
   setAimAngle(angle: number | null): void {
     this.aimAngle = angle;
@@ -559,6 +576,7 @@ export class GameRenderer {
 
   /** Trigger camera shake */
   shake(intensity: number, duration: number): void {
+    if (this.shakeScale <= 0) return;
     this.camera.shake(intensity, duration);
   }
 
@@ -569,6 +587,7 @@ export class GameRenderer {
 
   /** Trigger a screen flash (white flash on big damage, etc.) */
   triggerScreenFlash(color = '#ffffff', intensity = 0.6): void {
+    if (!this.flashEnabled) return;
     this.screenFlashAlpha = intensity;
     this.screenFlashColor = color;
   }
@@ -943,7 +962,7 @@ export class GameRenderer {
         ctx.globalAlpha = 1;
 
         // Heat distortion effect (subtle wave via shifting scanlines)
-        this.renderHeatDistortion(ctx, nowSec);
+        if (this.ambientEnabled) this.renderHeatDistortion(ctx, nowSec);
       }
 
       // Vignette effect
@@ -954,7 +973,7 @@ export class GameRenderer {
       }
 
       // Subtle film grain overlay
-      this.renderFilmGrain(ctx, dt);
+      if (this.ambientEnabled) this.renderFilmGrain(ctx, dt);
     }
 
     // Screen flash overlay
@@ -966,7 +985,7 @@ export class GameRenderer {
     }
 
     // Boss entrance red flash
-    if (this.bossEntranceFlash > 0.01) {
+    if (this.flashEnabled && this.bossEntranceFlash > 0.01) {
       ctx.globalAlpha = this.bossEntranceFlash * 0.4;
       ctx.fillStyle = '#dc2626';
       ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
@@ -974,7 +993,7 @@ export class GameRenderer {
     }
 
     // Loot pickup flash
-    if (this.lootFlashAlpha > 0.01) {
+    if (this.flashEnabled && this.lootFlashAlpha > 0.01) {
       ctx.globalAlpha = this.lootFlashAlpha;
       ctx.fillStyle = this.lootFlashColor;
       ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);

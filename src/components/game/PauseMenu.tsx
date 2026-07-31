@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PixelButton } from '@/components/ui/PixelButton';
 import { useSound } from '@/hooks/useSound';
+import type { GameSettings } from '@/lib/settings';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -19,6 +20,8 @@ type PauseMenuProps = {
   onQualityChange?: (quality: QualityLevel) => void;
   showFps?: boolean;
   onToggleFps?: () => void;
+  settings?: GameSettings;
+  onSettingsChange?: (patch: Partial<GameSettings>) => void;
 };
 
 const MENU_ITEMS_MULTIPLAYER = [
@@ -49,11 +52,15 @@ function GraphicsSettings({
   onQualityChange,
   showFps,
   onToggleFps,
+  settings,
+  onSettingsChange,
 }: {
   quality: QualityLevel;
   onQualityChange: (q: QualityLevel) => void;
   showFps: boolean;
   onToggleFps: () => void;
+  settings?: GameSettings;
+  onSettingsChange?: (patch: Partial<GameSettings>) => void;
 }) {
   return (
     <motion.div
@@ -99,6 +106,69 @@ function GraphicsSettings({
       >
         FPS Sayacı: {showFps ? 'Açık' : 'Kapalı'}
       </button>
+
+      {/* Accessibility — screen shake and full-screen flashes are the two effects
+          most likely to cause motion sickness or photosensitivity trouble, so both
+          are user-controllable rather than baked in. */}
+      {settings && onSettingsChange && (
+        <>
+          <div className="h-px bg-dm-border" />
+          <p className="font-pixel text-[9px] text-dm-accent lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">Erişilebilirlik</p>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="flex items-center justify-between font-pixel text-[9px] text-zinc-400 lg:text-[11px]">
+              <span>Ekran Sarsıntısı</span>
+              <span className="text-zinc-500">{Math.round(settings.screenShake * 100)}%</span>
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.1}
+              value={settings.screenShake}
+              onChange={(e) => onSettingsChange({ screenShake: Number(e.target.value) })}
+              className="accent-dm-accent"
+              aria-label="Ekran sarsıntısı şiddeti"
+            />
+          </label>
+
+          <button
+            onClick={() => onSettingsChange({ screenFlash: !settings.screenFlash })}
+            className={`flex items-center justify-center gap-2 rounded border px-3 py-2 font-pixel text-[9px] transition-colors lg:text-[11px] ${
+              settings.screenFlash
+                ? 'border-dm-accent/40 bg-dm-accent/10 text-dm-accent'
+                : 'border-dm-border bg-dm-surface text-zinc-400 hover:border-dm-accent/30'
+            }`}
+            aria-pressed={settings.screenFlash}
+          >
+            Ekran Parlamaları: {settings.screenFlash ? 'Açık' : 'Kapalı'}
+          </button>
+
+          <button
+            onClick={() => onSettingsChange({ ambientEffects: !settings.ambientEffects })}
+            className={`flex items-center justify-center gap-2 rounded border px-3 py-2 font-pixel text-[9px] transition-colors lg:text-[11px] ${
+              settings.ambientEffects
+                ? 'border-dm-accent/40 bg-dm-accent/10 text-dm-accent'
+                : 'border-dm-border bg-dm-surface text-zinc-400 hover:border-dm-accent/30'
+            }`}
+            aria-pressed={settings.ambientEffects}
+          >
+            Atmosfer Efektleri: {settings.ambientEffects ? 'Açık' : 'Kapalı'}
+          </button>
+
+          <button
+            onClick={() => onSettingsChange({ reducedMotion: !settings.reducedMotion })}
+            className={`flex items-center justify-center gap-2 rounded border px-3 py-2 font-pixel text-[9px] transition-colors lg:text-[11px] ${
+              settings.reducedMotion
+                ? 'border-dm-accent/40 bg-dm-accent/10 text-dm-accent'
+                : 'border-dm-border bg-dm-surface text-zinc-400 hover:border-dm-accent/30'
+            }`}
+            aria-pressed={settings.reducedMotion}
+          >
+            Azaltılmış Hareket: {settings.reducedMotion ? 'Açık' : 'Kapalı'}
+          </button>
+        </>
+      )}
     </motion.div>
   );
 }
@@ -242,6 +312,8 @@ export function PauseMenu({
   onQualityChange,
   showFps = false,
   onToggleFps,
+  settings,
+  onSettingsChange,
 }: PauseMenuProps) {
   const [showControls, setShowControls] = useState(false);
   const [showSound, setShowSound] = useState(false);
@@ -374,6 +446,8 @@ export function PauseMenu({
                   onQualityChange={onQualityChange}
                   showFps={showFps}
                   onToggleFps={onToggleFps}
+                  settings={settings}
+                  onSettingsChange={onSettingsChange}
                 />
               )}
             </AnimatePresence>

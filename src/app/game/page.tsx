@@ -29,6 +29,7 @@ import type { PlayerInput, GamePhase, PlayerState } from '../../../shared/types'
 import { CLASS_STATS, DIFFICULTY_INFO, ABILITY_MAX_COOLDOWNS, TICK_RATE, monsterDisplay } from '../../../shared/types';
 import type { PlayerClass } from '../../../shared/types';
 import { loadMeta, saveMeta, recordRun, metaBonuses, shardsForRun } from '@/lib/meta-progression';
+import { loadSettings, saveSettings, DEFAULT_SETTINGS, type GameSettings } from '@/lib/settings';
 
 // Mirrors DODGE_COOLDOWN_TICKS in server/entities/Player.ts
 const DODGE_COOLDOWN_TICKS = 30;
@@ -147,8 +148,27 @@ function GamePage() {
   const [showLoading, setShowLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('Zindan hazırlanıyor');
   const [showPauseMenu, setShowPauseMenu] = useState(false);
-  const [graphicsQuality, setGraphicsQuality] = useState<'low' | 'medium' | 'high'>('high');
-  const [showFps, setShowFps] = useState(false);
+  // Settings are persisted. Quality and the FPS toggle used to be plain useState,
+  // so both reset on every page reload.
+  const [settings, setSettings] = useState<GameSettings>(DEFAULT_SETTINGS);
+  useEffect(() => { setSettings(loadSettings()); }, []);
+  // Restore persisted volumes into the audio engine.
+  useEffect(() => {
+    sound.setMasterVolume(settings.masterVolume);
+    sound.setSfxVolume(settings.sfxVolume);
+    sound.setMusicVolume(settings.musicVolume);
+  }, [settings.masterVolume, settings.sfxVolume, settings.musicVolume, sound]);
+  const updateSettings = useCallback((patch: Partial<GameSettings>) => {
+    setSettings((prev) => {
+      const next = { ...prev, ...patch };
+      saveSettings(next);
+      return next;
+    });
+  }, []);
+  const graphicsQuality = settings.quality;
+  const showFps = settings.showFps;
+  const setGraphicsQuality = useCallback((q: 'low' | 'medium' | 'high') => updateSettings({ quality: q }), [updateSettings]);
+  const setShowFps = useCallback((v: boolean) => updateSettings({ showFps: v }), [updateSettings]);
   const [showFloorTransition, setShowFloorTransition] = useState(false);
   const [floorTransitionData, setFloorTransitionData] = useState({ completed: 1, next: 2, kills: 0, time: 0 });
   const [showStoryIntro, setShowStoryIntro] = useState(false);
@@ -171,6 +191,7 @@ function GamePage() {
   const gameOverBuiltRef = useRef(false);
   const [earnedShards, setEarnedShards] = useState(0);
   const [bestFloorEver, setBestFloorEver] = useState(0);
+  const [teammateNotice, setTeammateNotice] = useState<{ text: string; tone: 'good' | 'danger'; at: number } | null>(null);
 
   // Cinematics and blocking overlays must actually suspend control. Previously only
   // phase and the pause menu were checked, so the player kept moving — and could be
@@ -329,6 +350,16 @@ function GamePage() {
     if (!localPlayer) return 0;
     return Math.min(1, Math.max(0, localPlayer.dodgeCooldownTicks / DODGE_COOLDOWN_TICKS));
   }, [localPlayer?.dodgeCooldownTicks]);
+
+  // Push accessibility preferences into the renderer whenever they change.
+  useEffect(() => {
+    const r = rendererRef.current as { setAccessibility?: (o: { screenShake: number; screenFlash: boolean; ambientEffects: boolean }) => void } | null;
+    r?.setAccessibility?.({
+      screenShake: settings.screenShake,
+      screenFlash: settings.screenFlash,
+      ambientEffects: settings.ambientEffects,
+    });
+  }, [settings.screenShake, settings.screenFlash, settings.ambientEffects, rendererRef, phase]);
 
   // === Sync touch controls with game state ===
   useEffect(() => {
@@ -684,6 +715,10 @@ function GamePage() {
         sound.playPoisonHit();
       } else if (ev.damageType === 'holy') {
         sound.playHolyHit();
+      } else {
+        // Plain physical hits were silent — playHit() existed in useSound but had
+        // no callers, so only elemental and critical damage made any sound.
+        sound.playHit();
       }
     }
     lastDamageIdx.current = damageEvents.length;
@@ -747,9 +782,42 @@ function GamePage() {
     lastUltIdxRef.current = ultimateActivatedEvents.length;
   }, [ultimateActivatedEvents, gameState, rendererRef, sound]);
 
+  // Teammate death feedback. `game:player_died` was populated and destructured but
+  // never read, and playDeath() existed in useSound and was never called anywhere.
+  const lastDeathIdxRef = useRef(0);
+  useEffect(() => {
+    if (playerDiedEvents.length <= lastDeathIdxRef.current) {
+      lastDeathIdxRef.current = playerDiedEvents.length;
+      return;
+    }
+    for (let i = lastDeathIdxRef.current; i < playerDiedEvents.length; i++) {
+      const deadId = playerDiedEvents[i];
+      sound.playDeath();
+      if (deadId !== playerId) {
+        const name = gameState?.players[deadId]?.name ?? 'Takım arkadaşı';
+        setTeammateNotice({ text: `${name} düştü!`, tone: 'danger', at: Date.now() });
+      }
+    }
+    lastDeathIdxRef.current = playerDiedEvents.length;
+  }, [playerDiedEvents, playerId, gameState, sound]);
+
+  // Teammate level-ups — same story: the event existed, nothing consumed it.
+  useEffect(() => {
+    if (!levelUpEvent || levelUpEvent.playerId === playerId) return;
+    const name = gameState?.players[levelUpEvent.playerId]?.name ?? 'Takım arkadaşı';
+    setTeammateNotice({ text: `${name} seviye ${levelUpEvent.level}!`, tone: 'good', at: Date.now() });
+  }, [levelUpEvent, playerId, gameState]);
+
+  // Auto-dismiss the notice
+  useEffect(() => {
+    if (!teammateNotice) return;
+    const t = setTimeout(() => setTeammateNotice(null), 2600);
+    return () => clearTimeout(t);
+  }, [teammateNotice]);
+
   const handleToggleFps = useCallback(() => {
-    setShowFps((prev) => !prev);
-  }, []);
+    setShowFps(!showFps);
+  }, [setShowFps, showFps]);
 
   const handlePauseRestart = useCallback(() => {
     window.location.href = '/game?mode=solo&name=Kahraman';
@@ -1020,6 +1088,29 @@ function GamePage() {
 
       {/* Solo lives indicator removed — lives shown in HUD */}
 
+      {/* Teammate events — deaths and level-ups were previously invisible */}
+      <AnimatePresence>
+        {teammateNotice && (
+          <motion.div
+            className="pointer-events-none absolute left-1/2 top-24 z-30 -translate-x-1/2"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.25, ease: EASE }}
+          >
+            <div
+              className={`rounded border px-3 py-1.5 font-pixel text-[9px] backdrop-blur-sm ${
+                teammateNotice.tone === 'danger'
+                  ? 'border-red-500/40 bg-red-950/70 text-red-300'
+                  : 'border-emerald-500/40 bg-emerald-950/70 text-emerald-300'
+              }`}
+            >
+              {teammateNotice.text}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Chat box (hidden on touch — screen space reserved for controls) */}
       {!isSolo && !isTouchDevice && (phase === 'playing' || phase === 'boss') && (
         <ChatBox messages={chatMessages} onSend={sendChat} compact />
@@ -1116,6 +1207,8 @@ function GamePage() {
 
       {/* Pause menu */}
       <PauseMenu
+          settings={settings}
+          onSettingsChange={updateSettings}
         isOpen={showPauseMenu}
         isSolo={isSolo}
         onResume={handlePauseResume}
