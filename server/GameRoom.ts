@@ -959,6 +959,24 @@ export class GameRoom {
 
       const attackResult = monster.update(alivePlayers, this.tiles);
 
+      // Ranged monsters fire on their active frame. The monster-projectile branch
+      // of the collision loop already existed but nothing had ever produced one.
+      if (monster.pendingProjectile) {
+        const shot = monster.pendingProjectile;
+        const projType = monster.state.type === 'phantom' ? 'spirit_bolt' : 'stone_shard';
+        const proj = new Projectile(
+          monsterId,
+          {
+            x: monster.state.position.x + shot.dirX * 0.6,
+            y: monster.state.position.y + shot.dirY * 0.6,
+          },
+          { x: shot.dirX, y: shot.dirY },
+          shot.damage,
+          projType,
+        );
+        this.projectiles.set(proj.state.id, proj);
+      }
+
       if (attackResult) {
         const targetPlayer = this.players.get(attackResult.targetId);
         if (targetPlayer) {

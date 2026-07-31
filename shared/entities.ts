@@ -5,6 +5,7 @@
 import type { PlayerClass } from './classes';
 import type { TalentId, TalentBranch } from './talents';
 import type { MonsterType } from './monsters';
+import type { AttackPhase, TelegraphKind } from './combat';
 import type { LootType } from './loot';
 import type { FloorModifier } from './floor-modifiers';
 
@@ -96,6 +97,22 @@ export type MonsterState = {
   burnTicks: number;
   freezeTicks: number;
   poisonTicks: number;
+  // --- Saldırı anatomisi (windup → active → recovery) ---
+  /** Saldırı state machine'inin mevcut fazı. */
+  attackPhase: AttackPhase;
+  /** Mevcut faz içinde ilerleme, 0..1. Client telegraf dolumunu bununla çizer. */
+  attackProgress: number;
+  /** Telegraf şekli (0 = yok). Her tick nesne allocate etmemek için düz sayı. */
+  telegraphKind: TelegraphKind;
+  /** Telegraf yarıçapı / menzili (tile). */
+  telegraphRadius: number;
+  /** Telegraf yönü (normalize). */
+  telegraphDirX: number;
+  telegraphDirY: number;
+  /** Koni yarı-açısı (radyan) veya çizgi yarı-genişliği (tile). */
+  telegraphArc: number;
+  /** Sersemleme — windup hasarla kesildiğinde. */
+  staggerTicks: number;
 };
 
 // --- Damage / Event Metadata ---
@@ -109,7 +126,7 @@ export type ProjectileState = {
   direction: Vec2;
   damage: number;
   lifetime: number;
-  type: 'arrow' | 'fireball' | 'sword_slash' | 'holy_bolt';
+  type: 'arrow' | 'fireball' | 'sword_slash' | 'holy_bolt' | 'stone_shard' | 'spirit_bolt';
 };
 
 export type LootState = {

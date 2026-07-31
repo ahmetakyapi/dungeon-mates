@@ -18,6 +18,10 @@ const PROJECTILE_CONFIG = {
   fireball: { speed: 5, lifetime: 1.5, radius: 0.3, aoe: true, aoeRadius: 1.5 },
   sword_slash: { speed: 0, lifetime: 0.15, radius: 1.2, aoe: false },
   holy_bolt: { speed: 6, lifetime: 1.3, radius: 0.25, aoe: false },
+  // Monster projectiles — deliberately slower than player shots so they read as
+  // dodgeable threats rather than hitscan.
+  stone_shard: { speed: 4.5, lifetime: 2.0, radius: 0.28, aoe: false },
+  spirit_bolt: { speed: 5.5, lifetime: 1.8, radius: 0.26, aoe: false },
 } as const;
 
 export class Projectile {

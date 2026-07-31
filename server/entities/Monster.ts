@@ -8,6 +8,10 @@ import {
   MONSTER_STATS,
   TICK_RATE,
   DEF_K,
+  ATTACK_PROFILES,
+  TELEGRAPH_NONE,
+  STAGGER_TICKS,
+  RANGED_MONSTERS,
   DUNGEON_WIDTH,
   DUNGEON_HEIGHT,
 } from '../../shared/types';
@@ -15,8 +19,12 @@ import {
 import {
   type AIState,
   type MonsterContext,
+  type PendingAoe,
+  resolvePendingAoe,
   DETECTION_RANGE,
   ATTACK_RANGE,
+  advanceAttack,
+  endAttack,
   SPIDER_WEB_COOLDOWN,
   WRAITH_PHASE_INTERVAL,
   updateSlime,
@@ -27,6 +35,9 @@ import {
   updateSpider,
   updateWraith,
   updateMushroom,
+  updateRangedCaster,
+  updateHeavyMelee,
+  updateLavaSlime,
 } from './MonsterAI';
 
 import {
@@ -120,6 +131,17 @@ export class Monster implements MonsterContext {
   /** Stun targets to apply this tick */
   public stunTargets: { playerId: string; ticks: number }[];
 
+  // Attack state machine (windup → active → recovery)
+  public attackPhaseTicks: number;
+  public attackPhaseDuration: number;
+  public pendingAttackTargetId: string | null;
+  public pendingAttackDamage: number;
+  public windupDamageTaken: number;
+  /** Set on the active frame of a ranged attack; GameRoom spawns the projectile. */
+  public pendingProjectile: { dirX: number; dirY: number; damage: number } | null;
+  /** Telegraphed area attack awaiting resolution (boss abilities). */
+  public pendingAoe: PendingAoe | null;
+
   constructor(type: MonsterType, position: Vec2, roomId: number) {
     const stats = MONSTER_STATS[type];
 
@@ -146,6 +168,14 @@ export class Monster implements MonsterContext {
       burnTicks: 0,
       freezeTicks: 0,
       poisonTicks: 0,
+      attackPhase: 'idle',
+      attackProgress: 0,
+      telegraphKind: TELEGRAPH_NONE,
+      telegraphRadius: 0,
+      telegraphDirX: 0,
+      telegraphDirY: 1,
+      telegraphArc: 0,
+      staggerTicks: 0,
     };
 
     this.monsterType = type;
@@ -188,6 +218,13 @@ export class Monster implements MonsterContext {
     this.poisonSourceId = null;
     this.aoeHits = [];
     this.stunTargets = [];
+    this.attackPhaseTicks = 0;
+    this.attackPhaseDuration = 0;
+    this.pendingAttackTargetId = null;
+    this.pendingAttackDamage = 0;
+    this.windupDamageTaken = 0;
+    this.pendingProjectile = null;
+    this.pendingAoe = null;
   }
 
   scaleForFloor(hpMultiplier: number, attackMultiplier: number): void {
@@ -233,6 +270,16 @@ export class Monster implements MonsterContext {
 
   getRadius(): number {
     return this.radius;
+  }
+
+  /** Decrement every ability cooldown. Runs unconditionally each tick. */
+  private tickAbilityCooldowns(): void {
+    if (this.summonCooldown > 0) this.summonCooldown -= 1;
+    if (this.webCooldown > 0) this.webCooldown -= 1;
+    if (this.slamCooldown > 0) this.slamCooldown -= 1;
+    if (this.spinCooldown > 0) this.spinCooldown -= 1;
+    if (this.petrifyGazeCooldown > 0) this.petrifyGazeCooldown -= 1;
+    if (this.flameChargeCooldown > 0) this.flameChargeCooldown -= 1;
   }
 
   applySlow(multiplier: number, ticks: number): void {
@@ -302,13 +349,54 @@ export class Monster implements MonsterContext {
     }
 
     this.shouldSummon = false;
+    this.pendingProjectile = null;
     this.webTarget = null;
     this.poisonAuraTargets = [];
     this.aoeHits = [];
     this.stunTargets = [];
 
+    // Ability cooldowns tick every frame, including while an attack is in flight.
+    // They used to live inside each AI function, which the attack state machine now
+    // short-circuits — so boss slams and summons would have almost never come up.
+    this.tickAbilityCooldowns();
+
     if (this.attackCooldown > 0) {
       this.attackCooldown -= 1;
+    }
+
+    // Stagger — interrupted mid-windup, briefly helpless.
+    if (this.state.staggerTicks > 0) {
+      this.state.staggerTicks -= 1;
+      this.state.velocity.x = 0;
+      this.state.velocity.y = 0;
+      return null;
+    }
+
+    // A telegraphed area attack also commits the monster — it plants and casts.
+    if (this.pendingAoe) {
+      this.state.velocity.x = 0;
+      this.state.velocity.y = 0;
+      resolvePendingAoe(this, players);
+      return null;
+    }
+
+    // An attack in flight owns the monster completely: no chasing, no wandering.
+    // That commitment is what makes the windup readable — a monster that kept
+    // closing distance while winding up would be impossible to react to.
+    if (this.state.attackPhase !== 'idle') {
+      this.state.velocity.x = 0;
+      this.state.velocity.y = 0;
+      const result = advanceAttack(this, players);
+      if (result && RANGED_MONSTERS.has(this.monsterType)) {
+        // Ranged types fire a projectile instead of landing a contact hit.
+        this.pendingProjectile = {
+          dirX: this.state.telegraphDirX,
+          dirY: this.state.telegraphDirY,
+          damage: result.damage,
+        };
+        return null;
+      }
+      return result;
     }
 
     const nearest = this.findNearestPlayer(players);
@@ -344,13 +432,13 @@ export class Monster implements MonsterContext {
       case 'mushroom':
         return updateMushroom(this, nearest, players, tiles);
       case 'gargoyle':
-        return updateSkeleton(this, nearest, tiles);
+        return updateRangedCaster(this, nearest, tiles);
       case 'dark_knight':
-        return updateGoblin(this, nearest, tiles);
+        return updateHeavyMelee(this, nearest, tiles);
       case 'phantom':
-        return updateWraith(this, nearest, tiles);
+        return updateRangedCaster(this, nearest, tiles);
       case 'lava_slime':
-        return updateSlime(this, nearest, tiles);
+        return updateLavaSlime(this, nearest, tiles);
       case 'boss_spider_queen':
         return updateBossSpiderQueen(this, nearest, players, tiles);
       case 'boss_demon':
@@ -545,6 +633,20 @@ export class Monster implements MonsterContext {
     } else if (damageType === 'poison') {
       this.state.poisonTicks = Math.max(this.state.poisonTicks, 60); // 3s poison
       if (sourceId) this.poisonSourceId = sourceId;
+    }
+
+    // Poise / interrupt — enough damage during the windup cancels the attack and
+    // staggers the monster. This is the reward for punishing a telegraph instead of
+    // just backing away from it, and it gives melee builds a reason to trade.
+    if (this.state.attackPhase === 'windup') {
+      const poise = ATTACK_PROFILES[this.monsterType].poise;
+      if (poise > 0) {
+        this.windupDamageTaken += effectiveDamage;
+        if (this.windupDamageTaken >= poise) {
+          endAttack(this, ATTACK_PROFILES[this.monsterType].cooldownTicks);
+          this.state.staggerTicks = STAGGER_TICKS;
+        }
+      }
     }
 
     // Hit-stop by severity

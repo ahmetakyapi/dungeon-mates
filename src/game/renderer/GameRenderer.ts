@@ -6,7 +6,7 @@
 // ==========================================
 
 import type { GameState, PlayerState, MonsterState, ProjectileState, LootState, TileType, DamageType } from '../../../shared/types';
-import { TILE_SIZE, CLASS_STATS, MONSTER_STATS, LOOT_TABLE } from '../../../shared/types';
+import { TILE_SIZE, CLASS_STATS, MONSTER_STATS, LOOT_TABLE, TELEGRAPH_NONE, TELEGRAPH_CONE, TELEGRAPH_LINE } from '../../../shared/types';
 import { Camera } from './Camera';
 import { SpriteRenderer, isTorchWall, TORCH_ANCHOR_X, TORCH_ANCHOR_Y } from './SpriteRenderer';
 import { ParticleSystem } from './ParticleSystem';
@@ -854,6 +854,10 @@ export class GameRenderer {
     // 4. Highlight interactable tiles (chests, stairs) with pulsing glow — after fog so they pop
     this.renderInteractableHighlights(ctx, state, camX, camY, localPlayerId);
 
+    // 4b. Attack telegraphs — drawn on the ground, under every entity, so an
+    // incoming attack is readable even in a crowded room.
+    this.renderTelegraphs(ctx, monstersArr, camX, camY);
+
     // 5. Render loot
     this.renderLoot(ctx, lootArr, camX, camY);
 
@@ -1632,6 +1636,84 @@ export class GameRenderer {
   }
 
   /** Render glowing highlights around interactable tiles (chests, stairs) */
+  /**
+   * Draw ground danger indicators for monsters currently winding up.
+   *
+   * The shape shown is exactly the shape the server will test at resolution time,
+   * so "step outside the red" is a promise the game actually keeps. Fill opacity
+   * tracks windup progress, and the outline snaps bright right before impact.
+   */
+  private renderTelegraphs(
+    ctx: CanvasRenderingContext2D,
+    monsters: MonsterState[],
+    camX: number,
+    camY: number,
+  ): void {
+    for (let i = 0; i < monsters.length; i++) {
+      const m = monsters[i];
+      if (!m.alive || m.telegraphKind === TELEGRAPH_NONE) continue;
+      if (!this.camera.isVisible(m.position.x * TILE_SIZE, m.position.y * TILE_SIZE, 128, 128)) continue;
+
+      const sx = Math.round(m.position.x * TILE_SIZE - camX);
+      const sy = Math.round(m.position.y * TILE_SIZE - camY);
+      const r = m.telegraphRadius * TILE_SIZE;
+      const p = Math.max(0, Math.min(1, m.attackProgress));
+      // Ramp hard at the end so the last ~20% reads as "now".
+      const imminent = p > 0.8;
+      const fillAlpha = 0.10 + p * 0.22;
+      const edgeAlpha = imminent ? 0.95 : 0.45 + p * 0.35;
+      const color = imminent ? '#fca5a5' : '#ef4444';
+
+      ctx.save();
+      if (m.telegraphKind === TELEGRAPH_CONE) {
+        const angle = Math.atan2(m.telegraphDirY, m.telegraphDirX);
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.arc(sx, sy, r, angle - m.telegraphArc, angle + m.telegraphArc);
+        ctx.closePath();
+        ctx.globalAlpha = fillAlpha;
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.globalAlpha = edgeAlpha;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      } else if (m.telegraphKind === TELEGRAPH_LINE) {
+        const angle = Math.atan2(m.telegraphDirY, m.telegraphDirX);
+        const halfW = Math.max(2, m.telegraphArc * TILE_SIZE);
+        ctx.translate(sx, sy);
+        ctx.rotate(angle);
+        ctx.globalAlpha = fillAlpha;
+        ctx.fillStyle = color;
+        ctx.fillRect(0, -halfW, r, halfW * 2);
+        ctx.globalAlpha = edgeAlpha;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0, -halfW, r, halfW * 2);
+      } else {
+        // Circle — the ring fills inward as the windup completes.
+        ctx.globalAlpha = fillAlpha;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(sx, sy, r, 0, Math.PI * 2);
+        ctx.fill();
+        // Inner disc grows to meet the outline at the moment of impact.
+        ctx.globalAlpha = fillAlpha + 0.18;
+        ctx.beginPath();
+        ctx.arc(sx, sy, r * p, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = edgeAlpha;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(sx, sy, r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+  }
+
   private renderInteractableHighlights(
     ctx: CanvasRenderingContext2D,
     state: GameState,
@@ -1785,9 +1867,11 @@ export class GameRenderer {
       const prevHp = this.prevHp.get(monster.id);
       const flashWhite = prevHp !== undefined && prevHp > monster.hp;
 
-      // Heuristic: monster is attacking when it has a target and velocity is near zero (in melee range)
-      const velMag = Math.abs(monster.velocity.x) + Math.abs(monster.velocity.y);
-      const isAttacking = monster.targetPlayerId !== null && velMag < 0.02;
+      // Attack pose now comes from authoritative server state instead of the old
+      // "has a target and is barely moving" guess, which fired on any monster that
+      // happened to pause and never fired for one that attacked while closing.
+      const isAttacking = monster.attackPhase === 'active' || monster.attackPhase === 'recovery';
+      const isWindingUp = monster.attackPhase === 'windup';
 
       // Elite golden glow — drawn before monster sprite
       if (monster.isElite) {
@@ -1814,14 +1898,22 @@ export class GameRenderer {
 
       // Hit squash: if hitStopTicks > 0 apply temporary scale pulse (compressed vertically)
       const hitStopT = (monster.hitStopTicks ?? 0) / 4; // 0..1 where 1 = fresh hit
-      const applyHitSquash = hitStopT > 0;
+      // Windup anticipation: the sprite coils — rears back and compresses — so the
+      // incoming attack reads on the monster itself, not only from the ground
+      // telegraph. Classic squash-and-stretch anticipation.
+      const windupT = isWindingUp ? Math.max(0, Math.min(1, monster.attackProgress)) : 0;
+      const applyHitSquash = hitStopT > 0 || windupT > 0;
       if (applyHitSquash) {
-        const sq = 1 - hitStopT * 0.15; // squashed Y
-        const st = 1 + hitStopT * 0.1;  // stretched X
+        const sq = (1 - hitStopT * 0.15) * (1 - windupT * 0.12);
+        const st = (1 + hitStopT * 0.1) * (1 + windupT * 0.14);
         const cx = sx + renderSize / 2;
         const cy = sy + renderSize;
         ctx.save();
         ctx.translate(cx, cy);
+        // Lean away from the target during the coil, then the attack snaps forward.
+        if (windupT > 0) {
+          ctx.translate(-monster.telegraphDirX * windupT * 2, -monster.telegraphDirY * windupT * 2);
+        }
         ctx.scale(st, sq);
         ctx.translate(-cx, -cy);
       }

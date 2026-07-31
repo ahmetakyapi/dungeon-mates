@@ -3,7 +3,7 @@
 // Detailed pixel-art drawing with off-screen cache
 // ==========================================
 
-import type { Direction, PlayerClass, MonsterType, TileType, LootType } from '../../../shared/types';
+import type { Direction, PlayerClass, MonsterType, TileType, LootType, ProjectileState } from '../../../shared/types';
 import { CLASS_STATS, MONSTER_STATS, LOOT_TABLE, TILE_SIZE } from '../../../shared/types';
 
 // --- Color utilities ---
@@ -3417,7 +3417,7 @@ export class SpriteRenderer {
     ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
-    type: 'arrow' | 'fireball' | 'sword_slash' | 'holy_bolt',
+    type: ProjectileState['type'],
     frame: number,
     vx = 0,
     vy = 0,
@@ -3429,6 +3429,37 @@ export class SpriteRenderer {
       case 'fireball': this.drawFireballProjectile(ctx, x, y, frame); break;
       case 'sword_slash': this.drawSwordSlashProjectile(ctx, x, y, frame, dirX, dirY); break;
       case 'holy_bolt': this.drawHolyBoltProjectile(ctx, x, y, frame, vx, vy); break;
+      case 'stone_shard': this.drawStoneShardProjectile(ctx, x, y, frame); break;
+      case 'spirit_bolt': this.drawSpiritBoltProjectile(ctx, x, y, frame); break;
+    }
+  }
+
+  /** Gargoyle stone shard — jagged grey rock, tumbling. */
+  private drawStoneShardProjectile(ctx: CanvasRenderingContext2D, x: number, y: number, frame: number): void {
+    const spin = frame % 4;
+    px(ctx, x - 2, y - 2, 4, 4, '#6b7280');
+    px(ctx, x - 1, y - 2, 2, 1, '#9ca3af');
+    px(ctx, x - 2, y - 1, 1, 2, '#9ca3af');
+    px(ctx, x + 1, y, 1, 2, '#4b5563');
+    px(ctx, x, y + 1, 2, 1, '#374151');
+    // Tumble highlight rotates around the shard so it reads as spinning
+    const hx = spin === 0 ? -2 : spin === 1 ? 1 : spin === 2 ? 1 : -2;
+    const hy = spin === 0 ? -2 : spin === 1 ? -2 : spin === 2 ? 1 : 1;
+    px(ctx, x + hx, y + hy, 1, 1, '#d1d5db');
+  }
+
+  /** Phantom spirit bolt — pale violet wisp with a trailing tail. */
+  private drawSpiritBoltProjectile(ctx: CanvasRenderingContext2D, x: number, y: number, frame: number): void {
+    const pulse = frame % 3;
+    px(ctx, x - 1, y - 1, 3, 3, '#7c3aed');
+    px(ctx, x - 1, y - 1, 2, 2, '#a78bfa');
+    px(ctx, x, y, 1, 1, '#ede9fe');
+    if (pulse === 0) {
+      px(ctx, x - 2, y, 1, 1, '#c4b5fd');
+    } else if (pulse === 1) {
+      px(ctx, x, y - 2, 1, 1, '#c4b5fd');
+    } else {
+      px(ctx, x + 2, y, 1, 1, '#c4b5fd');
     }
   }
 

@@ -3,6 +3,9 @@ import {
   TileType,
   MONSTER_STATS,
   TICK_RATE,
+  TELEGRAPH_CIRCLE,
+  TELEGRAPH_CONE,
+  BOSS_ABILITY_WINDUP_TICKS,
 } from '../../shared/types';
 
 import {
@@ -15,6 +18,7 @@ import {
   SPIDER_WEB_SLOW_MULT,
   SPIDER_WEB_SLOW_DURATION,
   tryAttack,
+  startBossAoe,
 } from './MonsterAI';
 
 // --- Boss charge constants ---
@@ -60,8 +64,6 @@ export function updateBossSpiderQueen(
 ): AttackResult {
   const stats = MONSTER_STATS.boss_spider_queen;
 
-  m.summonCooldown -= 1;
-  if (m.webCooldown > 0) m.webCooldown -= 1;
 
   // Phase 2 at 50% HP: faster web, more summons, web all players
   const hpRatio = m.state.hp / m.state.maxHp;
@@ -148,7 +150,6 @@ export function updateBossDemon(
 ): AttackResult {
   const stats = MONSTER_STATS.boss_demon;
 
-  m.summonCooldown -= 1;
 
   // Phase transitions: 0→1 at 75%, 1→2 at 50%, 2→3 at 25%
   const hpRatio = m.state.hp / m.state.maxHp;
@@ -227,8 +228,6 @@ export function updateBossForgeGuardian(
 ): AttackResult {
   const stats = MONSTER_STATS.boss_forge_guardian;
 
-  m.summonCooldown -= 1;
-  if (m.slamCooldown > 0) m.slamCooldown -= 1;
 
   // Enrage at 50% HP — faster attacks, faster movement
   const hpRatio = m.state.hp / m.state.maxHp;
@@ -236,19 +235,19 @@ export function updateBossForgeGuardian(
   const speedMult = enraged ? 1.4 : 1.0;
   const atkMult = enraged ? 1.3 : 1.0;
 
-  // Ground slam AoE — damages all players within range
+  // Ground slam AoE — telegraphed, resolves after the windup so players can leave
+  // the circle. It used to hit everyone the instant it came off cooldown.
   if (m.slamCooldown <= 0 && nearest && nearest.distance <= FORGE_SLAM_RANGE) {
     m.slamCooldown = enraged ? Math.floor(FORGE_SLAM_COOLDOWN * 0.6) : FORGE_SLAM_COOLDOWN;
-    const slamDmg = Math.floor(m.scaledAttack * FORGE_SLAM_DAMAGE_MULT * atkMult);
-    for (const player of players) {
-      if (!player.alive) continue;
-      const dx = player.position.x - m.state.position.x;
-      const dy = player.position.y - m.state.position.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist <= FORGE_SLAM_RANGE) {
-        m.aoeHits.push({ playerId: player.id, damage: slamDmg });
-      }
-    }
+    startBossAoe(m, {
+      kind: TELEGRAPH_CIRCLE,
+      radius: FORGE_SLAM_RANGE,
+      damage: Math.floor(m.scaledAttack * FORGE_SLAM_DAMAGE_MULT * atkMult),
+      windupTicks: enraged
+        ? Math.floor(BOSS_ABILITY_WINDUP_TICKS * 0.75)
+        : BOSS_ABILITY_WINDUP_TICKS,
+    });
+    return null;
   }
 
   // Summon minions periodically (slower than demon)
@@ -279,9 +278,6 @@ export function updateBossStoneWarden(
 ): AttackResult {
   const stats = MONSTER_STATS.boss_stone_warden;
 
-  m.summonCooldown -= 1;
-  if (m.petrifyGazeCooldown > 0) m.petrifyGazeCooldown -= 1;
-  if (m.slamCooldown > 0) m.slamCooldown -= 1;
 
   // Rock shield — activate at 40% HP, lasts 4 seconds, recharges.
   // Cooldown is tracked in its own counter; the old version keyed off
@@ -303,24 +299,36 @@ export function updateBossStoneWarden(
     m.shieldTicks = STONE_SHIELD_DURATION;
   }
 
-  // Petrify gaze — stun nearest player
+  // Petrify gaze — a telegraphed cone the player can step out of, rather than an
+  // undodgeable 2s hard stun applied the moment it came off cooldown.
   if (m.petrifyGazeCooldown <= 0 && nearest && nearest.distance <= STONE_PETRIFY_RANGE) {
     m.petrifyGazeCooldown = STONE_PETRIFY_COOLDOWN;
-    m.stunTargets.push({ playerId: nearest.id, ticks: STONE_PETRIFY_STUN_TICKS });
+    const gx = nearest.position.x - m.state.position.x;
+    const gy = nearest.position.y - m.state.position.y;
+    const gmag = Math.sqrt(gx * gx + gy * gy) || 1;
+    startBossAoe(m, {
+      kind: TELEGRAPH_CONE,
+      radius: STONE_PETRIFY_RANGE,
+      damage: 0,
+      stunTicks: STONE_PETRIFY_STUN_TICKS,
+      dirX: gx / gmag,
+      dirY: gy / gmag,
+      arc: Math.PI / 5,
+      windupTicks: BOSS_ABILITY_WINDUP_TICKS,
+    });
+    return null;
   }
 
   // Ground slam AoE (slower than forge)
   if (m.slamCooldown <= 0 && nearest && nearest.distance <= 2.0) {
     m.slamCooldown = FORGE_SLAM_COOLDOWN * 1.2;
-    const slamDmg = Math.floor(m.scaledAttack * 1.5);
-    for (const player of players) {
-      if (!player.alive) continue;
-      const dx = player.position.x - m.state.position.x;
-      const dy = player.position.y - m.state.position.y;
-      if (Math.sqrt(dx * dx + dy * dy) <= 2.0) {
-        m.aoeHits.push({ playerId: player.id, damage: slamDmg });
-      }
-    }
+    startBossAoe(m, {
+      kind: TELEGRAPH_CIRCLE,
+      radius: 2.4,
+      damage: Math.floor(m.scaledAttack * 1.5),
+      windupTicks: BOSS_ABILITY_WINDUP_TICKS,
+    });
+    return null;
   }
 
   // Summon gargoyle minions
@@ -352,9 +360,6 @@ export function updateBossFlameKnight(
 ): AttackResult {
   const stats = MONSTER_STATS.boss_flame_knight;
 
-  m.summonCooldown -= 1;
-  if (m.flameChargeCooldown > 0) m.flameChargeCooldown -= 1;
-  if (m.spinCooldown > 0) m.spinCooldown -= 1;
 
   // Handle active flame charge
   if (m.flameChargeTimer > 0) {
@@ -378,18 +383,16 @@ export function updateBossFlameKnight(
     return null;
   }
 
-  // Spinning slash AoE — damages all in range
+  // Spinning slash AoE — telegraphed ring
   if (m.spinCooldown <= 0 && nearest && nearest.distance <= FLAME_SPIN_RANGE) {
     m.spinCooldown = FLAME_SPIN_COOLDOWN;
-    const spinDmg = Math.floor(m.scaledAttack * FLAME_SPIN_DAMAGE_MULT);
-    for (const player of players) {
-      if (!player.alive) continue;
-      const dx = player.position.x - m.state.position.x;
-      const dy = player.position.y - m.state.position.y;
-      if (Math.sqrt(dx * dx + dy * dy) <= FLAME_SPIN_RANGE) {
-        m.aoeHits.push({ playerId: player.id, damage: spinDmg });
-      }
-    }
+    startBossAoe(m, {
+      kind: TELEGRAPH_CIRCLE,
+      radius: FLAME_SPIN_RANGE + 0.4,
+      damage: Math.floor(m.scaledAttack * FLAME_SPIN_DAMAGE_MULT),
+      windupTicks: Math.floor(BOSS_ABILITY_WINDUP_TICKS * 0.8),
+    });
+    return null;
   }
 
   // Initiate charge at medium range

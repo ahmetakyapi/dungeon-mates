@@ -9,7 +9,9 @@
     "build": "next build",
     "build:server": "tsc -p tsconfig.server.json",
     "start": "next start",
-    "start:server": "node dist/server/index.js"
+    "start:server": "node dist/server/index.js",
+    "check:combat": "tsx scripts/combat-check.ts",
+    "check:smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
