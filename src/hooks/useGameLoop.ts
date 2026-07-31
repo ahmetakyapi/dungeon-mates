@@ -13,6 +13,8 @@ type TouchControlsAPI = {
   zoom: number;
   attackCooldown: number;
   skillCooldown: number;
+  dodgeCooldown: number;
+  ultimateReady: boolean;
   interactVisible: boolean;
   setPlayerHp?: (hp: number, maxHp: number) => void;
 };
@@ -29,6 +31,7 @@ type UseGameLoopReturn = {
   isTouchDevice: boolean;
   setTouchCooldowns: (attack: number, skill: number) => void;
   setTouchInteractVisible: (visible: boolean) => void;
+  setTouchDodgeState: (dodgeCooldown: number, ultimateReady: boolean) => void;
   setTouchPlayerHp: (hp: number, maxHp: number) => void;
   rendererRef: React.MutableRefObject<unknown>;
 };
@@ -65,6 +68,13 @@ export function useGameLoop({
     tc.skillCooldown = skill;
   }, []);
 
+  const setTouchDodgeState = useCallback((dodgeCooldown: number, ultimateReady: boolean) => {
+    const tc = touchControlsRef.current;
+    if (!tc) return;
+    tc.dodgeCooldown = dodgeCooldown;
+    tc.ultimateReady = ultimateReady;
+  }, []);
+
   const setTouchInteractVisible = useCallback((visible: boolean) => {
     const tc = touchControlsRef.current;
     if (!tc) return;
@@ -96,6 +106,7 @@ export function useGameLoop({
       render: (state: GameState, playerId: string, dt: number) => void;
       resize: (w: number, h: number) => void;
       destroy: () => void;
+      setAimAngle: (angle: number | null) => void;
       cameraInstance?: { setZoom: (z: number) => void };
     } | null = null;
 
@@ -258,6 +269,12 @@ export function useGameLoop({
         }
       }
 
+      // Tell the renderer whether the player is manually aiming so it can draw the
+      // reticle and target lock.
+      if (renderer) {
+        renderer.setAimAngle(input?.aimAngle ?? null);
+      }
+
       if (input) {
         onInput(input);
       }
@@ -327,5 +344,5 @@ export function useGameLoop({
     };
   }, [canvasRef, localPlayerId, onInput]);
 
-  return { fps, isTouchDevice, setTouchCooldowns, setTouchInteractVisible, setTouchPlayerHp, rendererRef };
+  return { fps, isTouchDevice, setTouchCooldowns, setTouchInteractVisible, setTouchDodgeState, setTouchPlayerHp, rendererRef };
 }

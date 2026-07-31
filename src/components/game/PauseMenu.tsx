@@ -115,15 +115,19 @@ function ControlsInfo() {
       <p className="font-pixel text-[9px] text-dm-accent lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">Masaüstü</p>
       <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">
         <span>W/A/S/D</span><span>Hareket</span>
-        <span>Space</span><span>Saldırı</span>
+        <span>Fare</span><span>Nişan (otomatik hedefi geçersiz kılar)</span>
+        <span>Space / Sol tık</span><span>Saldırı</span>
+        <span>Q</span><span>Takla (kaçınma)</span>
         <span>E</span><span>Yetenek</span>
+        <span>F</span><span>Ultimate (Seviye 5+)</span>
+        <span>R</span><span>Etkileşim</span>
         <span>ESC</span><span>Menü</span>
       </div>
       <div className="h-px bg-dm-border" />
       <p className="font-pixel text-[9px] text-dm-accent lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">Mobil</p>
       <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">
         <span>Sol Joystick</span><span>Hareket</span>
-        <span>Sağ Butonlar</span><span>Saldırı & Yetenek</span>
+        <span>Sağ Butonlar</span><span>Saldırı, Yetenek, Takla, Ultimate</span>
       </div>
     </motion.div>
   );

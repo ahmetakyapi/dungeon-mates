@@ -18,6 +18,9 @@ const seen = {
   maxFloor: 1,
   kills: 0,
   ticks: 0,
+  lastMonsterCount: 0,
+  lastPos: '',
+  lastNearest: 0,
 };
 
 let myId = '';
@@ -48,6 +51,51 @@ socket.on('game:damage_batch', (batch) => {
   }
 });
 
+const WALKABLE = new Set(['floor', 'door', 'stairs']);
+
+/** BFS over walkable tiles; returns a unit step toward the next waypoint. */
+function bfsStep(state, from, to) {
+  const tiles = state.dungeon.tiles;
+  const h = tiles.length;
+  const w = tiles[0]?.length ?? 0;
+  const sx = Math.floor(from.x), sy = Math.floor(from.y);
+  const tx = Math.floor(to.x), ty = Math.floor(to.y);
+  if (sx === tx && sy === ty) return null;
+
+  const prev = new Int32Array(w * h).fill(-1);
+  const seenCell = new Uint8Array(w * h);
+  const queue = [sy * w + sx];
+  seenCell[sy * w + sx] = 1;
+  let head = 0;
+  let found = -1;
+
+  while (head < queue.length) {
+    const cur = queue[head++];
+    const cx = cur % w, cy = (cur - cx) / w;
+    if (cx === tx && cy === ty) { found = cur; break; }
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const nx = cx + dx, ny = cy + dy;
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+      const idx = ny * w + nx;
+      if (seenCell[idx]) continue;
+      if (!WALKABLE.has(tiles[ny]?.[nx])) continue;
+      seenCell[idx] = 1;
+      prev[idx] = cur;
+      queue.push(idx);
+    }
+  }
+  if (found < 0) return null;
+
+  // Walk back to the cell adjacent to the start.
+  let node = found;
+  while (prev[node] !== -1 && prev[node] !== sy * w + sx) node = prev[node];
+  const nx = node % w, ny = (node - nx) / w;
+  const dx = (nx + 0.5) - from.x;
+  const dy = (ny + 0.5) - from.y;
+  const mag = Math.hypot(dx, dy) || 1;
+  return { x: dx / mag, y: dy / mag };
+}
+
 socket.on('game:state', (state) => {
   seen.ticks += 1;
   seen.maxFloor = Math.max(seen.maxFloor, state.dungeon.currentFloor);
@@ -65,6 +113,8 @@ socket.on('game:state', (state) => {
 
   const me = state.players[myId];
   if (!me) return;
+  seen.lastMonsterCount = Object.values(state.monsters).filter((m) => m.alive).length;
+  seen.lastPos = `${me.position.x.toFixed(1)},${me.position.y.toFixed(1)}`;
   if (lastHp !== null && me.hp < lastHp) { /* took damage */ }
   lastHp = me.hp;
 
@@ -77,24 +127,16 @@ socket.on('game:state', (state) => {
     const d = Math.hypot(m.position.x - me.position.x, m.position.y - me.position.y);
     if (d < bestD) { bestD = d; best = m; }
   }
-  // Naive "walk straight at it" pathing gets wedged on walls, so unstick with a
-  // random walk whenever position stops changing.
-  const moved = !prevPos || Math.hypot(me.position.x - prevPos.x, me.position.y - prevPos.y) > 0.01;
-  if (moved) { stuckTicks = 0; } else { stuckTicks += 1; }
-  prevPos = { x: me.position.x, y: me.position.y };
+  seen.lastNearest = bestD;
 
+  // Walk the actual dungeon graph. Steering straight at the target wedged the bot
+  // against walls, which made the whole test a coin flip on dungeon layout.
   let ix = 0, iy = 0;
-  if (stuckTicks > 12) {
-    if (stuckTicks % 40 === 0) wander = Math.random() * Math.PI * 2;
-    ix = Math.cos(wander); iy = Math.sin(wander);
-    if (stuckTicks > 160) stuckTicks = 0;
-  } else if (best) {
-    const dx = best.position.x - me.position.x;
-    const dy = best.position.y - me.position.y;
-    const mag = Math.hypot(dx, dy) || 1;
-    ix = dx / mag; iy = dy / mag;
+  const step = best ? bfsStep(state, me.position, best.position) : null;
+  if (step) {
+    ix = step.x; iy = step.y;
   } else {
-    if (seen.ticks % 40 === 0) wander = Math.random() * Math.PI * 2;
+    if (seen.ticks % 30 === 0) wander = Math.random() * Math.PI * 2;
     ix = Math.cos(wander); iy = Math.sin(wander);
   }
   socket.emit('player:input', { dx: ix, dy: iy, attack: false, ability: false, interact: true });
@@ -109,6 +151,7 @@ setTimeout(() => {
   console.log('--- attack phases observed:', [...seen.attackPhases].join(', '));
   console.log('--- telegraph kinds observed:', [...seen.telegraphKinds].join(', '));
   console.log('--- projectile types observed:', [...seen.projectileTypes].join(', '));
+  console.log('--- monsters alive:', seen.lastMonsterCount, '| my pos:', seen.lastPos, '| nearest dist:', seen.lastNearest?.toFixed(2));
   console.log('--- kills:', seen.kills, '| dmg dealt:', seen.damageToMonsters, '| dmg taken:', seen.monsterDamageToPlayer);
   console.log('');
   ok('server streamed state', seen.ticks > 50);

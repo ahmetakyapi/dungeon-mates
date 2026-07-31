@@ -26,7 +26,10 @@ import { PixelButton } from '@/components/ui/PixelButton';
 import { PixelHero } from '@/components/game/PixelHero';
 import { GameErrorBoundary } from '@/components/game/ErrorBoundary';
 import type { PlayerInput, GamePhase, PlayerState } from '../../../shared/types';
-import { CLASS_STATS, DIFFICULTY_INFO, ABILITY_MAX_COOLDOWNS, monsterDisplay } from '../../../shared/types';
+import { CLASS_STATS, DIFFICULTY_INFO, ABILITY_MAX_COOLDOWNS, TICK_RATE, monsterDisplay } from '../../../shared/types';
+
+// Mirrors DODGE_COOLDOWN_TICKS in server/entities/Player.ts
+const DODGE_COOLDOWN_TICKS = 30;
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -181,7 +184,7 @@ function GamePage() {
     [phase, sendInput, inputBlocked],
   );
 
-  const { fps, isTouchDevice, setTouchCooldowns, setTouchInteractVisible, setTouchPlayerHp, rendererRef } = useGameLoop({
+  const { fps, isTouchDevice, setTouchCooldowns, setTouchInteractVisible, setTouchDodgeState, setTouchPlayerHp, rendererRef } = useGameLoop({
     canvasRef,
     gameState,
     localPlayerId: playerId,
@@ -300,11 +303,51 @@ function GamePage() {
     return Math.min(localPlayer.abilityCooldownTicks / maxCd, 1);
   }, [localPlayer?.abilityCooldownTicks, localPlayer?.class]);
 
+  // Attack cooldown, derived from the class's attack rate and the last swing tick.
+  // This was previously never computed, so every cooldown indicator in the game —
+  // desktop radial and mobile arc alike — was permanently pinned at "ready".
+  const attackCooldownPct = useMemo(() => {
+    if (!localPlayer || !gameState) return 0;
+    const cdMs = CLASS_STATS[localPlayer.class].attackCooldown;
+    const cdTicks = Math.ceil(cdMs / (1000 / TICK_RATE));
+    const elapsed = gameState.tick - localPlayer.lastAttackTime;
+    if (elapsed >= cdTicks) return 0;
+    return Math.min(1, Math.max(0, 1 - elapsed / cdTicks));
+  }, [localPlayer?.lastAttackTime, localPlayer?.class, gameState?.tick]);
+
+  const dodgeCooldownPct = useMemo(() => {
+    if (!localPlayer) return 0;
+    return Math.min(1, Math.max(0, localPlayer.dodgeCooldownTicks / DODGE_COOLDOWN_TICKS));
+  }, [localPlayer?.dodgeCooldownTicks]);
+
   // === Sync touch controls with game state ===
   useEffect(() => {
     if (!isTouchDevice) return;
-    setTouchCooldowns(0, abilityCooldownPct);
-  }, [isTouchDevice, abilityCooldownPct, setTouchCooldowns]);
+    setTouchCooldowns(attackCooldownPct, abilityCooldownPct);
+  }, [isTouchDevice, attackCooldownPct, abilityCooldownPct, setTouchCooldowns]);
+
+  useEffect(() => {
+    if (!isTouchDevice) return;
+    setTouchDodgeState(dodgeCooldownPct, localPlayer?.ultimateReady ?? false);
+  }, [isTouchDevice, dodgeCooldownPct, localPlayer?.ultimateReady, setTouchDodgeState]);
+
+  // Show the mobile interact button when standing on a chest or the stairs.
+  // setTouchInteractVisible existed but was never called, so on touch devices the
+  // button could never appear and chests/stairs were unusable.
+  useEffect(() => {
+    if (!isTouchDevice || !localPlayer || !gameState) return;
+    const tiles = gameState.dungeon.tiles;
+    const px = Math.floor(localPlayer.position.x);
+    const py = Math.floor(localPlayer.position.y);
+    let near = false;
+    for (let dy = -1; dy <= 1 && !near; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const t = tiles[py + dy]?.[px + dx];
+        if (t === 'chest' || t === 'stairs') { near = true; break; }
+      }
+    }
+    setTouchInteractVisible(near);
+  }, [isTouchDevice, localPlayer?.position.x, localPlayer?.position.y, gameState?.dungeon.tiles, setTouchInteractVisible]);
 
   useEffect(() => {
     if (!isTouchDevice || !localPlayer) return;
@@ -928,6 +971,8 @@ function GamePage() {
           fps={fps}
           showFps={showFps}
           abilityCooldownPct={abilityCooldownPct}
+          attackCooldownPct={attackCooldownPct}
+          dodgeCooldownPct={dodgeCooldownPct}
           abilityActive={localPlayer.abilityActive}
           playerClass={localPlayer.class}
           monsterKillEvents={monsterKillEvents}

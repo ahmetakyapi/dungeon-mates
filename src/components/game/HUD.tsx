@@ -974,9 +974,12 @@ function ActionInfo({
 }) {
   const radius = 16;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference * (1 - attackCooldownPct);
+  // attackCooldownPct is REMAINING cooldown (0 = ready), same convention as
+  // abilityCooldownPct and TouchControls. It used to be inverted here, and since
+  // the prop was never passed it defaulted to "always ready".
+  const offset = circumference * attackCooldownPct;
 
-  const isReady = attackCooldownPct >= 1;
+  const isReady = attackCooldownPct <= 0;
 
   return (
     <PixelFrame className="flex flex-col items-center gap-1.5 p-2.5 sm:p-3">
@@ -1002,6 +1005,44 @@ function ActionInfo({
       <div className="flex flex-col items-center gap-0.5">
         <span className="font-pixel text-[7px] text-zinc-400 sm:text-[8px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">Saldırı</span>
         <span className="hidden font-pixel text-[6px] text-zinc-600 sm:block sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">[Space]</span>
+      </div>
+    </PixelFrame>
+  );
+}
+
+/**
+ * Dodge readiness. Dodge existed on the server from the start but had no UI
+ * anywhere — not in the HUD, the tutorial, or the pause controls list — so most
+ * players never learned it was bound to Q.
+ */
+function DodgeInfo({ dodgeCooldownPct }: { dodgeCooldownPct: number }) {
+  const radius = 16;
+  const circumference = 2 * Math.PI * radius;
+  const isReady = dodgeCooldownPct <= 0;
+
+  return (
+    <PixelFrame className="flex flex-col items-center gap-1.5 p-2.5 sm:p-3">
+      <div className="relative flex items-center justify-center">
+        <svg viewBox="0 0 40 40" className="h-12 w-12 rotate-[-90deg] lg:h-14 lg:w-14 2xl:h-16 2xl:w-16">
+          <circle cx={20} cy={20} r={radius} fill="none" stroke="#1f2937" strokeWidth={3} />
+          <circle
+            cx={20}
+            cy={20}
+            r={radius}
+            fill="none"
+            stroke={isReady ? '#22d3ee' : '#155e75'}
+            strokeWidth={3}
+            strokeDasharray={circumference}
+            strokeDashoffset={circumference * dodgeCooldownPct}
+            strokeLinecap="round"
+            style={{ transition: 'stroke-dashoffset 0.1s linear' }}
+          />
+        </svg>
+        <span className={`absolute text-sm lg:text-base 2xl:text-lg ${isReady ? '' : 'opacity-40'}`}>💨</span>
+      </div>
+      <div className="flex flex-col items-center gap-0.5">
+        <span className="font-pixel text-[7px] text-zinc-400 sm:text-[8px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">Takla</span>
+        <span className="hidden font-pixel text-[6px] text-zinc-600 sm:block sm:text-[7px] lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">[Q]</span>
       </div>
     </PixelFrame>
   );
@@ -1168,7 +1209,9 @@ type HUDProps = {
   fps: number;
   showFps?: boolean;
 
+  /** Remaining cooldown as a fraction, 0 = ready (matches abilityCooldownPct). */
   attackCooldownPct?: number;
+  dodgeCooldownPct?: number;
   abilityCooldownPct?: number;
   abilityActive?: boolean;
   playerClass?: PlayerClass;
@@ -1179,7 +1222,7 @@ type HUDProps = {
   floorModifiers?: FloorModifier[];
 };
 
-export function HUD({ player, gameState, fps, showFps = false, attackCooldownPct = 1, abilityCooldownPct = 0, abilityActive = false, playerClass, monsterKillEvents, lootPickupEvents, isTouchDevice = false, bossDialogue, floorModifiers = [] }: HUDProps) {
+export function HUD({ player, gameState, fps, showFps = false, attackCooldownPct = 0, dodgeCooldownPct = 0, abilityCooldownPct = 0, abilityActive = false, playerClass, monsterKillEvents, lootPickupEvents, isTouchDevice = false, bossDialogue, floorModifiers = [] }: HUDProps) {
   const { toasts, addToast } = useToasts();
   const [killFeedEntries, setKillFeedEntries] = useState<KillFeedEntry[]>([]);
   const [hpFlash, setHpFlash] = useState(false);
@@ -1639,6 +1682,7 @@ export function HUD({ player, gameState, fps, showFps = false, attackCooldownPct
             />
           )}
           <ActionInfo attackCooldownPct={attackCooldownPct} playerClass={playerClass} />
+          <DodgeInfo dodgeCooldownPct={dodgeCooldownPct} />
         </div>
       )}
 

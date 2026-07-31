@@ -49,6 +49,9 @@ const DODGE_DURATION_TICKS = 6; // ~0.3 seconds
 const DODGE_COOLDOWN_TICKS = 30; // ~1.5 seconds
 const DODGE_MANA_COST = 5;
 
+// Manual aim snaps onto an enemy within this angular tolerance (radians, ~35°).
+const AIM_SNAP_TOLERANCE = 0.61;
+
 // Premium combat feel — tick counts @ 20 TPS
 const HITSTOP_NORMAL_TICKS = 2;   // ~100ms
 const HITSTOP_CRIT_TICKS = 3;     // ~150ms
@@ -424,7 +427,7 @@ export class Player {
       const tickCooldown = Math.ceil(cooldown / (1000 / TICK_RATE));
 
       if (currentTick - this.state.lastAttackTime >= tickCooldown) {
-        const aimDir = this.findNearestTarget(monsters);
+        const aimDir = this.resolveAimDirection(monsters, input.aimAngle);
         projectile = this.createAttack(aimDir ?? undefined);
         // Only commit the cooldown and swing animation if the attack actually
         // happened. createAttack returns null when mage/healer lack mana, and
@@ -515,6 +518,47 @@ export class Player {
         );
       }
     }
+  }
+
+  /**
+   * Resolve the attack direction under the hybrid aim model.
+   *
+   * Default is the existing nearest-target snap (keeps mobile and casual play
+   * intact). When the player is actively aiming, their angle wins — but if an
+   * enemy sits within AIM_SNAP_TOLERANCE of it, we snap onto that enemy so
+   * near-misses still connect and the aiming feels generous rather than fiddly.
+   */
+  resolveAimDirection(monsters: MonsterTarget[], aimAngle: number | undefined): Vec2 | null {
+    if (aimAngle === undefined) return this.findNearestTarget(monsters);
+
+    const ax = Math.cos(aimAngle);
+    const ay = Math.sin(aimAngle);
+    const range = CLASS_STATS[this.state.class].attackRange;
+    const maxDistSq = (range * 1.5) * (range * 1.5);
+    const cosTolerance = Math.cos(AIM_SNAP_TOLERANCE);
+
+    let bestDot = cosTolerance;
+    let bestX = 0;
+    let bestY = 0;
+    let found = false;
+
+    for (const m of monsters) {
+      if (!m.alive) continue;
+      const dx = m.position.x - this.state.position.x;
+      const dy = m.position.y - this.state.position.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq > maxDistSq || distSq < 0.0001) continue;
+      const dist = Math.sqrt(distSq);
+      const dot = (dx / dist) * ax + (dy / dist) * ay;
+      if (dot > bestDot) {
+        bestDot = dot;
+        bestX = dx / dist;
+        bestY = dy / dist;
+        found = true;
+      }
+    }
+
+    return found ? { x: bestX, y: bestY } : { x: ax, y: ay };
   }
 
   findNearestTarget(monsters: MonsterTarget[]): Vec2 | null {
@@ -905,7 +949,7 @@ export class Player {
     return this.shopBonuses.speed + this.talentBonuses.speed;
   }
 
-  useAbility(monsters: MonsterTarget[] = []): ServerAbilityResult | null {
+  useAbility(monsters: MonsterTarget[] = [], aimAngle?: number): ServerAbilityResult | null {
     if (this.abilityCooldownTicks > 0) return null;
     const costReduction = 1 - this.talentBonuses.manaCostReduction;
     const abilityDmgMult = 1 + this.talentBonuses.abilityDamageBonus;
@@ -939,7 +983,7 @@ export class Player {
         this.abilityActiveTicks = 10; // 0.5 saniye görsel geri bildirim
         this.abilityCooldownTicks = 200; // 10 saniye
         // Auto-aim toward nearest target
-        const aimDir = this.findNearestTarget(monsters);
+        const aimDir = this.resolveAimDirection(monsters, aimAngle);
         if (aimDir) {
           this.applyAimFacing(aimDir);
         }
@@ -979,7 +1023,7 @@ export class Player {
   }
 
   /** Per-class ultimate ability — level 5+ required, 45s cooldown, 60 mana */
-  useUltimate(monsters: MonsterTarget[] = []): ServerUltimateResult | null {
+  useUltimate(monsters: MonsterTarget[] = [], aimAngle?: number): ServerUltimateResult | null {
     if (this.state.level < ULTIMATE_UNLOCK_LEVEL) return null;
     if (this.ultimateCooldownTicks > 0) return null;
     const costReduction = 1 - this.talentBonuses.manaCostReduction;
@@ -994,7 +1038,7 @@ export class Player {
     switch (this.state.class) {
       case 'warrior': {
         // Berserker Rush — 5 sword slashes fanned forward, each lifestealing
-        const aimDir = this.findNearestTarget(monsters) ?? this.getFacingVector();
+        const aimDir = this.resolveAimDirection(monsters, aimAngle) ?? this.getFacingVector();
         if (aimDir !== this.getFacingVector()) this.applyAimFacing(aimDir);
         const slashes: Projectile[] = [];
         const spread = Math.PI / 6; // 30° total
@@ -1022,7 +1066,7 @@ export class Player {
       }
       case 'archer': {
         // Piercing Volley — 8 arrows, wide fan, double damage
-        const aimDir = this.findNearestTarget(monsters) ?? this.getFacingVector();
+        const aimDir = this.resolveAimDirection(monsters, aimAngle) ?? this.getFacingVector();
         this.applyAimFacing(aimDir);
         const spread = Math.PI * 0.7; // 126° total
         const projs: Projectile[] = [];

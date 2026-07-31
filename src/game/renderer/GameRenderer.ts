@@ -83,6 +83,10 @@ const PERF_SAMPLE_COUNT = 30;
 const PERF_CHECK_INTERVAL = 2000; // ms
 
 // Vision radius for fog (reduced with darkness modifier)
+// Matches AIM_SNAP_TOLERANCE on the server (~35°) so the highlighted target is
+// exactly the one the shot will resolve against.
+const AIM_SNAP_COS = Math.cos(0.61);
+
 const VISION_RADIUS = 10;
 const VISION_RADIUS_DARKNESS = 6;
 
@@ -129,6 +133,9 @@ export class GameRenderer {
   private lastFrameTime = 0;
 
   // Screen flash effect
+  // Hybrid aim — set each frame by the game loop; null = auto-targeting.
+  private aimAngle: number | null = null;
+
   private screenFlashAlpha = 0;
   private screenFlashColor = '#ffffff';
 
@@ -405,6 +412,11 @@ export class GameRenderer {
   }
 
   /** Manually set quality */
+  /** Manual aim angle in radians, or null when the server is auto-targeting. */
+  setAimAngle(angle: number | null): void {
+    this.aimAngle = angle;
+  }
+
   setQuality(level: QualityLevel): void {
     this.quality = level;
     const preset = QUALITY_PRESETS[level];
@@ -869,6 +881,10 @@ export class GameRenderer {
 
     // 8. Render players — drawn after fog so they are always bright and visible
     this.renderPlayers(ctx, playersArr, state, camX, camY, localPlayerId, dt);
+
+    // 8b. Aim reticle + the enemy the shot will actually snap to. Without this the
+    // player has no way to know whether manual aim or auto-target is in control.
+    this.renderAimIndicator(ctx, playersArr, monstersArr, localPlayerId, camX, camY);
 
     // 9. Render particles
     if (preset.particles) {
@@ -1643,6 +1659,95 @@ export class GameRenderer {
    * so "step outside the red" is a promise the game actually keeps. Fill opacity
    * tracks windup progress, and the outline snaps bright right before impact.
    */
+  /**
+   * Draw the aim reticle and highlight the enemy the attack will resolve against.
+   * Mirrors the server's snap tolerance so what is highlighted is what gets hit.
+   */
+  private renderAimIndicator(
+    ctx: CanvasRenderingContext2D,
+    players: PlayerState[],
+    monsters: MonsterState[],
+    localPlayerId: string,
+    camX: number,
+    camY: number,
+  ): void {
+    if (this.aimAngle === null) return;
+    let me: PlayerState | null = null;
+    for (let i = 0; i < players.length; i++) {
+      if (players[i].id === localPlayerId) { me = players[i]; break; }
+    }
+    if (!me || !me.alive) return;
+
+    const range = CLASS_STATS[me.class].attackRange;
+    const ax = Math.cos(this.aimAngle);
+    const ay = Math.sin(this.aimAngle);
+    const px0 = me.position.x * TILE_SIZE - camX;
+    const py0 = me.position.y * TILE_SIZE - camY;
+
+    // Find the monster the server would snap onto (same 35° tolerance).
+    let lockX = 0;
+    let lockY = 0;
+    let lockSize = 0;
+    let bestDot = AIM_SNAP_COS;
+    const maxDist = range * 1.5;
+    for (let i = 0; i < monsters.length; i++) {
+      const m = monsters[i];
+      if (!m.alive) continue;
+      const dx = m.position.x - me.position.x;
+      const dy = m.position.y - me.position.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > maxDist || dist < 0.01) continue;
+      const dot = (dx / dist) * ax + (dy / dist) * ay;
+      if (dot > bestDot) {
+        bestDot = dot;
+        lockX = m.position.x * TILE_SIZE - camX;
+        lockY = m.position.y * TILE_SIZE - camY;
+        lockSize = TILE_SIZE * MONSTER_STATS[m.type].size;
+      }
+    }
+
+    ctx.save();
+    // Aim line — short dashed guide from the player toward the cursor.
+    const lineLen = Math.min(range, 4) * TILE_SIZE;
+    ctx.globalAlpha = 0.28;
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath();
+    ctx.moveTo(Math.round(px0 + ax * 6), Math.round(py0 + ay * 6));
+    ctx.lineTo(Math.round(px0 + ax * lineLen), Math.round(py0 + ay * lineLen));
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    if (lockSize > 0) {
+      // Locked target — corner brackets, which read better than a full box at 16px.
+      const h = lockSize / 2 + 2;
+      const cx = Math.round(lockX);
+      const cy = Math.round(lockY);
+      const b = 3;
+      ctx.globalAlpha = 0.9;
+      ctx.strokeStyle = '#fbbf24';
+      ctx.beginPath();
+      ctx.moveTo(cx - h, cy - h + b); ctx.lineTo(cx - h, cy - h); ctx.lineTo(cx - h + b, cy - h);
+      ctx.moveTo(cx + h - b, cy - h); ctx.lineTo(cx + h, cy - h); ctx.lineTo(cx + h, cy - h + b);
+      ctx.moveTo(cx - h, cy + h - b); ctx.lineTo(cx - h, cy + h); ctx.lineTo(cx - h + b, cy + h);
+      ctx.moveTo(cx + h - b, cy + h); ctx.lineTo(cx + h, cy + h); ctx.lineTo(cx + h, cy + h - b);
+      ctx.stroke();
+    } else {
+      // Free aim — small crosshair at the end of the guide.
+      const rx = Math.round(px0 + ax * lineLen);
+      const ry = Math.round(py0 + ay * lineLen);
+      ctx.globalAlpha = 0.7;
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillRect(rx - 3, ry, 2, 1);
+      ctx.fillRect(rx + 2, ry, 2, 1);
+      ctx.fillRect(rx, ry - 3, 1, 2);
+      ctx.fillRect(rx, ry + 2, 1, 2);
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
   private renderTelegraphs(
     ctx: CanvasRenderingContext2D,
     monsters: MonsterState[],

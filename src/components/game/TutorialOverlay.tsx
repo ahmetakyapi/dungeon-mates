@@ -49,10 +49,23 @@ function DesktopControls() {
           <p className="mt-1 font-body text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">Saldırı</p>
         </div>
 
+        {/* Q — dodge. Taught explicitly because it is the counter to enemy
+            attack telegraphs, and it was previously undocumented anywhere. */}
+        <div className="flex flex-col items-center gap-1">
+          <KeyCap label="Q" />
+          <p className="mt-1 font-body text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">Takla — kırmızı alandan kaç</p>
+        </div>
+
         {/* E */}
         <div className="flex flex-col items-center gap-1">
           <KeyCap label="E" />
           <p className="mt-1 font-body text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">Yetenek Kullan</p>
+        </div>
+
+        {/* F */}
+        <div className="flex flex-col items-center gap-1">
+          <KeyCap label="F" />
+          <p className="mt-1 font-body text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">Ultimate (Sv. 5+)</p>
         </div>
 
         {/* R */}
@@ -95,7 +108,7 @@ function MobileControls() {
               ✦
             </div>
           </div>
-          <p className="mt-1 font-body text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">Sağ taraf: Saldırı, Yetenek & Etkileşim</p>
+          <p className="mt-1 font-body text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">Sağ taraf: Saldırı, Yetenek, Takla & Ultimate</p>
         </div>
       </div>
     </div>

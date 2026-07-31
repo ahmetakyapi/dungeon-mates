@@ -770,7 +770,7 @@ export class GameRoom {
 
       // Process ability
       if (input.ability) {
-        const abilityResult = player.useAbility(monsterTargets);
+        const abilityResult = player.useAbility(monsterTargets, input.aimAngle);
         if (abilityResult) {
           switch (abilityResult.type) {
             case 'shield_wall':
@@ -832,7 +832,7 @@ export class GameRoom {
 
       // Ultimate handling — per-class powerful ability (F key, level 5+, 45s CD)
       if (input.ultimate) {
-        const ultResult = player.useUltimate(monsterTargets);
+        const ultResult = player.useUltimate(monsterTargets, input.aimAngle);
         if (ultResult) {
           this.io.to(this.roomCode).emit('game:ultimate_activated', {
             playerId: player.state.id,

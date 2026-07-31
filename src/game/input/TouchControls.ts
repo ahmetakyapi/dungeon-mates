@@ -16,6 +16,8 @@ const JOYSTICK_EASE = 0.5; // Faster response for snappy movement
 const ATTACK_BTN_RADIUS = 50;
 const SKILL_BTN_RADIUS = 40;
 const INTERACT_BTN_RADIUS = 32;
+const DODGE_BTN_RADIUS = 34;
+const ULTIMATE_BTN_RADIUS = 34;
 const BUTTON_HIT_EXTRA = 28; // Generous fat finger tolerance
 
 const HAPTIC_DURATION = 12;
@@ -90,6 +92,18 @@ export class TouchControls {
 
   // Interact button visibility
   private _interactVisible = false;
+  // Dodge and ultimate had no mobile control at all — both were desktop-only,
+  // which meant touch players could not dodge the new attack telegraphs.
+  private dodgePressed = false;
+  private ultimatePressed = false;
+  private dodgeBtnX = 0;
+  private dodgeBtnY = 0;
+  private ultimateBtnX = 0;
+  private ultimateBtnY = 0;
+  private dodgePressAnim = 0;
+  private ultimatePressAnim = 0;
+  private _dodgeCooldown = 0;
+  private _ultimateReady = false;
 
   // Cooldown display (0-1, 0 = ready)
   private _attackCooldown = 0;
@@ -177,14 +191,20 @@ export class TouchControls {
       attack: this.attackPressed,
       ability: this.skillPressed,
       interact: this.interactPressed,
+      dodge: this.dodgePressed,
+      ultimate: this.ultimatePressed,
     };
     this.attackPressed = false;
     this.skillPressed = false;
     this.interactPressed = false;
+    this.dodgePressed = false;
+    this.ultimatePressed = false;
     return input;
   }
 
   set interactVisible(val: boolean) { this._interactVisible = val; }
+  set dodgeCooldown(val: number) { this._dodgeCooldown = Math.max(0, Math.min(1, val)); }
+  set ultimateReady(val: boolean) { this._ultimateReady = val; }
   set attackCooldown(val: number) { this._attackCooldown = Math.max(0, Math.min(1, val)); }
   set skillCooldown(val: number) { this._skillCooldown = Math.max(0, Math.min(1, val)); }
   get zoom(): number { return this._zoom; }
@@ -223,6 +243,10 @@ export class TouchControls {
     this.attackPressAnim += (pressTarget(this.state.attackId) - this.attackPressAnim) * 0.3;
     this.skillPressAnim += (pressTarget(this.state.skillId) - this.skillPressAnim) * 0.3;
     this.interactPressAnim += (pressTarget(this.state.interactId) - this.interactPressAnim) * 0.3;
+    // Dodge and ultimate are one-shot taps rather than held buttons, so their
+    // press flash just decays back to rest.
+    this.dodgePressAnim += (0 - this.dodgePressAnim) * 0.18;
+    this.ultimatePressAnim += (0 - this.ultimatePressAnim) * 0.18;
 
     // Joystick active fade
     const joystickTarget = this.state.joystickId !== null ? 1 : 0;
@@ -252,6 +276,8 @@ export class TouchControls {
     // Action buttons
     this.drawAttackButton(ctx);
     this.drawSkillButton(ctx);
+    this.drawDodgeButton(ctx);
+    if (this._ultimateReady) this.drawUltimateButton(ctx);
 
     // Interact button (conditional)
     if (this._interactVisible) {
@@ -300,6 +326,20 @@ export class TouchControls {
       }
 
       // Interact button
+      if (this.hitTestCircle(x, y, this.dodgeBtnX, this.dodgeBtnY, DODGE_BTN_RADIUS + BUTTON_HIT_EXTRA)) {
+        if (this._dodgeCooldown === 0) {
+          this.dodgePressed = true;
+          this.dodgePressAnim = 1;
+        }
+        continue;
+      }
+
+      if (this._ultimateReady && this.hitTestCircle(x, y, this.ultimateBtnX, this.ultimateBtnY, ULTIMATE_BTN_RADIUS + BUTTON_HIT_EXTRA)) {
+        this.ultimatePressed = true;
+        this.ultimatePressAnim = 1;
+        continue;
+      }
+
       if (this._interactVisible && this.hitTestCircle(x, y, this.interactBtnX, this.interactBtnY, INTERACT_BTN_RADIUS + BUTTON_HIT_EXTRA)) {
         this.state.interactId = t.identifier;
         this.interactPressed = true;
@@ -588,6 +628,48 @@ export class TouchControls {
     ctx.fillText('Saldır', x, y + r + 6);
   }
 
+  private drawDodgeButton(ctx: CanvasRenderingContext2D): void {
+    const x = this.dodgeBtnX;
+    const y = this.dodgeBtnY;
+    const r = DODGE_BTN_RADIUS;
+    const ready = this._dodgeCooldown === 0;
+    this.drawGlassButton(ctx, x, y, r, this.dodgePressAnim, '#22d3ee', ready ? 1 : 0.55);
+
+    if (!ready) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(34, 211, 238, 0.85)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(x, y, r - 4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - this._dodgeCooldown));
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    ctx.save();
+    ctx.fillStyle = ready ? '#ecfeff' : 'rgba(236, 254, 255, 0.5)';
+    ctx.font = 'bold 11px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('TAKLA', x, y);
+    ctx.restore();
+  }
+
+  private drawUltimateButton(ctx: CanvasRenderingContext2D): void {
+    const x = this.ultimateBtnX;
+    const y = this.ultimateBtnY;
+    const r = ULTIMATE_BTN_RADIUS;
+    const pulse = Math.sin(this.readyPulseTimer * 1.4) * 0.25 + 0.85;
+    this.drawGlassButton(ctx, x, y, r, this.ultimatePressAnim, '#f59e0b', pulse);
+
+    ctx.save();
+    ctx.fillStyle = '#fffbeb';
+    ctx.font = 'bold 15px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('\u2605', x, y - 1);
+    ctx.restore();
+  }
+
   private drawSkillButton(ctx: CanvasRenderingContext2D): void {
     const x = this.skillBtnX;
     const y = this.skillBtnY;
@@ -816,6 +898,16 @@ export class TouchControls {
     // Interact button: left of attack — visible when near interactable
     this.interactBtnX = this.attackBtnX - ATTACK_BTN_RADIUS - INTERACT_BTN_RADIUS - btnGap - 4;
     this.interactBtnY = this.attackBtnY + 4;
+
+    // Dodge: directly above attack, within the same thumb arc — it is a reflex
+    // action so it must be reachable without moving the hand.
+    this.dodgeBtnX = this.attackBtnX;
+    this.dodgeBtnY = this.attackBtnY - ATTACK_BTN_RADIUS - DODGE_BTN_RADIUS - btnGap;
+
+    // Ultimate: above the skill button, furthest from the thumb rest since it is
+    // the least frequently used and the most costly to misfire.
+    this.ultimateBtnX = this.skillBtnX;
+    this.ultimateBtnY = this.skillBtnY - SKILL_BTN_RADIUS - ULTIMATE_BTN_RADIUS - btnGap + 4;
 
     // Joystick base: bottom-left — centered in left thumb zone
     this.joystickBaseX = safeLeft + JOYSTICK_OUTER_RADIUS + 22;

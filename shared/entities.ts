@@ -186,6 +186,12 @@ export type PlayerInput = {
   dodge?: boolean;
   toggleMap?: boolean;
   ultimate?: boolean; // F key — per-class ultimate (level 5+)
+  /**
+   * Manual aim direction in radians, when the player is actively aiming.
+   * Omitted (undefined) means "auto-target the nearest enemy", which stays the
+   * default so mobile and casual play are unaffected.
+   */
+  aimAngle?: number;
 };
 
 // --- Yetenek Sonuçları ---
