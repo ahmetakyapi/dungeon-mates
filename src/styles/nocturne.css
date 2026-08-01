@@ -1,0 +1,221 @@
+/*
+ * Nocturne — vendored from the user's Claude Design project
+ * ("Dungeon Mates Landing v2", _ds/nocturne-cefcff35…/styles.css).
+ *
+ * Two deliberate deviations from the source, same reasons as before:
+ *
+ * 1. Ground rules are scoped to `.nocturne` instead of `body`. The dark game
+ *    client under /game shares this app's root layout, and an unscoped
+ *    `body { background: … }` would fight it.
+ * 2. The Inter @import is dropped in favour of next/font (layout.tsx), which
+ *    self-hosts the face. The --font-* tokens still carry the family, so the
+ *    system's "never hard-code a font name" rule holds.
+ *
+ * Everything else — tokens, ramps, component layer — is the system as authored.
+ */
+
+.nocturne {
+  --color-bg: #161826;
+  --color-surface: #232532;
+  --color-text: #e9e9ed;
+  --color-accent: #9184d9;
+  --color-accent-2: #a7a1db;
+  --color-divider: color-mix(in srgb, #e9e9ed 16%, transparent);
+
+  --color-neutral-100: #f3f5fe;
+  --color-neutral-200: #e4e7f5;
+  --color-neutral-300: #cfd3e5;
+  --color-neutral-400: #b2b6ca;
+  --color-neutral-500: #9397ab;
+  --color-neutral-600: #75798c;
+  --color-neutral-700: #595d6c;
+  --color-neutral-800: #3f424d;
+  --color-neutral-900: #292b31;
+
+  --color-accent-100: #f5f4ff;
+  --color-accent-200: #e7e5fe;
+  --color-accent-300: #d2cefd;
+  --color-accent-400: #b5abfc;
+  --color-accent-500: #968ae0;
+  --color-accent-600: #796cbf;
+  --color-accent-700: #5d5294;
+  --color-accent-800: #423a6a;
+  --color-accent-900: #2b2741;
+
+  /* Saturation as presence — the one full-bleed band the system allows. */
+  --color-section: #262a60;
+  --color-section-glow: #353b80;
+  --color-section-ghost: #4c5397;
+
+  --font-heading: var(--font-inter), "Inter", system-ui, sans-serif;
+  --font-heading-weight: 500;
+  --font-body: var(--font-inter), "Inter", system-ui, sans-serif;
+
+  /* Density 0.70× — this system is dense on purpose. */
+  --space-1: 2.8px;
+  --space-2: 5.6px;
+  --space-3: 8.4px;
+  --space-4: 11.2px;
+  --space-6: 16.8px;
+  --space-8: 22.4px;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+
+  /* On a dark ground elevation is an edge plus ambient darkness. */
+  --shadow-sm: 0 0 0 1px #3f424d;
+  --shadow-md: 0 0 0 1px #595d6c, 0 6px 18px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 0 0 1px #9397ab, 0 16px 40px rgba(0, 0, 0, 0.65);
+
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  font-weight: 400;
+}
+
+.nocturne *,
+.nocturne *::before,
+.nocturne *::after { box-sizing: border-box; }
+
+.nocturne h1, .nocturne h2, .nocturne h3,
+.nocturne h4, .nocturne h5, .nocturne h6 {
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  margin: 0 0 var(--space-2);
+}
+.nocturne h1 { font-size: 42px; }
+.nocturne h2 { font-size: 32px; }
+.nocturne h3 { font-size: 25px; }
+.nocturne h4 { font-size: 20px; }
+.nocturne h5 { font-size: 16px; }
+.nocturne h6 { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+.nocturne p { margin: 0 0 var(--space-3); }
+.nocturne a { color: var(--color-accent); text-underline-offset: 3px; }
+.nocturne a:hover { color: var(--color-accent-300); }
+.nocturne img { display: block; max-width: 100%; }
+.nocturne figure { margin: 0; }
+.nocturne figcaption {
+  font-size: 11px; margin-top: var(--space-1);
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+.nocturne .text-muted { color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+.nocturne :focus { outline: none; }
+.nocturne :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.nocturne ::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+
+/* Every content image goes through this: mix-blend-mode lighten drops anything
+   darker than the page ground, so dark-background art melts into the page. */
+.nocturne .lighten { mix-blend-mode: lighten; background-color: transparent; }
+
+/* Rules fade to transparent at both ends — a Nocturne signature. 48px a side. */
+.nocturne .hr {
+  height: 1px; border: 0; margin: var(--space-4) 0;
+  background: linear-gradient(to right,
+    transparent, var(--color-divider) 48px,
+    var(--color-divider) calc(100% - 48px), transparent);
+}
+
+/* — buttons: outlined, never a fill — */
+.nocturne .btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; text-decoration: none;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 14px; line-height: 1.2; color: var(--color-text);
+  background: transparent; border: 1px solid transparent;
+  padding: var(--space-2) calc(var(--space-3) * 1.2);
+  border-radius: var(--radius-md);
+  transition: background .18s ease, color .18s ease, border-color .18s ease;
+}
+.nocturne .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.nocturne .btn-primary { color: var(--color-accent); border-color: var(--color-accent); }
+.nocturne .btn-primary:hover { background: color-mix(in srgb, var(--color-accent) 12%, transparent); }
+.nocturne .btn-primary:active { background: color-mix(in srgb, var(--color-accent) 22%, transparent); }
+.nocturne .btn-secondary { border-color: var(--color-divider); }
+.nocturne .btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.nocturne .btn-secondary:active { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
+.nocturne .btn-ghost { color: var(--color-accent); padding-inline: var(--space-1); }
+.nocturne .btn-ghost:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+.nocturne .btn-block { width: 100%; margin-top: var(--space-2); }
+
+/* — forms — */
+.nocturne .field > label {
+  display: block; font-size: 12px; margin-bottom: 5px;
+  color: color-mix(in srgb, var(--color-text) 70%, transparent);
+}
+.nocturne .input {
+  width: 100%; min-height: 36px; padding: 6px 10px; font: inherit;
+  font-size: 14px; color: var(--color-text); caret-color: var(--color-accent);
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+}
+.nocturne .input:hover { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.nocturne .input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
+
+/* — cards — */
+.nocturne .card {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-surface);
+}
+.nocturne .card-kicker { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent); }
+.nocturne .card-title { font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 17px; line-height: 1.2; }
+.nocturne .card-body { margin: 0; font-size: 13px; opacity: 0.8; flex: 1; }
+.nocturne .elev-sm { box-shadow: var(--shadow-sm); }
+.nocturne .elev-md { box-shadow: var(--shadow-md); }
+.nocturne .elev-lg { box-shadow: var(--shadow-lg); }
+
+/* — tags — */
+.nocturne .tag {
+  display: inline-flex; align-items: center; font-size: 11px;
+  letter-spacing: 0.02em; padding: 3px 10px;
+  border-radius: calc(var(--radius-md) * 0.75);
+}
+.nocturne .tag-accent { background: var(--color-accent-800); color: var(--color-accent-100); }
+.nocturne .tag-neutral { background: var(--color-neutral-800); color: var(--color-neutral-100); }
+.nocturne .tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent); }
+
+/* — tables: row rules fade at the ends, like the free-standing rule — */
+.nocturne .table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.nocturne .table th {
+  text-align: left; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  padding: var(--space-2); border-bottom: 1px solid transparent;
+}
+.nocturne .table td { padding: var(--space-2); border-bottom: 1px solid transparent; }
+.nocturne .table thead tr {
+  background: linear-gradient(to right,
+    transparent, var(--color-divider) 48px,
+    var(--color-divider) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px;
+}
+.nocturne .table tbody tr {
+  background: linear-gradient(to right,
+    transparent, color-mix(in srgb, var(--color-text) 8%, transparent) 48px,
+    color-mix(in srgb, var(--color-text) 8%, transparent) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px;
+}
+.nocturne .table tbody tr:hover {
+  background:
+    linear-gradient(color-mix(in srgb, var(--color-text) 4%, transparent),
+                    color-mix(in srgb, var(--color-text) 4%, transparent)) no-repeat 0 0 / 100% 100%,
+    linear-gradient(to right,
+      transparent, color-mix(in srgb, var(--color-text) 8%, transparent) 48px,
+      color-mix(in srgb, var(--color-text) 8%, transparent) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px;
+}
+
+/* — page motion, from the v2 design — */
+@keyframes dmRise { from { opacity: 0; transform: translateY(0.42em); } to { opacity: 1; transform: translateY(0); } }
+@keyframes dmMarquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes dmPulse { 0%, 100% { opacity: .3; transform: rotate(45deg) scale(1); } 50% { opacity: 1; transform: rotate(45deg) scale(1.08); } }
+@keyframes dmSweep { 0% { transform: translateX(-120%); } 100% { transform: translateX(220%); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .nocturne *, .nocturne *::before, .nocturne *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

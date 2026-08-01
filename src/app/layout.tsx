@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Space_Grotesk, IBM_Plex_Mono, Press_Start_2P, Archivo } from 'next/font/google';
+import { Space_Grotesk, IBM_Plex_Mono, Press_Start_2P, Inter } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 
@@ -28,13 +28,13 @@ const pressStart2P = Press_Start_2P({
   display: 'swap',
 });
 
-// Archivo carries the Modernist design system used by the landing page. Self-hosted
+// Inter carries the Nocturne design system used by the landing page. Self-hosted
 // via next/font rather than the system's Google Fonts @import, so it is not a
 // render-blocking third-party request.
-const archivo = Archivo({
-  weight: ['400', '600', '800'],
+const inter = Inter({
+  weight: ['400', '500', '600', '700'],
   subsets: ['latin'],
-  variable: '--font-archivo',
+  variable: '--font-inter',
   display: 'swap',
 });
 
@@ -99,7 +99,7 @@ export default function RootLayout({
   return (
     <html
       lang="tr"
-      className={`dark ${spaceGrotesk.variable} ${plexMono.variable} ${pressStart2P.variable} ${archivo.variable}`}
+      className={`dark ${spaceGrotesk.variable} ${plexMono.variable} ${pressStart2P.variable} ${inter.variable}`}
       suppressHydrationWarning
     >
       <body className="font-body antialiased safe-area-padding">

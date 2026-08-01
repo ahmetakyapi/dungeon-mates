@@ -288,21 +288,32 @@ export function TutorialOverlay({ onComplete }: TutorialOverlayProps) {
   const [direction, setDirection] = useState(1);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
+  // The bounds check has to happen inside the updater, against `prev`. Checking
+  // the captured `currentSlide` instead meant several clicks batched into one
+  // render all saw the same stale value, passed the guard, and each incremented —
+  // running the index past the last slide so SLIDES[i] came back undefined and
+  // React threw "type is invalid". Mashing Enter or double-clicking "İleri" was
+  // enough to crash into the error boundary.
   const goNext = useCallback(() => {
-    if (currentSlide < TOTAL_SLIDES - 1) {
-      setDirection(1);
-      setCurrentSlide((prev) => prev + 1);
-    } else {
-      onComplete();
-    }
-  }, [currentSlide, onComplete]);
+    let completed = false;
+    setCurrentSlide((prev) => {
+      if (prev < TOTAL_SLIDES - 1) {
+        setDirection(1);
+        return prev + 1;
+      }
+      completed = true;
+      return prev;
+    });
+    if (completed) onComplete();
+  }, [onComplete]);
 
   const goPrev = useCallback(() => {
-    if (currentSlide > 0) {
+    setCurrentSlide((prev) => {
+      if (prev <= 0) return prev;
       setDirection(-1);
-      setCurrentSlide((prev) => prev - 1);
-    }
-  }, [currentSlide]);
+      return prev - 1;
+    });
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -344,7 +355,7 @@ export function TutorialOverlay({ onComplete }: TutorialOverlayProps) {
     else goPrev();
   }, [goNext, goPrev]);
 
-  const CurrentSlideComponent = SLIDES[currentSlide];
+  const CurrentSlideComponent = SLIDES[currentSlide] ?? SLIDES[SLIDES.length - 1];
 
   return (
     <motion.div
