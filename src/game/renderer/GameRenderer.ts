@@ -9,6 +9,7 @@ import type { GameState, PlayerState, MonsterState, ProjectileState, LootState, 
 import { TILE_SIZE, CLASS_STATS, MONSTER_STATS, LOOT_TABLE, ELITE_AFFIXES, floorTheme, TELEGRAPH_NONE, TELEGRAPH_CONE, TELEGRAPH_LINE } from '../../../shared/types';
 import { Camera } from './Camera';
 import { SpriteRenderer, isTorchWall, TORCH_ANCHOR_X, TORCH_ANCHOR_Y } from './SpriteRenderer';
+import { drawPixelText, drawPixelTextOutlined, measurePixelText, PIXEL_FONT_HEIGHT } from './PixelFont';
 import { ParticleSystem } from './ParticleSystem';
 
 // Logical render resolution
@@ -1934,15 +1935,14 @@ export class GameRenderer {
         const bobY = Math.sin(this.animFrame * 0.15 + i * 1.5) * 1.5;
 
         ctx.save();
-        ctx.font = 'bold 4px monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        // Shadow for readability
-        ctx.fillStyle = '#000000';
-        ctx.fillText(lootInfo.label, labelX + 0.5, labelY + bobY + 0.5);
-        // Colored label
-        ctx.fillStyle = lootInfo.color;
-        ctx.fillText(lootInfo.label, labelX, labelY + bobY);
+        const lootW = measurePixelText(lootInfo.label);
+        drawPixelTextOutlined(
+          ctx,
+          labelX - lootW / 2,
+          labelY + bobY - PIXEL_FONT_HEIGHT,
+          lootInfo.label,
+          lootInfo.color,
+        );
         ctx.restore();
       }
 
@@ -2395,12 +2395,8 @@ export class GameRenderer {
     isLocal: boolean,
     level?: number,
   ): void {
-    ctx.font = '4px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-
     const displayText = level && level > 1 ? `${name} Lv${level}` : name;
-    const textWidth = ctx.measureText(displayText).width;
+    const textWidth = measurePixelText(displayText);
     const bgX = Math.floor(x - textWidth / 2 - 2);
     const bgY = Math.floor(y - 5);
     const bgW = Math.ceil(textWidth + 4);
@@ -2412,8 +2408,13 @@ export class GameRenderer {
     ctx.fillRect(bgX, bgY, bgW, 1); // top border highlight
 
     // Name text
-    ctx.fillStyle = isLocal ? '#fbbf24' : '#e5e7eb';
-    ctx.fillText(displayText, Math.floor(x), Math.floor(y));
+    drawPixelText(
+      ctx,
+      Math.floor(x) - textWidth / 2,
+      bgY + 1,
+      displayText,
+      isLocal ? '#fbbf24' : '#e5e7eb',
+    );
   }
 
   private drawHealthBar(
@@ -2522,13 +2523,14 @@ export class GameRenderer {
     }
 
     // Name label with boss-specific color
-    ctx.font = 'bold 5px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    ctx.fillStyle = '#000000';
-    ctx.fillText(bossName, this.logicalWidth / 2 + 1, barY - 2 + 1);
-    ctx.fillStyle = bossColor;
-    ctx.fillText(bossName, this.logicalWidth / 2, barY - 2);
+    const bossNameW = measurePixelText(bossName);
+    drawPixelTextOutlined(
+      ctx,
+      this.logicalWidth / 2 - bossNameW / 2,
+      barY - 2 - PIXEL_FONT_HEIGHT,
+      bossName,
+      bossColor,
+    );
 
     // 1px black outline
     ctx.fillStyle = '#000000';
@@ -2632,9 +2634,11 @@ export class GameRenderer {
       const isCrit = dn.kind === 'critical';
       const isHeal = dn.kind === 'heal';
       const isElement = dn.kind === 'fire' || dn.kind === 'ice' || dn.kind === 'poison' || dn.kind === 'holy';
-      const baseSize = isCrit ? 9 : isElement ? 7 : isHeal ? 7 : 6;
-      const fontSize = Math.round(baseSize * currentScale);
-      ctx.font = `bold ${fontSize}px monospace`;
+      // Bitmap font scales in whole pixels only — a fractional scale would
+      // resample the glyphs and reintroduce exactly the blur this replaces.
+      const glyphScale = isCrit ? 2 : 1;
+      const textScale = Math.max(1, Math.round(glyphScale * currentScale));
+      const textW = measurePixelText(dn.text, textScale);
 
       // Slight x-wobble for crit
       const wobble = dn.shake > 0 ? Math.sin(progress * 30) * dn.shake : 0;
@@ -2647,22 +2651,12 @@ export class GameRenderer {
         ctx.globalAlpha = glowAlpha;
         ctx.shadowColor = dn.glow;
         ctx.shadowBlur = isCrit ? 8 : 4;
-        ctx.fillStyle = dn.glow;
-        ctx.fillText(dn.text, dx, dy);
+        drawPixelText(ctx, dx - textW / 2, dy, dn.text, dn.glow, textScale);
         ctx.shadowBlur = 0;
         ctx.globalAlpha = alpha;
       }
 
-      // Shadow/outline for readability
-      ctx.fillStyle = '#000000';
-      ctx.fillText(dn.text, dx + 1, dy + 1);
-      ctx.fillText(dn.text, dx - 1, dy - 1);
-      ctx.fillText(dn.text, dx + 1, dy - 1);
-      ctx.fillText(dn.text, dx - 1, dy + 1);
-
-      // Main color
-      ctx.fillStyle = dn.color;
-      ctx.fillText(dn.text, dx, dy);
+      drawPixelTextOutlined(ctx, dx - textW / 2, dy, dn.text, dn.color, textScale);
 
       // Heal: upward green sparkle
       if (isHeal && progress < 0.3) {
@@ -3313,10 +3307,7 @@ export class GameRenderer {
     const accentColor = isChest ? '#fbbf24' : '#38bdf8';
 
     // Measure text width
-    ctx.font = 'bold 6px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    const textW = ctx.measureText(label).width;
+    const textW = measurePixelText(label);
 
     const pillW = Math.ceil(textW) + 10;
     const pillH = 12;
@@ -3340,8 +3331,7 @@ export class GameRenderer {
     ctx.strokeRect(px, py, pillW, pillH);
 
     // Label text
-    ctx.fillStyle = accentColor;
-    ctx.fillText(label, ix, iy);
+    drawPixelText(ctx, ix - textW / 2, iy - PIXEL_FONT_HEIGHT / 2, label, accentColor);
 
     // Small arrow pointing down
     ctx.fillStyle = accentColor;
