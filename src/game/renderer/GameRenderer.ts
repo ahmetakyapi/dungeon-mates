@@ -141,6 +141,7 @@ export class GameRenderer {
   private shakeScale = 1;
   private flashEnabled = true;
   private ambientEnabled = true;
+  private highContrastTelegraph = false;
 
   private screenFlashAlpha = 0;
   private screenFlashColor = '#ffffff';
@@ -427,11 +428,17 @@ export class GameRenderer {
    * effects most likely to cause trouble (motion sickness, photosensitivity), so
    * both are user-controllable rather than baked in.
    */
-  setAccessibility(opts: { screenShake: number; screenFlash: boolean; ambientEffects: boolean }): void {
+  setAccessibility(opts: {
+    screenShake: number;
+    screenFlash: boolean;
+    ambientEffects: boolean;
+    highContrastTelegraph?: boolean;
+  }): void {
     this.shakeScale = Math.max(0, Math.min(1, opts.screenShake));
     this.camera.setShakeMultiplier(this.shakeScale);
     this.flashEnabled = opts.screenFlash;
     this.ambientEnabled = opts.ambientEffects;
+    this.highContrastTelegraph = opts.highContrastTelegraph ?? false;
   }
 
   /** Manual aim angle in radians, or null when the server is auto-targeting. */
@@ -1800,7 +1807,13 @@ export class GameRenderer {
       const imminent = p > 0.8;
       const fillAlpha = 0.10 + p * 0.22;
       const edgeAlpha = imminent ? 0.95 : 0.45 + p * 0.35;
-      const color = imminent ? '#fca5a5' : '#ef4444';
+      // Red on dark stone is the hardest pairing for red-green colour blindness,
+      // and this is the one colour in the game the player must read to survive.
+      // The alternative is a blue/amber pair, which stays separable on every
+      // common type of colour vision deficiency.
+      const color = this.highContrastTelegraph
+        ? (imminent ? '#fde047' : '#38bdf8')
+        : (imminent ? '#fca5a5' : '#ef4444');
 
       ctx.save();
       if (m.telegraphKind === TELEGRAPH_CONE) {

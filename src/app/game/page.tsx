@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useGameLoop } from '@/hooks/useGameLoop';
 import { useSound } from '@/hooks/useSound';
@@ -359,13 +359,17 @@ function GamePage() {
 
   // Push accessibility preferences into the renderer whenever they change.
   useEffect(() => {
-    const r = rendererRef.current as { setAccessibility?: (o: { screenShake: number; screenFlash: boolean; ambientEffects: boolean }) => void } | null;
+    const r = rendererRef.current as { setAccessibility?: (o: { screenShake: number; screenFlash: boolean; ambientEffects: boolean; highContrastTelegraph: boolean }) => void } | null;
     r?.setAccessibility?.({
       screenShake: settings.screenShake,
       screenFlash: settings.screenFlash,
       ambientEffects: settings.ambientEffects,
+      highContrastTelegraph: settings.highContrastTelegraph,
     });
-  }, [settings.screenShake, settings.screenFlash, settings.ambientEffects, rendererRef, phase]);
+  }, [
+    settings.screenShake, settings.screenFlash, settings.ambientEffects,
+    settings.highContrastTelegraph, rendererRef, phase,
+  ]);
 
   // === Sync touch controls with game state ===
   useEffect(() => {
@@ -1077,6 +1081,7 @@ function GamePage() {
 
   // ====== MAIN GAME VIEW (playing/boss) ======
   return (
+    <MotionConfig reducedMotion={settings.reducedMotion ? 'always' : 'user'}>
     <main className="relative h-dvh w-dvw overflow-hidden bg-dm-bg">
       {/* Canvas — full screen */}
       <canvas
@@ -1318,5 +1323,6 @@ function GamePage() {
         />
       )}
     </main>
+    </MotionConfig>
   );
 }

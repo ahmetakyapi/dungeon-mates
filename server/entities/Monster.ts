@@ -67,6 +67,14 @@ const MONSTER_RADIUS_BASE = 0.4;
 // How far a monster may drift from its spawn before it walks home (squared, tiles).
 const LEASH_RANGE_SQ = 10 * 10;
 
+// Threat tuning. THREAT_PULL converts a threat point into "tiles of apparent
+// closeness"; THREAT_FALLOFF damps that by distance so a tank cannot hold a
+// monster from across the map; THREAT_DECAY is applied on a ~0.4s cadence.
+const THREAT_PULL = 0.06;
+const THREAT_FALLOFF = 0.35;
+const THREAT_DECAY = 0.93;
+const THREAT_DECAY_INTERVAL = 8; // ticks (~0.4s at 20 TPS)
+
 // Premium combat feel
 const MON_HITSTOP_NORMAL_TICKS = 2;
 const MON_HITSTOP_CRIT_TICKS = 3;
@@ -145,6 +153,9 @@ export class Monster implements MonsterContext {
   public pendingProjectile: { dirX: number; dirY: number; damage: number } | null;
   /** Telegraphed area attack awaiting resolution (boss abilities). */
   public pendingAoe: PendingAoe | null;
+  /** Accumulated threat per player id — drives target selection. */
+  private readonly threat: Map<string, number> = new Map();
+  private threatDecayCounter = 0;
 
   constructor(type: MonsterType, position: Vec2, roomId: number) {
     const stats = MONSTER_STATS[type];
@@ -298,6 +309,20 @@ export class Monster implements MonsterContext {
     return this.radius;
   }
 
+  /** Register threat from a player's hit. Called on every damage application. */
+  addThreat(playerId: string, amount: number): void {
+    this.threat.set(playerId, (this.threat.get(playerId) ?? 0) + amount);
+  }
+
+  /** Decay all threat so a monster eventually forgets an absent attacker. */
+  private decayThreat(): void {
+    for (const [id, value] of this.threat) {
+      const next = value * THREAT_DECAY;
+      if (next < 1) this.threat.delete(id);
+      else this.threat.set(id, next);
+    }
+  }
+
   /** Decrement every ability cooldown. Runs unconditionally each tick. */
   private tickAbilityCooldowns(): void {
     if (this.summonCooldown > 0) this.summonCooldown -= 1;
@@ -385,6 +410,11 @@ export class Monster implements MonsterContext {
     // They used to live inside each AI function, which the attack state machine now
     // short-circuits — so boss slams and summons would have almost never come up.
     this.tickAbilityCooldowns();
+    this.threatDecayCounter += 1;
+    if (this.threat.size > 0 && this.threatDecayCounter >= THREAT_DECAY_INTERVAL) {
+      this.threatDecayCounter = 0;
+      this.decayThreat();
+    }
 
     if (this.attackCooldown > 0) {
       this.attackCooldown -= 1;
@@ -483,11 +513,24 @@ export class Monster implements MonsterContext {
   // Reusable result object for findNearestPlayer — avoids allocation per tick per monster
   private _nearestResult: { id: string; position: Vec2; distance: number } = { id: '', position: { x: 0, y: 0 }, distance: 0 };
 
+  /**
+   * Pick a target by threat, falling back to proximity.
+   *
+   * Every monster used to lock onto whoever was geometrically nearest, with no
+   * threat table anywhere in the game. That made tanking structurally impossible:
+   * a warrior could not pull anything off a squishy teammate no matter what they
+   * did, so the class's whole role was decorative in co-op.
+   *
+   * Threat accrues from damage dealt and decays over time, and is scaled to
+   * distance so a high-threat player who has run away still eventually loses the
+   * monster. Below the threshold this behaves exactly as before.
+   */
   private findNearestPlayer(
     players: ReadonlyArray<{ id: string; position: Vec2; alive: boolean }>,
   ): { id: string; position: Vec2; distance: number } | null {
-    let bestDistSq = Infinity;
+    let bestScore = -Infinity;
     let bestPlayer: typeof players[number] | null = null;
+    let bestDistSq = Infinity;
 
     for (const player of players) {
       if (!player.alive) continue;
@@ -495,9 +538,16 @@ export class Monster implements MonsterContext {
       const dy = player.position.y - this.state.position.y;
       const distSq = dx * dx + dy * dy;
 
-      if (distSq < bestDistSq) {
-        bestDistSq = distSq;
+      // Proximity score: nearer is better. Threat adds on top, but is damped by
+      // distance so it cannot hold aggro across the whole floor.
+      const threat = this.threat.get(player.id) ?? 0;
+      const dist = Math.sqrt(distSq);
+      const score = -dist + (threat * THREAT_PULL) / (1 + dist * THREAT_FALLOFF);
+
+      if (score > bestScore) {
+        bestScore = score;
         bestPlayer = player;
+        bestDistSq = distSq;
       }
     }
 

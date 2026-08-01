@@ -20,6 +20,12 @@ export type GameSettings = {
   ambientEffects: boolean;
   /** UI animasyonlarını azalt — sistem tercihini geçersiz kılar. */
   reducedMotion: boolean;
+  /**
+   * Saldırı telegrafları için yüksek kontrastlı renk. Zindanın en güvenlik-kritik
+   * rengi bu: koyu taş üzerinde kırmızı tehlike alanı, kırmızı-yeşil renk körlüğü
+   * olan oyuncular için en zor okunan kombinasyon.
+   */
+  highContrastTelegraph: boolean;
   masterVolume: number;
   sfxVolume: number;
   musicVolume: number;
@@ -35,6 +41,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   screenFlash: true,
   ambientEffects: true,
   reducedMotion: false,
+  highContrastTelegraph: false,
   masterVolume: 0.5,
   sfxVolume: 0.7,
   musicVolume: 0.3,

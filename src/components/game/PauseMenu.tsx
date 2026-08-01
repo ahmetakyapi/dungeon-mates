@@ -167,6 +167,18 @@ function GraphicsSettings({
           >
             Azaltılmış Hareket: {settings.reducedMotion ? 'Açık' : 'Kapalı'}
           </button>
+
+          <button
+            onClick={() => onSettingsChange({ highContrastTelegraph: !settings.highContrastTelegraph })}
+            className={`flex items-center justify-center gap-2 rounded border px-3 py-2 font-pixel text-[9px] transition-colors lg:text-[11px] ${
+              settings.highContrastTelegraph
+                ? 'border-dm-accent/40 bg-dm-accent/10 text-dm-accent'
+                : 'border-dm-border bg-dm-surface text-zinc-400 hover:border-dm-accent/30'
+            }`}
+            aria-pressed={settings.highContrastTelegraph}
+          >
+            Telegraf Kontrastı: {settings.highContrastTelegraph ? 'Yüksek' : 'Normal'}
+          </button>
         </>
       )}
     </motion.div>

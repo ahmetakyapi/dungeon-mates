@@ -126,6 +126,11 @@ const MONSTER_POOL_BY_FLOOR: Record<number, WeightedMonster[]> = {
 // Each permanent upgrade can be bought this many times per run.
 const SHOP_UPGRADE_LIMIT = 2;
 
+// Shield Wall's taunt. Enough threat to pull a monster off a teammate at melee
+// range, not enough to hold it from across the room.
+const TAUNT_RADIUS = 5;
+const TAUNT_THREAT = 220;
+
 /** Clamp a client-supplied meta bonus into its designed range. */
 function clampMeta(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
@@ -998,9 +1003,20 @@ export class GameRoom {
         const abilityResult = player.useAbility(monsterTargets, input.aimAngle);
         if (abilityResult) {
           switch (abilityResult.type) {
-            case 'shield_wall':
-              // Görsel efekt — hasar azaltma Player.takeDamage içinde
+            case 'shield_wall': {
+              // Shield Wall doubles as the warrior's taunt. Raising the shield
+              // dumps threat on everything nearby, which is what finally makes
+              // "hold the line" a thing a player can actually do — previously
+              // every monster simply chased whoever stood closest.
+              for (const monster of this.monsters.values()) {
+                if (!monster.state.alive) continue;
+                const tdx = monster.state.position.x - player.state.position.x;
+                const tdy = monster.state.position.y - player.state.position.y;
+                if (tdx * tdx + tdy * tdy > TAUNT_RADIUS * TAUNT_RADIUS) continue;
+                monster.addThreat(player.state.id, TAUNT_THREAT);
+              }
               break;
+            }
             case 'ice_storm': {
               // Yarıçap içindeki tüm canavarlara hasar ver
               for (const [monsterId, monster] of this.monsters) {
@@ -1444,6 +1460,9 @@ export class GameRoom {
             }
             const severity: 'normal' | 'crit' | 'heavy' = isCrit ? 'crit' : 'normal';
             const actualDamage = monster.takeDamage(projDmg, severity, dmgType, projectile.state.ownerId);
+            // Threat drives target selection — without this the tank has no way
+            // to pull anything off a teammate.
+            monster.addThreat(projectile.state.ownerId, actualDamage);
             if (owner) {
               owner.state.totalDamageDealt += actualDamage;
               owner.applyLifesteal(actualDamage);
