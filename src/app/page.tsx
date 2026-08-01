@@ -1,90 +1,109 @@
 'use client';
 
+/*
+ * Landing page, built on the "Modernist" Claude Design system.
+ *
+ * Direction: the game presented as a catalogue. Modernist is flat, architectural
+ * Swiss — light ground, Archivo throughout, zero radius, strong 2px rules, a
+ * visible modular grid and everything flush left. A dark pixel dungeon printed as
+ * technical plates on white paper reads like a specimen catalogue, which is a far
+ * more considered frame than the usual dark-hero-with-gradient-blobs.
+ *
+ * One judged deviation from the system's "print photographs in black and white"
+ * rule: the tile plates stay in colour. They are not photographs — the per-floor
+ * palette IS the subject being catalogued, and greyscaling them would delete the
+ * content. Everything else on the page holds to ink + a single vermilion, so the
+ * plates are the only chromatic elements, which is how a Swiss catalogue handles
+ * colour specimens anyway.
+ */
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
 import { CLASS_STATS, type PlayerClass, floorTheme } from '../../shared/types';
-import { PixelHero } from '@/components/game/PixelHero';
-import { Descent } from '@/components/landing/Descent';
 import { FloorStrip } from '@/components/landing/FloorStrip';
 import { MetaProgression } from '@/components/game/MetaProgression';
 import { loadMeta, type MetaState } from '@/lib/meta-progression';
-import { useSound } from '@/hooks/useSound';
-
-const EASE = [0.22, 1, 0.36, 1] as const;
+import '../styles/modernist.css';
 
 type Mode = 'idle' | 'multiplayer';
 
-/** What each class actually does in a fight — mechanics, not adjectives. */
-const CLASS_ROLE: Record<PlayerClass, { role: string; line: string }> = {
-  warrior: {
-    role: 'ön saf',
-    line: 'Kalkan duvarı gelen hasarı yutar. Ağır düşmanları hazırlık anında sersemletip saldırılarını iptal eder.',
-  },
-  mage: {
-    role: 'alan hasarı',
-    line: 'Buz fırtınası kalabalığı yavaşlatır. Yanan bir hedefe buz vurursan donar.',
-  },
-  archer: {
-    role: 'menzil',
-    line: 'En hızlı sınıf. Kritik yığar, ok yağmuruyla koridoru kapatır.',
-  },
-  healer: {
-    role: 'destek',
-    line: 'Takımı ayakta tutar. Ultimate tüm ekibe üç saniye dokunulmazlık verir.',
-  },
+/** Act structure from STORY.md — the descent is a sequence, so it gets numbered. */
+const ACTS: Record<number, string> = {
+  1: 'I — Yüzey',
+  5: 'II — Derinlikler',
+  8: 'III — Karanlığın Kalbi',
 };
 
-/** Facts the reader can verify by playing — read off the actual build. */
-const SPECS = [
-  { k: 'kat', v: '10' },
-  { k: 'sınıf', v: '4' },
-  { k: 'canavar', v: '17' },
-  { k: 'oyuncu', v: '1–4' },
-  { k: 'kurulum', v: 'yok' },
-] as const;
+const BOSS_FLOORS = new Set([3, 5, 7, 8, 10]);
 
-const CONTROLS = [
-  ['WASD', 'hareket'],
-  ['Fare', 'nişan'],
-  ['Sol tık / Space', 'saldırı'],
-  ['Q', 'takla'],
-  ['E', 'yetenek'],
-  ['F', 'ultimate'],
-] as const;
+/** Which boss holds which floor — the index carries this, the plates cannot. */
+const BOSS_NAME: Record<number, string> = {
+  3: 'Ocak Muhafızı',
+  5: 'Örümcek Kraliçe',
+  7: 'Taş Muhafız',
+  8: 'Alev Şövalyesi',
+  10: "Kral Mor'Khan",
+};
+
+/** What the player meets on each floor. Catalogue entries, not marketing copy. */
+const FLOOR_ENTRY: Record<number, { fauna: string; note: string }> = {
+  1: { fauna: 'Sıçan, balçık, yarasa', note: 'Hazırlıksız saldırırlar. Telegraf yok.' },
+  2: { fauna: 'İskelet, örümcek', note: 'İlk koni telegrafları burada görülür.' },
+  3: { fauna: 'Goblin, hayalet', note: 'Ocak Muhafızı. Yer sarsıntısı önce zeminde belirir.' },
+  4: { fauna: 'Goblin, mantar', note: 'Ağır saldırılar; uzun hazırlık, uzun toparlanma.' },
+  5: { fauna: 'Örümcek sürüsü', note: 'Örümcek Kraliçe. İkinci fazda alanı köklendirir.' },
+  6: { fauna: 'Gargoyle, hayalet', note: 'İlk menzilli düşmanlar. Taş fırlatırlar.' },
+  7: { fauna: 'Gargoyle, kara şövalye', note: 'Taş Muhafız. Taşlaştırma bakışı koni hâlinde.' },
+  8: { fauna: 'Lav balçığı, fantom', note: 'Alev Şövalyesi. Hücum çizgisi zeminde görünür.' },
+  9: { fauna: 'Fantom, kara şövalye', note: 'Duvarlardan geçerler. Açık alanda durma.' },
+  10: { fauna: 'Kara şövalye', note: "Mor'Khan. Üç faz; her fazda daha hızlı." },
+};
+
+const CLASS_ROLE: Record<PlayerClass, { role: string; note: string }> = {
+  warrior: { role: 'Ön saf', note: 'Kalkan duvarı hasarı yutar. Ağır düşmanı hazırlık anında sersemletir.' },
+  mage: { role: 'Alan hasarı', note: 'Buz fırtınası yavaşlatır. Yanan hedefe buz vurulursa dondurur.' },
+  archer: { role: 'Menzil', note: 'En hızlı sınıf. Kritik yığar; ok yağmuru koridoru kapatır.' },
+  healer: { role: 'Destek', note: 'Takımı ayakta tutar. Ultimate ekibe üç saniye dokunulmazlık verir.' },
+};
+
+const SPECS: ReadonlyArray<readonly [string, string]> = [
+  ['Kat', '10'],
+  ['Sınıf', '4'],
+  ['Canavar', '17'],
+  ['Oyuncu', '1–4'],
+  ['Kurulum', 'Yok'],
+];
+
+const CONTROLS: ReadonlyArray<readonly [string, string]> = [
+  ['WASD', 'Hareket'],
+  ['Fare', 'Nişan'],
+  ['Sol tık / Space', 'Saldırı'],
+  ['Q', 'Takla'],
+  ['E', 'Yetenek'],
+  ['F', 'Ultimate'],
+  ['R', 'Etkileşim'],
+];
 
 export default function HomePage() {
   const router = useRouter();
-  const sound = useSound();
   const [mode, setMode] = useState<Mode>('idle');
   const [playerName, setPlayerName] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [error, setError] = useState('');
-  const [activeClass, setActiveClass] = useState<PlayerClass>('warrior');
   const [metaOpen, setMetaOpen] = useState(false);
   const [meta, setMeta] = useState<MetaState | null>(null);
 
-  // Reload after the panel closes so a freshly spent shard count shows in the nav.
   useEffect(() => { setMeta(loadMeta()); }, [metaOpen]);
 
   const handleCreate = useCallback(() => {
-    if (!playerName.trim()) {
-      setError('Önce bir isim gir.');
-      return;
-    }
+    if (!playerName.trim()) { setError('Önce bir isim gir.'); return; }
     setError('');
     router.push(`/game?room=new&name=${encodeURIComponent(playerName.trim())}`);
   }, [playerName, router]);
 
   const handleJoin = useCallback(() => {
-    if (!playerName.trim()) {
-      setError('Önce bir isim gir.');
-      return;
-    }
-    if (roomCode.trim().length !== 4) {
-      setError('Oda kodu 4 haneli.');
-      return;
-    }
+    if (!playerName.trim()) { setError('Önce bir isim gir.'); return; }
+    if (roomCode.trim().length !== 4) { setError('Oda kodu 4 haneli.'); return; }
     setError('');
     router.push(`/game?room=${roomCode.trim().toUpperCase()}&name=${encodeURIComponent(playerName.trim())}`);
   }, [playerName, roomCode, router]);
@@ -98,322 +117,338 @@ export default function HomePage() {
     [],
   );
 
-  const surface = floorTheme(1);
-
   return (
-    <main className="relative">
-      {/* ── Top rail ─────────────────────────────────────────── */}
-      <header className="sticky top-0 z-50 border-b border-white/[0.06] bg-[#04070d]/85 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center gap-4 px-5 py-3 sm:px-8">
-          <button
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="font-pixel text-[10px] text-zinc-100 transition-colors hover:text-dm-accent sm:text-xs"
+    <div className="modernist" style={{ minHeight: '100dvh' }}>
+      {/* ── Nav ───────────────────────────────────────────── */}
+      <nav className="nav" style={{ position: 'sticky', top: 0, zIndex: 40, background: 'var(--color-bg)', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+        <span className="nav-brand">Dungeon Mates</span>
+        <button className="btn btn-ghost" onClick={() => scrollTo('katalog')}>Katalog</button>
+        <button className="btn btn-ghost" onClick={() => scrollTo('siniflar')}>Sınıflar</button>
+        <button className="btn btn-ghost" onClick={() => setMetaOpen(true)}>
+          Kalıntılar{meta && meta.shards > 0 ? ` (${meta.shards})` : ''}
+        </button>
+        <button className="btn btn-primary" onClick={() => scrollTo('oyna')}>Oyna</button>
+      </nav>
+
+      <div style={{ maxWidth: 1120, margin: '0 auto', padding: '0 var(--space-4)' }}>
+        {/* ── Hero ────────────────────────────────────────── */}
+        <header style={{ paddingTop: 'var(--space-8)', paddingBottom: 'var(--space-6)' }}>
+          <h6 className="text-muted" style={{ margin: 0 }}>Zephara · Yüzeyin altı</h6>
+
+          <h1 style={{ fontSize: 'clamp(44px, 9vw, 104px)', marginTop: 'var(--space-4)', maxWidth: '14ch' }}>
+            On kat aşağı.
+          </h1>
+          <h1
+            style={{
+              fontSize: 'clamp(44px, 9vw, 104px)',
+              color: 'var(--color-accent)',
+              marginTop: 0,
+              maxWidth: '18ch',
+            }}
           >
-            DUNGEON<span className="text-dm-accent">MATES</span>
-          </button>
+            Tek çıkış en dipte.
+          </h1>
 
-          <nav className="ml-auto hidden items-center gap-6 sm:flex">
-            <button onClick={() => scrollTo('inis')} className="font-mono text-[11px] uppercase tracking-widest text-zinc-500 transition-colors hover:text-zinc-200">
-              iniş
+          <p style={{ maxWidth: '58ch', fontSize: 17, marginTop: 'var(--space-6)' }}>
+            Tarayıcıda açılan co-op zindan. Düşmanlar vuracakları yeri önce zeminde
+            gösterir — okuyabilirsen kaçabilirsin. Dört sınıf, on kat, bir yozlaşmış kral.
+          </p>
+
+          <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', marginTop: 'var(--space-6)' }}>
+            <button className="btn btn-primary" onClick={() => router.push('/game?mode=solo&name=Kahraman')}>
+              Tek başına in
             </button>
-            <button onClick={() => scrollTo('siniflar')} className="font-mono text-[11px] uppercase tracking-widest text-zinc-500 transition-colors hover:text-zinc-200">
-              sınıflar
+            <button className="btn btn-secondary" onClick={() => scrollTo('oyna')}>
+              Oda kur
             </button>
-            <button onClick={() => setMetaOpen(true)} className="font-mono text-[11px] uppercase tracking-widest text-zinc-500 transition-colors hover:text-zinc-200">
-              kalıntılar{meta && meta.shards > 0 ? ` · ${meta.shards}` : ''}
-            </button>
-          </nav>
-
-          <button
-            onClick={() => scrollTo('oyna')}
-            className="ml-auto rounded border border-dm-accent/40 bg-dm-accent/10 px-3 py-1.5 font-pixel text-[9px] text-dm-accent transition-colors hover:bg-dm-accent/20 sm:ml-0"
-          >
-            OYNA
-          </button>
-        </div>
-      </header>
-
-      {/* ── Hero ─────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden border-b border-white/[0.06]">
-        <div className="mx-auto grid max-w-6xl gap-10 px-5 pb-16 pt-16 sm:px-8 sm:pb-24 sm:pt-24 lg:grid-cols-[1.05fr_1fr] lg:items-center lg:gap-14">
-          {/* min-w-0 on both columns: the tile canvases carry an intrinsic width and
-              grid items will not shrink below min-content without it. */}
-          <div className="min-w-0">
-            <p className="font-mono text-[10px] uppercase tracking-[0.32em] text-zinc-600">
-              Zephara · yüzeyin altı
-            </p>
-
-            <h1 className="mt-5 font-pixel text-[19px] leading-[1.7] text-zinc-50 sm:text-[26px] sm:leading-[1.65]">
-              On kat aşağı.<br />
-              <span style={{ color: surface.accent }}>Tek çıkış</span><br />
-              en dipte.
-            </h1>
-
-            <p className="mt-6 max-w-md font-body text-[15px] leading-relaxed text-zinc-400">
-              Tarayıcıda açılan co-op zindan. Düşmanlar vuracakları yeri önce
-              zeminde gösterir — okuyabilirsen kaçabilirsin. Dört sınıf, on kat,
-              bir yozlaşmış kral.
-            </p>
-
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <button
-                onClick={() => router.push('/game?mode=solo&name=Kahraman')}
-                className="rounded border border-dm-gold/45 bg-dm-gold/[0.12] px-5 py-2.5 font-pixel text-[10px] text-dm-gold transition-colors hover:bg-dm-gold/20"
-              >
-                TEK BAŞINA İN
-              </button>
-              <button
-                onClick={() => scrollTo('oyna')}
-                className="rounded border border-white/[0.12] px-5 py-2.5 font-pixel text-[10px] text-zinc-300 transition-colors hover:border-white/30 hover:text-white"
-              >
-                ODA KUR
-              </button>
-            </div>
-
-            {/* Specs read as an instrument panel, not marketing stat cards */}
-            <dl className="mt-10 flex flex-wrap gap-x-7 gap-y-3 border-t border-white/[0.06] pt-5">
-              {SPECS.map((s) => (
-                <div key={s.k}>
-                  <dt className="font-mono text-[9px] uppercase tracking-[0.18em] text-zinc-600">{s.k}</dt>
-                  <dd className="mt-0.5 font-mono text-sm font-medium tabular-nums text-zinc-300">{s.v}</dd>
-                </div>
-              ))}
-            </dl>
           </div>
 
-          {/* Real tiles from the game's own renderer, stacked as a shaft */}
-          <div className="relative min-w-0">
-            <div className="overflow-hidden rounded-lg border border-white/[0.07]">
-              {[1, 4, 7, 10].map((f, i) => (
-                <motion.div
-                  key={f}
-                  className="h-[74px] border-b border-black/40 last:border-b-0 sm:h-[92px]"
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.1 + i * 0.12, ease: EASE }}
-                >
-                  <FloorStrip floor={f} />
-                </motion.div>
-              ))}
-            </div>
-            <p className="mt-3 text-right font-mono text-[9px] uppercase tracking-[0.18em] text-zinc-700">
-              kat 1 · 4 · 7 · 10 — oyunun kendi çizimi
-            </p>
+          <hr className="hr" style={{ marginTop: 'var(--space-8)' }} />
+
+          {/* Specs on the modular grid — equal cells, visible structure */}
+          <dl
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(120px, 100%), 1fr))',
+              gap: 0,
+              margin: 0,
+              borderLeft: '1px solid var(--color-divider)',
+            }}
+          >
+            {SPECS.map(([k, v]) => (
+              <div key={k} style={{ borderRight: '1px solid var(--color-divider)', padding: 'var(--space-3)' }}>
+                <dt style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase' }} className="text-muted">{k}</dt>
+                <dd style={{ margin: 0, fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 28 }}>{v}</dd>
+              </div>
+            ))}
+          </dl>
+        </header>
+
+        {/* ── Catalogue: the ten floors ────────────────────── */}
+        <section id="katalog" style={{ paddingTop: 'var(--space-8)' }}>
+          <hr className="hr" style={{ height: 2, marginBottom: 'var(--space-6)' }} />
+          <h6 className="text-muted">Katalog</h6>
+          <h2 style={{ maxWidth: '20ch' }}>On kat, on palet.</h2>
+          <p className="text-muted" style={{ maxWidth: '56ch', fontSize: 14 }}>
+            Her katın kendi taş rampası var. Aşağıdaki plakalar oyunun kendi çizim
+            koduyla üretildi — aynı <code>drawTile</code>, aynı palet, aynı komşu
+            maskesi. Ekran görüntüsü değil.
+          </p>
+
+          {/* Plates on a modular grid */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(min(420px, 100%), 1fr))',
+              gap: 'var(--space-6)',
+              marginTop: 'var(--space-6)',
+            }}
+          >
+            {Array.from({ length: 10 }).map((_, i) => {
+              const floor = i + 1;
+              const theme = floorTheme(floor);
+              const entry = FLOOR_ENTRY[floor];
+              return (
+                <figure key={floor}>
+                  <div style={{ height: 112, border: '1px solid var(--color-divider)' }}>
+                    <FloorStrip floor={floor} />
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
+                    <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 20, color: 'var(--color-accent)' }}>
+                      {String(floor).padStart(2, '0')}
+                    </span>
+                    <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 17 }}>
+                      {theme.name}
+                    </span>
+                    {BOSS_FLOORS.has(floor) && <span className="tag tag-outline">Boss</span>}
+                  </div>
+
+                  {/* The floor's actual stone ramp, as a colour specimen */}
+                  <div style={{ display: 'flex', marginTop: 'var(--space-2)' }}>
+                    {[...theme.wall, theme.growth, theme.accent].map((c, ci) => (
+                      <span key={ci} style={{ background: c, height: 14, flex: 1 }} />
+                    ))}
+                  </div>
+
+                  <figcaption style={{ marginTop: 'var(--space-2)' }}>
+                    {entry.fauna} — {entry.note}
+                  </figcaption>
+                </figure>
+              );
+            })}
           </div>
-        </div>
-      </section>
 
-      {/* ── The descent ──────────────────────────────────────── */}
-      <Descent />
-
-      {/* ── Classes ──────────────────────────────────────────── */}
-      <section id="siniflar" className="border-t border-white/[0.06]">
-        <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8">
-          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-zinc-600">Sınıflar</p>
-          <h2 className="mt-4 font-pixel text-[13px] leading-relaxed text-zinc-100 sm:text-lg">
-            Dördü de aynı zindana iner.<br />Aynı şekilde değil.
-          </h2>
-
-          <div className="mt-10 grid gap-8 lg:grid-cols-[260px_1fr] lg:gap-12">
-            <div className="flex gap-2 lg:flex-col">
-              {classEntries.map(([cls, stats]) => {
-                const on = cls === activeClass;
+          {/* The same data as a table — a catalogue indexes as well as illustrates */}
+          <h6 className="text-muted" style={{ marginTop: 'var(--space-8)' }}>Dizin — perde, boss, takviye dalgası</h6>
+          <div style={{ overflowX: 'auto', marginTop: 'var(--space-3)' }}>
+          <table className="table" style={{ minWidth: 560 }}>
+            <thead>
+              <tr>
+                <th style={{ width: 56 }}>Kat</th>
+                <th>Ad</th>
+                <th>Perde</th>
+                <th>Boss</th>
+                <th style={{ textAlign: 'right' }}>Dalga</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 10 }).map((_, i) => {
+                const floor = i + 1;
+                let act = '';
+                for (const key of [1, 5, 8]) if (floor >= key) act = ACTS[key];
                 return (
-                  <button
-                    key={cls}
-                    onClick={() => setActiveClass(cls)}
-                    className={`flex-1 rounded border px-3 py-3 text-left transition-all lg:flex-none ${
-                      on ? 'border-white/20 bg-white/[0.05]' : 'border-white/[0.06] hover:border-white/[0.12]'
-                    }`}
-                    aria-pressed={on}
-                  >
-                    <span
-                      className="block font-pixel text-[10px]"
-                      style={{ color: on ? stats.color : '#a1a1aa' }}
-                    >
-                      {stats.label}
-                    </span>
-                    <span className="mt-1 hidden font-mono text-[9px] uppercase tracking-widest text-zinc-600 lg:block">
-                      {CLASS_ROLE[cls].role}
-                    </span>
-                  </button>
+                  <tr key={floor}>
+                    <td style={{ fontFamily: 'var(--font-heading)', fontWeight: 800 }}>
+                      {String(floor).padStart(2, '0')}
+                    </td>
+                    <td>
+                      {floorTheme(floor).name}
+                      {BOSS_FLOORS.has(floor) && (
+                        <span className="tag tag-accent" style={{ marginLeft: 'var(--space-2)' }}>Boss</span>
+                      )}
+                    </td>
+                    <td className="text-muted">{act}</td>
+                    <td className="text-muted">{BOSS_NAME[floor] ?? '—'}</td>
+                    <td className="text-muted" style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                      {floor >= 6 ? 2 : floor >= 2 ? 1 : 0}
+                    </td>
+                  </tr>
                 );
               })}
-            </div>
-
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeClass}
-                className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-6 sm:p-8"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.28, ease: EASE }}
-              >
-                <div className="flex items-start gap-5">
-                  <div className="shrink-0">
-                    <PixelHero playerClass={activeClass} size="lg" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="font-pixel text-xs" style={{ color: CLASS_STATS[activeClass].color }}>
-                      {CLASS_STATS[activeClass].label}
-                    </h3>
-                    <p className="mt-3 max-w-prose font-body text-sm leading-relaxed text-zinc-400">
-                      {CLASS_ROLE[activeClass].line}
-                    </p>
-                  </div>
-                </div>
-
-                {/* The same numbers the server uses, straight from CLASS_STATS */}
-                <dl className="mt-7 grid grid-cols-3 gap-x-6 gap-y-3 border-t border-white/[0.06] pt-5 sm:grid-cols-6">
-                  {([
-                    ['can', CLASS_STATS[activeClass].maxHp],
-                    ['mana', CLASS_STATS[activeClass].maxMana],
-                    ['saldırı', CLASS_STATS[activeClass].attack],
-                    ['savunma', CLASS_STATS[activeClass].defense],
-                    ['hız', CLASS_STATS[activeClass].speed],
-                    ['menzil', CLASS_STATS[activeClass].attackRange],
-                  ] as const).map(([k, v]) => (
-                    <div key={k}>
-                      <dt className="font-mono text-[9px] uppercase tracking-[0.18em] text-zinc-600">{k}</dt>
-                      <dd className="mt-0.5 font-mono text-sm tabular-nums text-zinc-300">{v}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </motion.div>
-            </AnimatePresence>
+            </tbody>
+          </table>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* ── Play ─────────────────────────────────────────────── */}
-      <section id="oyna" className="border-t border-white/[0.06]">
-        <div className="mx-auto max-w-lg px-5 py-20 sm:px-8">
-          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-zinc-600">Başla</p>
-          <h2 className="mt-4 font-pixel text-[13px] leading-relaxed text-zinc-100 sm:text-base">
-            Kurulum yok. İsim yeter.
-          </h2>
+        {/* ── Classes ──────────────────────────────────────── */}
+        <section id="siniflar" style={{ paddingTop: 'var(--space-8)' }}>
+          <hr className="hr" style={{ marginBottom: 'var(--space-6)' }} />
+          <h6 className="text-muted">Sınıflar</h6>
+          <h2 style={{ maxWidth: '24ch' }}>Dördü de aynı zindana iner. Aynı şekilde değil.</h2>
 
-          <div className="mt-8 rounded-lg border border-white/[0.07] bg-white/[0.02] p-6">
-            <AnimatePresence mode="wait">
+          <div style={{ overflowX: 'auto', marginTop: 'var(--space-4)' }}>
+          <table className="table" style={{ minWidth: 620 }}>
+            <thead>
+              <tr>
+                <th>Sınıf</th>
+                <th>Rol</th>
+                <th style={{ textAlign: 'right' }}>Can</th>
+                <th style={{ textAlign: 'right' }}>Mana</th>
+                <th style={{ textAlign: 'right' }}>Saldırı</th>
+                <th style={{ textAlign: 'right' }}>Savunma</th>
+                <th style={{ textAlign: 'right' }}>Hız</th>
+                <th style={{ textAlign: 'right' }}>Menzil</th>
+              </tr>
+            </thead>
+            <tbody>
+              {classEntries.map(([cls, stats]) => (
+                <tr key={cls}>
+                  <td style={{ fontFamily: 'var(--font-heading)', fontWeight: 800 }}>{stats.label}</td>
+                  <td className="text-muted">{CLASS_ROLE[cls].role}</td>
+                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{stats.maxHp}</td>
+                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{stats.maxMana}</td>
+                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{stats.attack}</td>
+                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{stats.defense}</td>
+                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{stats.speed}</td>
+                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{stats.attackRange}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))',
+              gap: 'var(--space-3)',
+              marginTop: 'var(--space-4)',
+            }}
+          >
+            {classEntries.map(([cls, stats]) => (
+              <div className="card" key={cls}>
+                <span className="card-kicker">{CLASS_ROLE[cls].role}</span>
+                <span className="card-title">{stats.label}</span>
+                <p className="card-body">{CLASS_ROLE[cls].note}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── Play ─────────────────────────────────────────── */}
+        <section id="oyna" style={{ paddingTop: 'var(--space-8)', paddingBottom: 'var(--space-8)' }}>
+          <hr className="hr" style={{ marginBottom: 'var(--space-6)' }} />
+          <h6 className="text-muted">Başla</h6>
+          <h2>Kurulum yok. İsim yeter.</h2>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))',
+              gap: 'var(--space-6)',
+              marginTop: 'var(--space-4)',
+              alignItems: 'start',
+            }}
+          >
+            <div>
               {mode === 'idle' ? (
-                <motion.div
-                  key="idle"
-                  className="flex flex-col gap-3"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <button
-                    onClick={() => router.push('/game?mode=solo&name=Kahraman')}
-                    className="group flex items-center justify-between rounded border border-dm-gold/35 bg-dm-gold/[0.08] px-4 py-4 text-left transition-colors hover:bg-dm-gold/[0.15]"
-                  >
-                    <span>
-                      <span className="block font-pixel text-[10px] text-dm-gold">Tek başına in</span>
-                      <span className="mt-1.5 block font-body text-xs text-zinc-500">3 can, anında başlar</span>
-                    </span>
-                    <span className="font-mono text-lg text-dm-gold/60 transition-transform group-hover:translate-x-0.5">→</span>
+                <>
+                  <button className="btn btn-primary btn-block" onClick={() => router.push('/game?mode=solo&name=Kahraman')}>
+                    Tek başına in — 3 can
                   </button>
-
-                  <button
-                    onClick={() => setMode('multiplayer')}
-                    className="group flex items-center justify-between rounded border border-dm-accent/30 bg-dm-accent/[0.06] px-4 py-4 text-left transition-colors hover:bg-dm-accent/[0.12]"
-                  >
-                    <span>
-                      <span className="block font-pixel text-[10px] text-dm-accent">Arkadaşlarınla in</span>
-                      <span className="mt-1.5 block font-body text-xs text-zinc-500">4 kişiye kadar, oda koduyla</span>
-                    </span>
-                    <span className="font-mono text-lg text-dm-accent/60 transition-transform group-hover:translate-x-0.5">→</span>
+                  <button className="btn btn-secondary btn-block" onClick={() => setMode('multiplayer')}>
+                    Arkadaşlarınla in — 4 kişiye kadar
                   </button>
-                </motion.div>
+                </>
               ) : (
-                <motion.div
-                  key="mp"
-                  className="flex flex-col gap-4"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <label className="flex flex-col gap-1.5">
-                    <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-zinc-600">İsmin</span>
+                <>
+                  <div className="field">
+                    <label htmlFor="dm-name">İsmin</label>
                     <input
+                      id="dm-name"
+                      className="input"
                       value={playerName}
                       onChange={(e) => setPlayerName(e.target.value.slice(0, 12))}
                       placeholder="Kahraman"
                       maxLength={12}
-                      className="rounded border border-white/10 bg-black/40 px-3 py-2.5 font-body text-sm text-zinc-100 outline-none transition-colors placeholder:text-zinc-700 focus:border-dm-accent/50"
                     />
-                  </label>
-
-                  <button
-                    onClick={handleCreate}
-                    className="rounded border border-dm-accent/40 bg-dm-accent/[0.12] px-4 py-2.5 font-pixel text-[10px] text-dm-accent transition-colors hover:bg-dm-accent/20"
-                  >
-                    ODA KUR
-                  </button>
-
-                  <div className="flex items-center gap-3">
-                    <span className="h-px flex-1 bg-white/[0.07]" />
-                    <span className="font-mono text-[9px] uppercase tracking-widest text-zinc-700">veya katıl</span>
-                    <span className="h-px flex-1 bg-white/[0.07]" />
                   </div>
 
-                  <div className="flex gap-2">
+                  <button className="btn btn-primary btn-block" onClick={handleCreate}>Oda kur</button>
+
+                  <div className="field" style={{ marginTop: 'var(--space-4)' }}>
+                    <label htmlFor="dm-code">Oda kodu</label>
                     <input
+                      id="dm-code"
+                      className="input"
                       value={roomCode}
                       onChange={(e) => setRoomCode(e.target.value.toUpperCase().slice(0, 4))}
-                      placeholder="KOD"
+                      placeholder="ABCD"
                       maxLength={4}
-                      aria-label="Oda kodu"
-                      className="w-28 rounded border border-white/10 bg-black/40 px-3 py-2.5 text-center font-mono text-sm uppercase tracking-[0.25em] text-zinc-100 outline-none transition-colors placeholder:text-zinc-700 focus:border-dm-accent/50"
+                      style={{ textTransform: 'uppercase', letterSpacing: '0.25em' }}
                     />
-                    <button
-                      onClick={handleJoin}
-                      className="flex-1 rounded border border-white/[0.12] px-4 py-2.5 font-pixel text-[10px] text-zinc-300 transition-colors hover:border-white/30 hover:text-white"
-                    >
-                      KATIL
-                    </button>
                   </div>
+                  <button className="btn btn-secondary btn-block" onClick={handleJoin}>Katıl</button>
 
-                  {error && <p role="alert" className="font-body text-xs text-red-400">{error}</p>}
+                  {error && (
+                    <p role="alert" style={{ color: 'var(--color-accent-700)', fontSize: 13, marginTop: 'var(--space-3)' }}>
+                      {error}
+                    </p>
+                  )}
 
-                  <button
-                    onClick={() => { setMode('idle'); setError(''); }}
-                    className="self-start font-mono text-[10px] uppercase tracking-widest text-zinc-600 transition-colors hover:text-zinc-400"
-                  >
-                    ← geri
+                  <button className="btn btn-ghost" style={{ marginTop: 'var(--space-3)' }} onClick={() => { setMode('idle'); setError(''); }}>
+                    ← Geri
                   </button>
-                </motion.div>
+                </>
               )}
-            </AnimatePresence>
-          </div>
+            </div>
 
-          <dl className="mt-8 grid grid-cols-2 gap-x-6 gap-y-2.5 border-t border-white/[0.06] pt-6">
-            {CONTROLS.map(([k, v]) => (
-              <div key={k} className="flex items-baseline gap-2.5">
-                <dt className="font-mono text-[10px] text-zinc-400">{k}</dt>
-                <dd className="font-body text-xs text-zinc-600">{v}</dd>
-              </div>
-            ))}
-          </dl>
+            <div>
+              <h6 className="text-muted">Kontroller</h6>
+              <table className="table">
+                <tbody>
+                  {CONTROLS.map(([k, v]) => (
+                    <tr key={k}>
+                      <td style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, width: '48%' }}>{k}</td>
+                      <td className="text-muted">{v}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {/* ── Closing poster ───────────────────────────────────
+          The system reserves one place for the accent to run as a field:
+          the closing banner. Type stays display-grade and the red carries it. */}
+      <section style={{ background: 'var(--color-accent)', color: 'var(--color-bg)', padding: 'var(--space-8) var(--space-4)' }}>
+        <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+          <h2 style={{ fontSize: 'clamp(34px, 6.5vw, 72px)', maxWidth: '16ch', color: 'var(--color-bg)' }}>
+            Kral hâlâ tahtta.
+          </h2>
+          <button
+            className="btn"
+            style={{ background: 'var(--color-bg)', color: 'var(--color-accent)', marginTop: 'var(--space-4)' }}
+            onClick={() => router.push('/game?mode=solo&name=Kahraman')}
+          >
+            Zindana in
+          </button>
         </div>
       </section>
 
-      {/* ── Footer ───────────────────────────────────────────── */}
-      <footer className="border-t border-white/[0.06]">
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-8 sm:flex-row sm:items-center sm:justify-between sm:px-8">
-          <span className="font-pixel text-[9px] text-zinc-600">
-            DUNGEON<span className="text-dm-accent/60">MATES</span>
-          </span>
-          <span className="font-mono text-[10px] text-zinc-700">
+      <footer style={{ maxWidth: 1120, margin: '0 auto', padding: 'var(--space-6) var(--space-4)' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4)', justifyContent: 'space-between' }}>
+          <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 800 }}>Dungeon Mates</span>
+          <span className="text-muted" style={{ fontSize: 13 }}>
             Tüm sprite&apos;lar Canvas ile prosedürel çizilir — sprite sheet yok.
           </span>
         </div>
       </footer>
 
       <MetaProgression open={metaOpen} onClose={() => setMetaOpen(false)} />
-    </main>
+    </div>
   );
 }
