@@ -48,6 +48,8 @@ const DODGE_SPEED_MULT = 3.5;
 const DODGE_DURATION_TICKS = 6; // ~0.3 seconds
 const DODGE_COOLDOWN_TICKS = 30; // ~1.5 seconds
 const DODGE_MANA_COST = 5;
+/** Sprint speed bonus. Trade-off: attacking is disabled while sprinting. */
+const SPRINT_SPEED_MULT = 1.32;
 
 // Manual aim snaps onto an enemy within this angular tolerance (radians, ~35°).
 const AIM_SNAP_TOLERANCE = 0.61;
@@ -113,12 +115,15 @@ export class Player {
   private speedBoostTicks: number;
   private slowMultiplier: number;
   private slowTicks: number;
+  private poisonTicks: number;
   private attackAnimTicks: number;
   // Dodge/roll state
   private dodging: boolean;
   private dodgeTicks: number;
   private dodgeCooldownTicks: number;
   private dodgeDir: Vec2;
+  /** True while the player is moving with sprint held. */
+  private sprinting: boolean;
   // Dükkan bonusları (kalıcı)
   private shopBonuses: { maxHp: number; maxMana: number; attack: number; defense: number; speed: number };
   /** Stat gains from levels earned after the talent tree is exhausted. */
@@ -141,11 +146,13 @@ export class Player {
     this.speedBoostTicks = 0;
     this.slowMultiplier = 1;
     this.slowTicks = 0;
+    this.poisonTicks = 0;
     this.attackAnimTicks = 0;
     this.dodging = false;
     this.dodgeTicks = 0;
     this.dodgeCooldownTicks = 0;
     this.dodgeDir = { x: 0, y: 1 };
+    this.sprinting = false;
     this.talentBonuses = {
       maxHp: 0, maxMana: 0, attack: 0, defense: 0, speed: 0,
       lifesteal: 0, manaCostReduction: 0, abilityDamageBonus: 0,
@@ -181,6 +188,7 @@ export class Player {
       abilityActive: false,
       abilityCooldownTicks: 0,
       speedBoosted: false,
+      sprinting: false,
       totalDamageDealt: 0,
       goldCollected: 0,
       gold: 0,
@@ -266,6 +274,11 @@ export class Player {
     this.spawnPosition = { ...pos };
   }
 
+  /** Apply a poison stack. Purely a status marker — the damage is dealt by the source. */
+  applyPoison(ticks: number): void {
+    this.poisonTicks = Math.max(this.poisonTicks, ticks);
+  }
+
   applySlow(multiplier: number, ticks: number): void {
     this.slowMultiplier = multiplier;
     this.slowTicks = ticks;
@@ -294,6 +307,8 @@ export class Player {
     }
 
     // Slow debuff tick down
+    if (this.poisonTicks > 0) this.poisonTicks--;
+
     if (this.slowTicks > 0) {
       this.slowTicks--;
       if (this.slowTicks <= 0) {
@@ -355,6 +370,10 @@ export class Player {
       dy /= mag;
     }
 
+    // Sprinting requires actual movement — holding Shift while standing still
+    // should not lock out attacking.
+    this.sprinting = Boolean(input.sprint) && (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1) && !this.dodging;
+
     // Update facing
     if (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1) {
       if (Math.abs(dx) > Math.abs(dy)) {
@@ -407,7 +426,14 @@ export class Player {
     const classStats = CLASS_STATS[this.state.class];
     const totalSpeed = classStats.speed + this.getShopSpeedBonus();
     const dodgeMult = this.dodging ? DODGE_SPEED_MULT : 1;
-    const speed = totalSpeed * PLAYER_SPEED * this.speedBoostMultiplier * this.slowMultiplier * dodgeMult / TICK_RATE;
+    // Sprint was a dead control: the client scaled dx/dy by 1.2, the server
+    // normalised any magnitude over 1 straight back down, and the `sprint` flag
+    // itself was stored and never read — so Shift did nothing at all despite
+    // being documented and having a HUD indicator. It is now a real movement
+    // mode, and it costs something: you cannot attack while sprinting, so it
+    // buys repositioning rather than being a free permanent speed bonus.
+    const sprintMult = this.sprinting ? SPRINT_SPEED_MULT : 1;
+    const speed = totalSpeed * PLAYER_SPEED * this.speedBoostMultiplier * this.slowMultiplier * dodgeMult * sprintMult / TICK_RATE;
 
     // During dodge, use dodge direction; otherwise use input
     const moveX = this.dodging ? this.dodgeDir.x : dx;
@@ -436,7 +462,7 @@ export class Player {
       this.state.attacking = false;
     }
 
-    if (input.attack) {
+    if (input.attack && !this.sprinting) {
       const cooldown = classStats.attackCooldown;
       const tickCooldown = Math.ceil(cooldown / (1000 / TICK_RATE));
 
@@ -1182,7 +1208,7 @@ export class Player {
       abilityCooldownTicks: this.abilityCooldownTicks,
       speedBoosted: this.speedBoostMultiplier > 1,
       shieldActive: this.shieldActive,
-      poisoned: false, // will be set by GameRoom if poison aura active
+      poisoned: this.poisonTicks > 0,
       slowed: this.slowTicks > 0,
       ultimateCooldownTicks: this.ultimateCooldownTicks,
       ultimateReady: this.state.level >= ULTIMATE_UNLOCK_LEVEL && this.ultimateCooldownTicks <= 0 && this.state.mana >= this.getUltimateManaCost(1 - this.talentBonuses.manaCostReduction),

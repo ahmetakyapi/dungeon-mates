@@ -18,16 +18,21 @@
  *
  * Imagery: the six slots in the source are all game content — "oyun içi ekran
  * görüntüsü", "boss odası / geniş sahne", "karakter görseli". Stock photography
- * would misrepresent a pixel-art game, so every image under /public/art is a real
- * capture of this build: the scenes come from the live game canvas and the class
- * portraits are the game's own PixelHero sprites. They are dark-grounded, which is
- * exactly what the system's `.lighten` wrapper wants.
+ * would misrepresent a pixel-art game, so none is used.
+ *
+ * The three scene slots are not screenshots either: <LiveScene> renders the
+ * dungeon with the game's own SpriteRenderer and runs the real windup → active →
+ * recovery cycle straight out of ATTACK_PROFILES, so the page demonstrates the
+ * mechanic rather than illustrating it, and it stays correct when combat is
+ * retuned. The class portraits are captures of the game's own PixelHero sprites,
+ * dark-grounded — exactly what the system's `.lighten` wrapper wants.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { CLASS_STATS, type PlayerClass, floorTheme } from '../../shared/types';
+import { LiveScene, type ScenePhase } from '@/components/landing/LiveScene';
 import { MetaProgression } from '@/components/game/MetaProgression';
 import { loadMeta, type MetaState } from '@/lib/meta-progression';
 import '../styles/nocturne.css';
@@ -121,6 +126,8 @@ export default function HomePage() {
   const [metaOpen, setMetaOpen] = useState(false);
   const [meta, setMeta] = useState<MetaState | null>(null);
   const [scrolled, setScrolled] = useState(false);
+  // Driven by the live scene so the phase list reads out what is on screen.
+  const [phase, setPhase] = useState<ScenePhase>('idle');
 
   useEffect(() => { setMeta(loadMeta()); }, [metaOpen]);
   useEffect(() => {
@@ -227,21 +234,19 @@ export default function HomePage() {
           <figure style={{ position: 'relative', minWidth: 0 }}>
             <div style={{
               position: 'relative', borderRadius: 'var(--radius-lg)', overflow: 'hidden',
-              boxShadow: 'var(--shadow-md)',
+              boxShadow: 'var(--shadow-md)', aspectRatio: '4 / 3',
             }}>
-              <Image
-                src="/art/hero-scene.png" alt="Dungeon Mates oyun içi görüntü — kat 1"
-                width={1200} height={900} priority
-                style={{ width: '100%', height: 'auto', imageRendering: 'pixelated' }}
-              />
+              {/* A still screenshot sat awkwardly in this frame and could never fill
+                  it at a fixed aspect. This is the game rendering live instead. */}
+              <LiveScene floor={10} monster="dark_knight" cols={19} rows={15} showLabel={false} />
               {/* Accent sweep — a line of light, never a flood */}
               <span aria-hidden style={{
                 position: 'absolute', inset: 0, pointerEvents: 'none',
-                background: 'linear-gradient(100deg, transparent 40%, color-mix(in srgb, var(--color-accent) 22%, transparent) 50%, transparent 60%)',
+                background: 'linear-gradient(100deg, transparent 40%, color-mix(in srgb, var(--color-accent) 18%, transparent) 50%, transparent 60%)',
                 animation: 'dmSweep 6.5s ease-in-out infinite',
               }} />
             </div>
-            <figcaption>Kat 07 · Taş Bahçeler — oyunun kendi render&apos;ı</figcaption>
+            <figcaption>Kat 10 · Taht Salonu — gerçek zamanlı, oyunun kendi render&apos;ı</figcaption>
           </figure>
         </div>
 
@@ -327,14 +332,9 @@ export default function HomePage() {
       {/* ── Full-bleed scene ────────────────────────────────── */}
       <section style={{ marginTop: 'clamp(56px, 10vh, 110px)', position: 'relative' }}>
         <figure style={{ position: 'relative' }}>
-          <Image
-            src="/art/wide-scene.png" alt="Zindanın geniş görünümü — kat 3, Derin Tüneller"
-            width={1680} height={720}
-            style={{
-              width: '100%', height: 'clamp(220px, 34vw, 460px)',
-              objectFit: 'cover', objectPosition: '18% 50%', imageRendering: 'pixelated',
-            }}
-          />
+          <div style={{ width: '100%', height: 'clamp(220px, 34vw, 460px)' }}>
+            <LiveScene floor={8} monster="lava_slime" cols={40} rows={16} showLabel={false} />
+          </div>
           <span aria-hidden style={{
             position: 'absolute', inset: 0,
             background: 'linear-gradient(to bottom, var(--color-bg) 0%, transparent 22%, transparent 72%, var(--color-bg) 100%)',
@@ -362,21 +362,27 @@ export default function HomePage() {
             </p>
 
             <div style={{ display: 'grid', gap: 10, marginTop: 24, maxWidth: 460 }}>
-              {[
-                ['Hazırlık', '0.25 – 0.65 sn', 'alan dolar'],
-                ['Vuruş', '0.1 – 0.2 sn', 'hasar çözülür'],
-                ['Toparlanma', '0.2 – 0.7 sn', 'karşılık ver'],
-              ].map(([phase, time, note]) => (
-                <div key={phase} style={{
-                  display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 12, alignItems: 'baseline',
-                  padding: '10px 0',
-                  background: 'linear-gradient(to right, var(--color-divider), var(--color-divider) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px',
-                }}>
-                  <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 500 }}>{phase}</span>
-                  <span style={{ color: 'var(--color-accent)', fontSize: 13 }}>{time}</span>
-                  <span className="text-muted" style={{ fontSize: 12 }}>{note}</span>
-                </div>
-              ))}
+              {([
+                ['windup', '01', 'Hazırlık', '0.25 – 0.65 sn', 'alan dolar'],
+                ['active', '02', 'Vuruş', '0.1 – 0.2 sn', 'hasar çözülür'],
+                ['recovery', '03', 'Toparlanma', '0.2 – 0.7 sn', 'karşılık ver'],
+              ] as const).map(([key, num, label, time, note]) => {
+                const on = phase === key;
+                return (
+                  <div key={key} style={{
+                    display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', gap: 12, alignItems: 'baseline',
+                    padding: '10px 12px', borderRadius: 'var(--radius-md)',
+                    transition: 'background .25s ease, box-shadow .25s ease',
+                    background: on ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)' : 'transparent',
+                    boxShadow: on ? 'inset 0 0 0 1px var(--color-accent)' : 'none',
+                  }}>
+                    <span className="text-muted" style={{ fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>{num}</span>
+                    <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 500 }}>{label}</span>
+                    <span style={{ color: 'var(--color-accent)', fontSize: 13 }}>{time}</span>
+                    <span className="text-muted" style={{ fontSize: 12 }}>{note}</span>
+                  </div>
+                );
+              })}
             </div>
 
             <p className="text-muted" style={{ fontSize: 12, marginTop: 18 }}>
@@ -384,27 +390,15 @@ export default function HomePage() {
             </p>
           </div>
 
-          {/* Telegraph diagram — drawn with the accent as a line, per the system */}
+          {/* The scene runs the real windup → active → recovery cycle */}
           <figure style={{ minWidth: 0 }}>
             <div className="elev-sm" style={{
-              borderRadius: 'var(--radius-lg)', padding: 22, background: 'var(--color-surface)',
-              display: 'grid', placeItems: 'center',
+              borderRadius: 'var(--radius-lg)', overflow: 'hidden',
+              background: 'var(--color-surface)', aspectRatio: '16 / 10',
             }}>
-              <svg viewBox="0 0 220 150" width="100%" height="auto" role="img" aria-label="Telegraf şekilleri: daire ve koni">
-                {/* circle telegraph */}
-                <circle cx="62" cy="76" r="42" fill="color-mix(in srgb, var(--color-accent) 12%, transparent)" />
-                <circle cx="62" cy="76" r="42" fill="none" stroke="var(--color-accent)" strokeWidth="1.5" />
-                <circle cx="62" cy="76" r="27" fill="color-mix(in srgb, var(--color-accent) 22%, transparent)" />
-                <rect x="57" y="71" width="10" height="10" fill="var(--color-accent-200)" />
-                <text x="62" y="136" textAnchor="middle" fill="currentColor" opacity="0.55" fontSize="10" fontFamily="var(--font-body)">Daire</text>
-
-                {/* cone telegraph */}
-                <path d="M162 76 L206 44 A54 54 0 0 1 206 108 Z" fill="color-mix(in srgb, var(--color-accent) 14%, transparent)" stroke="var(--color-accent)" strokeWidth="1.5" />
-                <rect x="157" y="71" width="10" height="10" fill="var(--color-accent-200)" />
-                <text x="176" y="136" textAnchor="middle" fill="currentColor" opacity="0.55" fontSize="10" fontFamily="var(--font-body)">Koni</text>
-              </svg>
+              <LiveScene floor={3} monster="dark_knight" cols={21} rows={13} onPhase={setPhase} />
             </div>
-            <figcaption>Server telegrafı yayınlar; hasar aynı şekle karşı çözülür.</figcaption>
+            <figcaption>Yandaki sahne oyunun telegraf zamanlamasıyla, gerçek zamanlı çiziliyor.</figcaption>
           </figure>
         </div>
       </section>

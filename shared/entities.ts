@@ -40,6 +40,8 @@ export type PlayerState = {
   abilityActive: boolean;
   abilityCooldownTicks: number;
   speedBoosted: boolean;
+  /** Moving with sprint held — faster, but cannot attack. */
+  sprinting: boolean;
   totalDamageDealt: number;
   goldCollected: number;
   // Phase 1: Talent sistemi

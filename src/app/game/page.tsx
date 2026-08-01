@@ -1100,6 +1100,7 @@ function GamePage() {
           abilityCooldownPct={abilityCooldownPct}
           attackCooldownPct={attackCooldownPct}
           dodgeCooldownPct={dodgeCooldownPct}
+          colorSafe={settings.highContrastTelegraph}
           abilityActive={localPlayer.abilityActive}
           playerClass={localPlayer.class}
           monsterKillEvents={monsterKillEvents}

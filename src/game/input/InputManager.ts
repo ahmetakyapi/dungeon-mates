@@ -217,12 +217,10 @@ export class InputManager {
       dy *= INV_SQRT2;
     }
 
-    // Sprint modifier
+    // Sprint is a server-side movement mode; the flag below carries it. Scaling
+    // dx/dy here did nothing — the server normalises any magnitude above 1 — and
+    // it made honest input indistinguishable from a speed hack.
     const isSprinting = this.isDown(KEY_BINDINGS.sprint) || this.isGamepadButtonDown(10); // L3
-    if (isSprinting && (dx !== 0 || dy !== 0)) {
-      dx *= 1.2;
-      dy *= 1.2;
-    }
 
     // Auto-repeat attack when holding key (debounced)
     const holdingAttack = this.isDown(KEY_BINDINGS.attack) || this.isGamepadButtonDown(0);

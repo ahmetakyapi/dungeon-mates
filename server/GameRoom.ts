@@ -131,6 +131,12 @@ const SHOP_UPGRADE_LIMIT = 2;
 const TAUNT_RADIUS = 5;
 const TAUNT_THREAT = 220;
 
+/** How long a poison tick keeps the player flagged, for the debuff bar. */
+const POISON_STATUS_TICKS = 40;
+
+/** Everyone alive within this radius of a kill shares its XP (tiles, squared). */
+const XP_SHARE_RADIUS_SQ = 16 * 16;
+
 /** Clamp a client-supplied meta bonus into its designed range. */
 function clampMeta(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
@@ -1274,6 +1280,7 @@ export class GameRoom {
       for (const poisonTarget of monster.poisonAuraTargets) {
         const poisonPlayer = this.players.get(poisonTarget.playerId);
         if (poisonPlayer && poisonPlayer.state.alive) {
+          poisonPlayer.applyPoison(POISON_STATUS_TICKS);
           const poisonResult = poisonPlayer.takeDamage(poisonTarget.damage);
           if (!poisonResult.dodged && poisonResult.effectiveDamage > 0) {
             this.queueDamage(poisonTarget.playerId, poisonResult.effectiveDamage, monsterId, {
@@ -1728,29 +1735,46 @@ export class GameRoom {
       monsterType: monster.state.type,
     });
 
-    // Grant XP to killer (scaled for multiplayer to prevent over-leveling)
+    // XP is shared with everyone nearby, not just whoever landed the last hit.
+    // Killer-only XP plus a party-size penalty meant the top damage dealer took
+    // most kills AND everyone's share was halved, so levels diverged over a run
+    // and the trailing player fell permanently behind.
     const killer = this.players.get(killerId);
     if (killer) {
-      // Kill refund — talent-based cooldown reduction chance
       killer.applyKillRefund();
-      const xpMultipliers: Record<number, number> = { 1: 1.0, 2: 0.75, 3: 0.6, 4: 0.5 };
-      const clampedPlayers = Math.max(1, Math.min(4, this.playerCount));
-      const xpScale = xpMultipliers[clampedPlayers] ?? 1.0;
-      const eliteXpMult = monster.state.isElite ? 3 : 1;
-      const scaledXp = Math.max(1, Math.floor(stats.xp * xpScale * eliteXpMult * killer.getXpMultiplier()));
-      const leveled = killer.addXp(scaledXp);
-      killer.state.score += scaledXp;
+    }
+
+    const clampedPlayers = Math.max(1, Math.min(4, this.playerCount));
+    const xpMultipliers: Record<number, number> = { 1: 1.0, 2: 0.75, 3: 0.6, 4: 0.5 };
+    const xpScale = xpMultipliers[clampedPlayers] ?? 1.0;
+    const eliteXpMult = monster.state.isElite ? 3 : 1;
+
+    // Anyone alive and within range of the kill shares it; the killer always does.
+    const recipients: Player[] = [];
+    for (const p of this.players.values()) {
+      if (!p.state.alive) continue;
+      if (p === killer) { recipients.push(p); continue; }
+      const dx = p.state.position.x - monster.state.position.x;
+      const dy = p.state.position.y - monster.state.position.y;
+      if (dx * dx + dy * dy <= XP_SHARE_RADIUS_SQ) recipients.push(p);
+    }
+    if (recipients.length === 0 && killer) recipients.push(killer);
+
+    for (const p of recipients) {
+      const scaledXp = Math.max(1, Math.floor(stats.xp * xpScale * eliteXpMult * p.getXpMultiplier()));
+      const leveled = p.addXp(scaledXp);
+      // Score still tracks the killer, so the run summary's MVP stays meaningful.
+      if (p === killer) p.state.score += scaledXp;
 
       if (leveled) {
         this.io.to(this.roomCode).emit('game:level_up', {
-          playerId: killerId,
-          level: killer.state.level,
+          playerId: p.state.id,
+          level: p.state.level,
         });
-        // Talent seçeneği gönder
-        const availableTalents = killer.getAvailableTalents();
+        const availableTalents = p.getAvailableTalents();
         if (availableTalents.length > 0) {
           this.io.to(this.roomCode).emit('game:talent_choice', {
-            playerId: killerId,
+            playerId: p.state.id,
             talents: availableTalents,
           });
         }

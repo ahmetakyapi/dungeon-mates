@@ -477,6 +477,7 @@ const MinimapRoom = memo(function MinimapRoom({
   bx,
   by,
   expanded,
+  colorSafe,
 }: {
   room: DungeonRoom;
   isCurrent: boolean;
@@ -485,6 +486,7 @@ const MinimapRoom = memo(function MinimapRoom({
   bx: number;
   by: number;
   expanded: boolean;
+  colorSafe: boolean;
 }) {
   const rx = room.x - bx;
   const ry = room.y - by;
@@ -496,14 +498,19 @@ const MinimapRoom = memo(function MinimapRoom({
   let opacity: number;
   let cssClass = '';
 
+  // Cleared-green against boss-red is the one red/green pair left on the minimap.
+  // Every room already carries a glyph (✓, ☠, a monster count), so this is
+  // reinforcement rather than the sole signal — but under the colour-safe setting
+  // the pair swaps to blue/amber, which stays separable on every common type of
+  // colour vision deficiency.
   if (isCurrent) {
     fill = '#fbbf24';
     opacity = 1;
   } else if (room.cleared) {
-    fill = '#4ade80';
+    fill = colorSafe ? '#38bdf8' : '#4ade80';
     opacity = 0.85;
   } else if (room.isBossRoom) {
-    fill = '#ef4444';
+    fill = colorSafe ? '#fb923c' : '#ef4444';
     opacity = 1;
     cssClass = 'minimap-boss-glow';
   } else {
@@ -632,7 +639,9 @@ function Minimap({
   tiles,
   currentFloor,
   maxFloors,
+  colorSafe = false,
 }: {
+  colorSafe?: boolean;
   rooms: DungeonRoom[];
   currentRoomId: number;
   players: Record<string, PlayerState>;
@@ -810,6 +819,7 @@ function Minimap({
               bx={bounds.minX}
               by={bounds.minY}
               expanded={expanded}
+              colorSafe={colorSafe}
             />
           ))}
 
@@ -1212,6 +1222,8 @@ type HUDProps = {
   /** Remaining cooldown as a fraction, 0 = ready (matches abilityCooldownPct). */
   attackCooldownPct?: number;
   dodgeCooldownPct?: number;
+  /** Swap the minimap's cleared-green / boss-red pair for a colour-safe one. */
+  colorSafe?: boolean;
   abilityCooldownPct?: number;
   abilityActive?: boolean;
   playerClass?: PlayerClass;
@@ -1222,7 +1234,7 @@ type HUDProps = {
   floorModifiers?: FloorModifier[];
 };
 
-export function HUD({ player, gameState, fps, showFps = false, attackCooldownPct = 0, dodgeCooldownPct = 0, abilityCooldownPct = 0, abilityActive = false, playerClass, monsterKillEvents, lootPickupEvents, isTouchDevice = false, bossDialogue, floorModifiers = [] }: HUDProps) {
+export function HUD({ player, gameState, fps, showFps = false, attackCooldownPct = 0, dodgeCooldownPct = 0, colorSafe = false, abilityCooldownPct = 0, abilityActive = false, playerClass, monsterKillEvents, lootPickupEvents, isTouchDevice = false, bossDialogue, floorModifiers = [] }: HUDProps) {
   const { toasts, addToast } = useToasts();
   const [killFeedEntries, setKillFeedEntries] = useState<KillFeedEntry[]>([]);
   const [hpFlash, setHpFlash] = useState(false);
@@ -1643,6 +1655,7 @@ export function HUD({ player, gameState, fps, showFps = false, attackCooldownPct
       {!isTouchDevice ? (
         <div className="absolute bottom-2 left-2 sm:bottom-4 sm:left-4">
           <Minimap
+              colorSafe={colorSafe}
             rooms={gameState.dungeon.rooms}
             currentRoomId={gameState.currentRoomId}
             players={gameState.players}
