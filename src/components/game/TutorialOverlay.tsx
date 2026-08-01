@@ -31,9 +31,9 @@ function DesktopControls() {
   return (
     <div className="flex flex-col gap-3">
       <p className="font-pixel text-[9px] text-dm-accent sm:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">Masaüstü</p>
-      <div className="flex items-start gap-6">
+      <div className="flex flex-wrap items-start justify-center gap-x-5 gap-y-4">
         {/* WASD */}
-        <div className="flex flex-col items-center gap-1">
+        <div className="flex w-[84px] flex-col items-center gap-1 text-center">
           <KeyCap label="W" />
           <div className="flex gap-1">
             <KeyCap label="A" />
@@ -44,39 +44,39 @@ function DesktopControls() {
         </div>
 
         {/* Space */}
-        <div className="flex flex-col items-center gap-1">
+        <div className="flex w-[84px] flex-col items-center gap-1 text-center">
           <KeyCap label="SPACE" wide />
           <p className="mt-1 font-body text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">Saldırı</p>
         </div>
 
         {/* Q — dodge. Taught explicitly because it is the counter to enemy
             attack telegraphs, and it was previously undocumented anywhere. */}
-        <div className="flex flex-col items-center gap-1">
+        <div className="flex w-[84px] flex-col items-center gap-1 text-center">
           <KeyCap label="Q" />
           <p className="mt-1 font-body text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">Takla — kırmızı alandan kaç</p>
         </div>
 
         {/* E */}
-        <div className="flex flex-col items-center gap-1">
+        <div className="flex w-[84px] flex-col items-center gap-1 text-center">
           <KeyCap label="E" />
           <p className="mt-1 font-body text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">Yetenek Kullan</p>
         </div>
 
         {/* F */}
-        <div className="flex flex-col items-center gap-1">
+        <div className="flex w-[84px] flex-col items-center gap-1 text-center">
           <KeyCap label="F" />
           <p className="mt-1 font-body text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">Ultimate (Sv. 5+)</p>
         </div>
 
         {/* R */}
-        <div className="flex flex-col items-center gap-1">
+        <div className="flex w-[84px] flex-col items-center gap-1 text-center">
           <KeyCap label="R" />
           <p className="mt-1 font-body text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">Etkileşim</p>
           <p className="font-body text-[9px] text-zinc-500 lg:text-xs xl:text-sm 2xl:text-sm">(Sandık, Merdiven)</p>
         </div>
 
         {/* Escape */}
-        <div className="flex flex-col items-center gap-1">
+        <div className="flex w-[84px] flex-col items-center gap-1 text-center">
           <KeyCap label="ESC" />
           <p className="mt-1 font-body text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">Menü</p>
         </div>
@@ -91,7 +91,7 @@ function MobileControls() {
       <p className="font-pixel text-[9px] text-dm-accent sm:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">Mobil</p>
       <div className="flex items-center gap-6">
         {/* Left joystick */}
-        <div className="flex flex-col items-center gap-1">
+        <div className="flex w-[84px] flex-col items-center gap-1 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-dm-accent/40 bg-dm-surface">
             <div className="h-6 w-6 rounded-full bg-dm-accent/60" />
           </div>
@@ -99,7 +99,7 @@ function MobileControls() {
         </div>
 
         {/* Right buttons */}
-        <div className="flex flex-col items-center gap-1">
+        <div className="flex w-[84px] flex-col items-center gap-1 text-center">
           <div className="flex gap-2">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-dm-health/40 bg-dm-surface font-pixel text-[8px] text-dm-health">
               ⚔

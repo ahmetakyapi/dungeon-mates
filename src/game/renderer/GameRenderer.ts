@@ -184,6 +184,13 @@ export class GameRenderer {
   // Pre-created radial gradient canvas for fog (avoids creating gradients per-frame)
   private fogGradientCanvas: HTMLCanvasElement | null = null;
 
+  // Soft-fog buffer: one pixel per tile, upscaled with smoothing on. See renderFogSoft.
+  private fogBuffer: HTMLCanvasElement | null = null;
+  private fogBufferCtx: CanvasRenderingContext2D | null = null;
+  private fogBufferImage: ImageData | null = null;
+  private fogBufferW = 0;
+  private fogBufferH = 0;
+
   // Pre-rendered vision falloff canvas (avoids createRadialGradient per player per frame)
   private visionFalloffCanvas: HTMLCanvasElement | null = null;
   private visionFalloffRadius = -1;
@@ -2762,7 +2769,17 @@ export class GameRenderer {
     playersArr: PlayerState[],
   ): void {
     const isSimple = QUALITY_PRESETS[this.quality].fogSimple;
-    const exploredStyle = isSimple ? 'rgba(10,12,30,0.15)' : 'rgba(10,12,30,0.18)';
+
+    // On medium/high, fog is rasterised one pixel per tile and scaled up with
+    // interpolation, which feathers the boundary for free. The batched-fillRect
+    // path below stays for `low`, where the extra buffer is not worth it.
+    if (!isSimple) {
+      this.renderFogSoft(ctx, camX, camY, startX, startY, endX, endY);
+      this.renderFogGradientEdges(ctx, state, camX, camY, startX, startY, endX, endY, playersArr);
+      return;
+    }
+
+    const exploredStyle = 'rgba(10,12,30,0.15)';
 
     // Batch consecutive same-state fog tiles per row into single wider fillRect calls
     for (let ty = startY; ty < endY; ty++) {
@@ -2803,10 +2820,74 @@ export class GameRenderer {
       }
     }
 
-    // Gradient fog edges (soft transition from visible to fog)
-    if (!isSimple) {
-      this.renderFogGradientEdges(ctx, state, camX, camY, startX, startY, endX, endY, playersArr);
+  }
+
+  /**
+   * Fog with soft edges.
+   *
+   * Fog used to be drawn as opaque 16px fillRects, so the boundary between
+   * explored and unexplored space was a hard rectangular staircase — very visible
+   * as black blocks along room edges. Here the fog field is rasterised at one
+   * pixel per tile into a tiny buffer, then blitted up to full size with
+   * imageSmoothingEnabled on: the browser's bilinear filter turns the step
+   * function into a gradient. The buffer is a few hundred pixels, so this is
+   * cheaper than the per-row batching it replaces.
+   */
+  private renderFogSoft(
+    ctx: CanvasRenderingContext2D,
+    camX: number,
+    camY: number,
+    startX: number,
+    startY: number,
+    endX: number,
+    endY: number,
+  ): void {
+    // One-tile margin so the gradient has somewhere to ramp at screen edges.
+    const x0 = startX - 1;
+    const y0 = startY - 1;
+    const w = (endX - startX) + 3;
+    const h = (endY - startY) + 3;
+    if (w <= 0 || h <= 0) return;
+
+    if (!this.fogBuffer || this.fogBufferW !== w || this.fogBufferH !== h) {
+      this.fogBuffer = document.createElement('canvas');
+      this.fogBuffer.width = w;
+      this.fogBuffer.height = h;
+      this.fogBufferCtx = this.fogBuffer.getContext('2d');
+      this.fogBufferImage = this.fogBufferCtx?.createImageData(w, h) ?? null;
+      this.fogBufferW = w;
+      this.fogBufferH = h;
     }
+    const bufCtx = this.fogBufferCtx;
+    const img = this.fogBufferImage;
+    if (!bufCtx || !img) return;
+
+    const data = img.data;
+    let i = 0;
+    for (let ty = y0; ty < y0 + h; ty++) {
+      const fogRow = this.fogGrid[ty];
+      for (let tx = x0; tx < x0 + w; tx++) {
+        // Off-map reads as unexplored so the edge ramps to black rather than
+        // popping to transparent.
+        const fog = fogRow ? (fogRow[tx] ?? 0) : 0;
+        data[i] = 10;
+        data[i + 1] = 12;
+        data[i + 2] = 26;
+        data[i + 3] = fog === 0 ? 255 : fog === 1 ? 48 : 0;
+        i += 4;
+      }
+    }
+    bufCtx.putImageData(img, 0, 0);
+
+    // Half-tile offset puts each source pixel's centre on its tile's centre, so
+    // the interpolated ramp straddles the tile boundary instead of lagging it.
+    const dx = x0 * TILE_SIZE - camX + TILE_SIZE / 2;
+    const dy = y0 * TILE_SIZE - camY + TILE_SIZE / 2;
+
+    const prevSmoothing = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(this.fogBuffer, dx, dy, w * TILE_SIZE, h * TILE_SIZE);
+    ctx.imageSmoothingEnabled = prevSmoothing;
   }
 
   /** Render soft gradient edges at the boundary of visible/explored fog tiles */
