@@ -5,7 +5,7 @@
 // Visual effects: vignette, screen flash, ambient particles
 // ==========================================
 
-import type { GameState, PlayerState, MonsterState, ProjectileState, LootState, TileType, DamageType } from '../../../shared/types';
+import type { GameState, PlayerState, MonsterState, ProjectileState, LootState, TileType, DamageType, Direction, MonsterType } from '../../../shared/types';
 import { TILE_SIZE, CLASS_STATS, MONSTER_STATS, LOOT_TABLE, ELITE_AFFIXES, floorTheme, TELEGRAPH_NONE, TELEGRAPH_CONE, TELEGRAPH_LINE } from '../../../shared/types';
 import { Camera } from './Camera';
 import { SpriteRenderer, isTorchWall, TORCH_ANCHOR_X, TORCH_ANCHOR_Y } from './SpriteRenderer';
@@ -271,9 +271,13 @@ export class GameRenderer {
   }
 
   // Last known monster position+color — used to emit death FX when server drops a dead monster from state
-  private readonly prevMonsterSnapshot: Map<string, { x: number; y: number; type: string; isBoss: boolean }> = new Map();
+  private readonly prevMonsterSnapshot: Map<string, { x: number; y: number; type: string; isBoss: boolean; facing: Direction; isElite: boolean }> = new Map();
   // Client-side dying entities for squash+spin animation (2 ticks ~100ms)
-  private readonly dyingEntities: Array<{ x: number; y: number; type: string; color: string; elapsed: number; duration: number; isBoss: boolean }> = [];
+  private readonly dyingEntities: Array<{
+    x: number; y: number; type: string; color: string;
+    elapsed: number; duration: number; isBoss: boolean;
+    facing: Direction; isElite: boolean; tipDir: number;
+  }> = [];
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -872,10 +876,7 @@ export class GameRenderer {
       this.renderTorchLights(ctx, camX, camY);
     }
 
-    // 3. Fog of war BEFORE entities — tiles/decor get fogged, entities stay bright
-    this.renderFog(ctx, state, camX, camY, startTileX, startTileY, endTileX, endTileY, localPlayerId, playersArr);
-
-    // 4. Highlight interactable tiles (chests, stairs) with pulsing glow — after fog so they pop
+    // 3. Highlight interactable tiles (chests, stairs) with pulsing glow
     this.renderInteractableHighlights(ctx, state, camX, camY, localPlayerId);
 
     // 4b. Attack telegraphs — drawn on the ground, under every entity, so an
@@ -885,14 +886,23 @@ export class GameRenderer {
     // 5. Render loot
     this.renderLoot(ctx, lootArr, camX, camY);
 
-    // 6. Render monsters — drawn after fog so they are always visible
+    // 6. Render monsters
     this.renderMonsters(ctx, monstersArr, camX, camY, dt);
 
     // 7. Render projectiles
     this.renderProjectiles(ctx, projectilesArr, camX, camY);
 
-    // 8. Render players — drawn after fog so they are always bright and visible
+    // 8. Render players
     this.renderPlayers(ctx, playersArr, state, camX, camY, localPlayerId, dt);
+
+    // 8c. Fog of war, now drawn OVER the entities.
+    //
+    // It used to run before them, with a comment saying entities "stay bright" —
+    // but that meant every monster on the floor was visible at full brightness
+    // through solid walls, in rooms the player had never entered. Occluding them
+    // is both the correct read and a real gameplay change: scouting now requires
+    // actually going there. Particles, damage numbers and UI still draw on top.
+    this.renderFog(ctx, state, camX, camY, startTileX, startTileY, endTileX, endTileY, localPlayerId, playersArr);
 
     // 8b. Aim reticle + the enemy the shot will actually snap to. Without this the
     // player has no way to know whether manual aim or auto-target is in control.
@@ -1387,15 +1397,15 @@ export class GameRenderer {
       // drawWallTorch painted — the old -8 offset floated it clear of the tile.
       this.drawEnhancedFlame(ctx, Math.floor(sx) - 2, Math.floor(sy) - 4, this.torchFlameFrame, i);
 
-      // Smoke wisps above flame (2-3 gray pixels rising)
-      const smokeAlpha = 0.2 + Math.sin(this.animFrame * 0.5 + i * 2) * 0.1;
+      // Heat haze above the flame. Previously mid-grey (#6b7280) at 0.2-0.3 alpha,
+      // which read as solid grey streaks smeared up the wall rather than smoke —
+      // a warm, much fainter tone dissipating with height reads as rising heat.
+      const smokeAlpha = 0.09 + Math.sin(this.animFrame * 0.5 + i * 2) * 0.04;
+      ctx.fillStyle = '#8a7a6a';
       ctx.globalAlpha = smokeAlpha;
-      ctx.fillStyle = '#6b7280';
       ctx.fillRect(Math.floor(sx) + (this.torchFlameFrame % 2), Math.floor(sy) - 7, 1, 1);
+      ctx.globalAlpha = smokeAlpha * 0.6;
       ctx.fillRect(Math.floor(sx) - 1 + ((this.torchFlameFrame + 1) % 2), Math.floor(sy) - 9, 1, 1);
-      if (this.torchFlameFrame === 2) {
-        ctx.fillRect(Math.floor(sx) + 1, Math.floor(sy) - 10, 1, 1);
-      }
       ctx.globalAlpha = 1;
 
       // Occasional torch spark particle during bright flicker peaks
@@ -2026,7 +2036,13 @@ export class GameRenderer {
       // incoming attack reads on the monster itself, not only from the ground
       // telegraph. Classic squash-and-stretch anticipation.
       const windupT = isWindingUp ? Math.max(0, Math.min(1, monster.attackProgress)) : 0;
-      const applyHitSquash = hitStopT > 0 || windupT > 0;
+      // Lean into the knockback direction. The state has carried knockbackVx/Vy
+      // since the hit-feel work but nothing ever visualised it, so a hit had no
+      // directional read on the sprite itself.
+      const kbx = monster.knockbackVx ?? 0;
+      const kby = monster.knockbackVy ?? 0;
+      const kbMag = Math.min(1, (Math.abs(kbx) + Math.abs(kby)) / 6);
+      const applyHitSquash = hitStopT > 0 || windupT > 0 || kbMag > 0.01;
       if (applyHitSquash) {
         const sq = (1 - hitStopT * 0.15) * (1 - windupT * 0.12);
         const st = (1 + hitStopT * 0.1) * (1 + windupT * 0.14);
@@ -2037,6 +2053,10 @@ export class GameRenderer {
         // Lean away from the target during the coil, then the attack snaps forward.
         if (windupT > 0) {
           ctx.translate(-monster.telegraphDirX * windupT * 2, -monster.telegraphDirY * windupT * 2);
+        }
+        if (kbMag > 0.01) {
+          ctx.translate(kbx * 0.35, kby * 0.35);
+          ctx.rotate(kbx * 0.02);
         }
         ctx.scale(st, sq);
         ctx.translate(-cx, -cy);
@@ -3029,6 +3049,8 @@ export class GameRenderer {
         y: m.position.y * TILE_SIZE + TILE_SIZE / 2,
         type: m.type,
         isBoss: m.type.startsWith('boss_'),
+        facing: m.facing,
+        isElite: m.isElite,
       });
     }
     // Any snapshot id that has prevHp > 0 but is missing from state.monsters = just died
@@ -3045,8 +3067,13 @@ export class GameRenderer {
         // Client-side dying entity for squash+spin
         this.dyingEntities.push({
           x: snap.x, y: snap.y, type: snap.type, color,
-          elapsed: 0, duration: snap.isBoss ? 600 : 320,
+          elapsed: 0, duration: snap.isBoss ? 700 : 380,
           isBoss: snap.isBoss,
+          facing: snap.facing,
+          isElite: snap.isElite,
+          // Which way the corpse tips — away from the facing direction reads as
+          // "knocked over" rather than "fell asleep".
+          tipDir: snap.facing === 'left' ? 1 : -1,
         });
         if (snap.isBoss) {
           this.camera.shakeBossSlam();
@@ -3071,47 +3098,99 @@ export class GameRenderer {
   }
 
   /** Tick & render dying entity squash+spin animations (called each frame after monsters) */
+  /**
+   * Death animation.
+   *
+   * Draws the monster's own sprite collapsing rather than the generic coloured
+   * ellipse this used to be — the previous version deleted the creature's
+   * identity the instant it died, so a boss and a rat vanished the same way.
+   * Behaviour splits by archetype: soft bodies splat, skeletons crumble, fliers
+   * drop, everything else tips over and sinks.
+   */
   private updateAndRenderDyingEntities(ctx: CanvasRenderingContext2D, camX: number, camY: number, dt: number): void {
     const dtMs = dt * 1000;
     for (let i = this.dyingEntities.length - 1; i >= 0; i--) {
       const d = this.dyingEntities[i];
       d.elapsed += dtMs;
       if (d.elapsed >= d.duration) {
-        // Swap-pop remove
         this.dyingEntities[i] = this.dyingEntities[this.dyingEntities.length - 1];
         this.dyingEntities.pop();
         continue;
       }
-      const t = d.elapsed / d.duration;
-      // Cubic-in scale to zero
-      const scale = 1 - t * t;
-      // 1.5 revolutions (boss spins slower, more revolutions)
-      const rot = t * Math.PI * (d.isBoss ? 3 : 2);
-      // Horizontal squash based on rotation
-      const squash = 0.6 + Math.abs(Math.cos(rot)) * 0.4;
-      const alpha = 1 - t * 0.9;
 
-      const sx = d.x - camX;
-      const sy = d.y - camY;
-      const size = d.isBoss ? 20 : 14;
+      const t = d.elapsed / d.duration;
+      const stats = MONSTER_STATS[d.type as MonsterType];
+      const size = TILE_SIZE * (stats?.size ?? 1);
+      const sx = Math.round(d.x - camX);
+      const sy = Math.round(d.y - camY);
+
+      // Archetype-specific collapse
+      let scaleX = 1;
+      let scaleY = 1;
+      let rot = 0;
+      let dropY = 0;
+      let jitter = 0;
+
+      switch (d.type) {
+        case 'slime':
+        case 'lava_slime': {
+          // Soft body: splats outward and flattens, no rotation.
+          scaleX = 1 + t * 0.9;
+          scaleY = Math.max(0, 1 - t * 1.25);
+          break;
+        }
+        case 'skeleton':
+        case 'dark_knight': {
+          // Bone: shudders apart in place rather than tipping.
+          jitter = (1 - t) * 1.5;
+          scaleY = Math.max(0, 1 - t * 0.85);
+          scaleX = 1 - t * 0.15;
+          break;
+        }
+        case 'bat':
+        case 'wraith':
+        case 'phantom': {
+          // Airborne / incorporeal: falls and spins out.
+          dropY = t * t * size * 0.8;
+          rot = d.tipDir * t * 1.6;
+          scaleX = 1 - t * 0.3;
+          scaleY = 1 - t * 0.3;
+          break;
+        }
+        default: {
+          // Tips over and sinks into the floor.
+          rot = d.tipDir * t * (Math.PI / 2.4);
+          scaleY = Math.max(0, 1 - t * 0.55);
+          scaleX = 1 + t * 0.18;
+          break;
+        }
+      }
+
+      // Bosses collapse slowly and stay upright — they sink, they do not topple.
+      if (d.isBoss) {
+        rot = 0;
+        scaleX = 1 + t * 0.25;
+        scaleY = Math.max(0, 1 - t * 0.7);
+      }
+
+      const alpha = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
 
       ctx.save();
-      ctx.globalAlpha = alpha;
-      ctx.translate(sx, sy);
-      ctx.rotate(rot);
-      ctx.scale(scale * squash, scale);
-      // Draw a simple colored ellipse (cheap — no sprite cache lookup mid-death)
-      ctx.fillStyle = d.color;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, size / 2, size / 2, 0, 0, Math.PI * 2);
-      ctx.fill();
-      // Inner highlight
-      ctx.globalAlpha = alpha * 0.55;
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.ellipse(-size / 6, -size / 6, size / 5, size / 5, 0, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.globalAlpha = Math.max(0, alpha);
+      // Pivot at the feet so the collapse settles onto the ground.
+      ctx.translate(sx + (jitter ? (Math.random() - 0.5) * jitter * 2 : 0), sy + dropY + size / 2);
+      if (rot !== 0) ctx.rotate(rot);
+      ctx.scale(scaleX, scaleY);
+      ctx.translate(-size / 2, -size);
+
+      this.sprites.drawMonster(
+        ctx, 0, 0, d.type as MonsterType, d.facing, this.animFrame,
+        // Flash white for the first beat, then the plain sprite fades out.
+        t < 0.18, false, d.isElite,
+        false, false, false, 0, 0, 0,
+      );
       ctx.restore();
+      ctx.globalAlpha = 1;
     }
   }
 

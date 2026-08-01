@@ -51,6 +51,14 @@ type Particle = {
   delay: number;
 };
 
+/**
+ * Randomised particle field.
+ *
+ * Must only run on the client: calling Math.random() during render produced
+ * different values on the server and in the browser, which React reports as a
+ * hydration mismatch and which forced the whole Suspense boundary to re-render
+ * client-side.
+ */
 function generateParticles(): Particle[] {
   return Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
     id: i,
@@ -167,10 +175,15 @@ function useProgress() {
 
 // ─── MAIN COMPONENT ──────────────────────────────────────
 export function WaitingScreen({ connectionState, reconnectAttempt, error, onRetry, onBack }: WaitingScreenProps) {
-  const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * GAME_TIPS.length));
+  // Same reason — a random initial tip differs between server and client.
+  const [tipIndex, setTipIndex] = useState(0);
+  useEffect(() => { setTipIndex(Math.floor(Math.random() * GAME_TIPS.length)); }, []);
   const [factIndex, setFactIndex] = useState(0);
   const [dotCount, setDotCount] = useState(0);
-  const particles = useMemo(generateParticles, []);
+  // Deferred to an effect: useMemo still runs during the server render, so the
+  // particle field must be empty for the first paint and filled after mount.
+  const [particles, setParticles] = useState<Particle[]>([]);
+  useEffect(() => { setParticles(generateParticles()); }, []);
   const progress = useProgress();
 
   // Rotate tips every 5 seconds

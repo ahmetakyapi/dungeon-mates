@@ -475,15 +475,27 @@ export function ClassSelect({
               </h2>
 
               {/* Ability tooltip trigger */}
-              <button
-                className="mb-2 flex items-center gap-1 font-pixel text-[9px] text-dm-gold/70 transition-colors hover:text-dm-gold lg:text-[10px] xl:text-[11px] 2xl:text-[13px]"
+              {/* Nested <button> inside the card's <button> is invalid HTML and
+                  triggers a hydration error, so this is a span carrying button
+                  semantics — same behaviour, valid markup, still focusable. */}
+              <span
+                role="button"
+                tabIndex={0}
+                aria-expanded={showAbilityTooltip === cls}
+                className="mb-2 flex w-fit cursor-pointer items-center gap-1 font-pixel text-[9px] text-dm-gold/70 transition-colors hover:text-dm-gold lg:text-[10px] xl:text-[11px] 2xl:text-[13px]"
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowAbilityTooltip((prev) => (prev === cls ? null : cls));
                 }}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter' && e.key !== ' ') return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowAbilityTooltip((prev) => (prev === cls ? null : cls));
+                }}
               >
-                <span>✦</span> Yetenek Bilgisi
-              </button>
+                <span aria-hidden>✦</span> Yetenek Bilgisi
+              </span>
 
               {/* Ability tooltip */}
               <AnimatePresence>
