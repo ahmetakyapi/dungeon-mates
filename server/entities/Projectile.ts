@@ -26,6 +26,13 @@ const PROJECTILE_CONFIG = {
 
 export class Projectile {
   public state: ProjectileState;
+  /**
+   * How many more monsters this projectile can pass through. 0 = stops on first
+   * hit (the default for every normal attack).
+   */
+  public pierceRemaining = 0;
+  /** Monsters already hit, so one pass cannot damage the same target twice. */
+  public readonly piercedIds: string[] = [];
   private readonly radius: number;
   private readonly isAoe: boolean;
   private readonly aoeRadius: number;

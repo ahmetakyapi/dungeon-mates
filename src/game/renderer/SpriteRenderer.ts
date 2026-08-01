@@ -3145,6 +3145,7 @@ export class SpriteRenderer {
           case 'wall': this.drawWallTile(sprCtx, 0, 0, hash, mask); break;
           case 'door': this.drawDoorTile(sprCtx, 0, 0, roomCleared); break;
           case 'door_locked': this.drawLockedDoorTile(sprCtx, 0, 0); break;
+          case 'door_sealed': this.drawSealedDoorTile(sprCtx, 0, 0); break;
           case 'stairs': this.drawStairsTile(sprCtx, 0, 0); break;
           case 'chest': this.drawChestTile(sprCtx, 0, 0, roomCleared); break;
           case 'void': px(sprCtx, 0, 0, TILE_SIZE, TILE_SIZE, '#000000'); break;
@@ -3340,6 +3341,31 @@ export class SpriteRenderer {
 
     // Faint amber glow at the base so it reads as "active encounter"
     px(ctx, x + 1, y + TILE_SIZE - 2, TILE_SIZE - 2, 1, '#78350f');
+  }
+
+  /**
+   * Boss gate. Heavier than the arena seal and unmistakably impassable — this one
+   * blocks the player too, so it must not be confused with door_locked.
+   */
+  private drawSealedDoorTile(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+    const t = this.theme;
+    px(ctx, x, y, TILE_SIZE, TILE_SIZE, t.wall[0]);
+    px(ctx, x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2, '#141019');
+
+    // Heavy banded slab
+    for (let by = 2; by < TILE_SIZE - 2; by += 5) {
+      px(ctx, x + 2, y + by, TILE_SIZE - 4, 3, '#3b3145');
+      px(ctx, x + 2, y + by, TILE_SIZE - 4, 1, '#4d4059');
+    }
+    // Rivets
+    px(ctx, x + 3, y + 3, 1, 1, '#6b5c7a');
+    px(ctx, x + TILE_SIZE - 4, y + 3, 1, 1, '#6b5c7a');
+    px(ctx, x + 3, y + TILE_SIZE - 4, 1, 1, '#6b5c7a');
+    px(ctx, x + TILE_SIZE - 4, y + TILE_SIZE - 4, 1, 1, '#6b5c7a');
+
+    // Central lock sigil in the floor's accent — reads as "sealed by something"
+    px(ctx, x + 6, y + 6, 4, 4, t.accent);
+    px(ctx, x + 7, y + 7, 2, 2, '#141019');
   }
 
   private drawDoorTile(ctx: CanvasRenderingContext2D, x: number, y: number, roomCleared: boolean): void {

@@ -504,8 +504,17 @@ export class DungeonGenerator {
   private placeChests(): void {
     for (const room of this.rooms) {
       if (room.isStartRoom || room.isBossRoom) continue;
+      // Rest rooms are a safe haven, not a payout.
+      if (room.category === 'rest') continue;
 
-      const chestCount = 1 + (Math.random() > 0.6 ? 1 : 0); // 1-2 sandık
+      // Chests used to be 1-2 in every room — 6-14 free, risk-free chests per
+      // floor, which made them the dominant source of gold and potions and
+      // flattened the whole economy. Now they are a treasure-room feature with
+      // an occasional find elsewhere.
+      const chestCount = room.category === 'treasure'
+        ? 2
+        : Math.random() < 0.35 ? 1 : 0;
+      if (chestCount === 0) continue;
       for (let i = 0; i < chestCount; i++) {
         // Odanın köşe bölgelerine yerleştir
         const corners = [

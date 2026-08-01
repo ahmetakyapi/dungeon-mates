@@ -54,6 +54,8 @@ type UseGameSocketReturn = {
   chestOpenedEvents: Array<{ x: number; y: number }>;
   stairsUsedEvents: number[];
   reconnectAttempt: number;
+  /** Round-trip time in ms, 0 until the first heartbeat lands. */
+  ping: number;
   createRoom: (playerName: string) => void;
   createSoloRoom: (playerName: string) => void;
   joinRoom: (roomCode: string, playerName: string) => void;
@@ -103,6 +105,7 @@ export function useGameSocket(): UseGameSocketReturn {
   const [chestOpenedEvents, setChestOpenedEvents] = useState<Array<{ x: number; y: number }>>([]);
   const [stairsUsedEvents, setStairsUsedEvents] = useState<number[]>([]);
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
+  const [ping, setPing] = useState(0);
   // Talent & Shop
   const [talentChoiceEvent, setTalentChoiceEvent] = useState<{ playerId: string; talents: TalentDef[] } | null>(null);
   const [shopOpenEvent, setShopOpenEvent] = useState<{ items: ShopItem[]; playerGold: Record<string, number> } | null>(null);
@@ -165,6 +168,18 @@ export function useGameSocket(): UseGameSocketReturn {
     });
 
     socketRef.current = socket;
+
+    // Engine.IO emits a ping/pong heartbeat; timing it gives a real RTT without
+    // adding any traffic of our own.
+    let pingSentAt = 0;
+    const onPing = () => { pingSentAt = performance.now(); };
+    const onPong = () => { if (pingSentAt) setPing(Math.round(performance.now() - pingSentAt)); };
+    socket.io.engine?.on('ping', onPing);
+    socket.io.engine?.on('packet', (p: { type: string }) => { if (p.type === 'pong') onPong(); });
+    socket.io.on('open', () => {
+      socket.io.engine?.on('ping', onPing);
+      socket.io.engine?.on('packet', (p: { type: string }) => { if (p.type === 'pong') onPong(); });
+    });
 
     socket.on('connect', () => {
       setConnectionState('connected');
@@ -620,6 +635,7 @@ export function useGameSocket(): UseGameSocketReturn {
     chestOpenedEvents,
     stairsUsedEvents,
     reconnectAttempt,
+    ping,
     createRoom,
     createSoloRoom,
     joinRoom,

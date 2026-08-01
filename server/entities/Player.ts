@@ -52,6 +52,9 @@ const DODGE_MANA_COST = 5;
 // Manual aim snaps onto an enemy within this angular tolerance (radians, ~35°).
 const AIM_SNAP_TOLERANCE = 0.61;
 
+/** Extra monsters each Piercing Volley arrow passes through. */
+const PIERCING_VOLLEY_PIERCE = 2;
+
 // Per-level gains once the talent tree (which ends at level 7) is exhausted.
 const POST_CAP_HP_PER_LEVEL = 12;
 const POST_CAP_ATTACK_PER_LEVEL = 3;
@@ -633,13 +636,13 @@ export class Player {
 
     // Check all 4 corners inline (no array/object allocation)
     const t00 = tiles[y0][x0];
-    if (t00 === 'wall' || t00 === 'void') return true;
+    if (t00 === 'wall' || t00 === 'void' || t00 === 'door_sealed') return true;
     const t10 = tiles[y0][x1];
-    if (t10 === 'wall' || t10 === 'void') return true;
+    if (t10 === 'wall' || t10 === 'void' || t10 === 'door_sealed') return true;
     const t01 = tiles[y1][x0];
-    if (t01 === 'wall' || t01 === 'void') return true;
+    if (t01 === 'wall' || t01 === 'void' || t01 === 'door_sealed') return true;
     const t11 = tiles[y1][x1];
-    if (t11 === 'wall' || t11 === 'void') return true;
+    if (t11 === 'wall' || t11 === 'void' || t11 === 'door_sealed') return true;
 
     return false;
   }
@@ -1122,6 +1125,9 @@ export class Player {
           const dmg = Math.floor(this.state.attack * 1.6 * abilityDmgMult);
           projs.push(new Projectile(this.state.id, spawnPos, dir, dmg, 'arrow'));
         }
+        // Now actually pierces — the UltimateKind comment has promised "2x pierce"
+        // since it was written, but arrows broke on their first hit like any other.
+        for (const arrow of projs) arrow.pierceRemaining = PIERCING_VOLLEY_PIERCE;
         return { type: 'piercing_volley', projectiles: projs };
       }
       case 'healer': {

@@ -75,6 +75,7 @@ export type ServerEvents = {
   'game:room_cleared': (data: { roomId: number }) => void;
   'game:wave_spawned': (data: { roomId: number; wavesRemaining: number }) => void;
   'game:elite_explosion': (data: { x: number; y: number; radius: number }) => void;
+  'game:boss_room_open': (data: { roomId: number }) => void;
   'game:floor_complete': (data: { floor: number }) => void;
   'game:chest_opened': (data: { x: number; y: number }) => void;
   'game:stairs_used': () => void;

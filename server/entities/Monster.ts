@@ -600,13 +600,13 @@ export class Monster implements MonsterContext {
     // point of the lock is to stop enemies leaking into corridors, not to trap
     // the party.
     const t00 = tiles[y0][x0];
-    if (t00 === 'wall' || t00 === 'void' || t00 === 'door_locked') return true;
+    if (t00 === 'wall' || t00 === 'void' || t00 === 'door_locked' || t00 === 'door_sealed') return true;
     const t10 = tiles[y0][x1];
-    if (t10 === 'wall' || t10 === 'void' || t10 === 'door_locked') return true;
+    if (t10 === 'wall' || t10 === 'void' || t10 === 'door_locked' || t10 === 'door_sealed') return true;
     const t01 = tiles[y1][x0];
-    if (t01 === 'wall' || t01 === 'void' || t01 === 'door_locked') return true;
+    if (t01 === 'wall' || t01 === 'void' || t01 === 'door_locked' || t01 === 'door_sealed') return true;
     const t11 = tiles[y1][x1];
-    if (t11 === 'wall' || t11 === 'void' || t11 === 'door_locked') return true;
+    if (t11 === 'wall' || t11 === 'void' || t11 === 'door_locked' || t11 === 'door_sealed') return true;
 
     return false;
   }

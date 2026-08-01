@@ -194,6 +194,8 @@ export class GameRoom {
   private shopTimeout: ReturnType<typeof setTimeout> | null = null;
   private currentFloorModifiers: FloorModifier[] = [];
   private bossPhaseTracker: Map<string, number> = new Map();
+  /** Boss room stays sealed until the rest of the floor is cleared. */
+  private bossRoomOpened = false;
 
   // Reusable buffers to avoid per-tick allocations
   private readonly _roomCountsMap = new Map<number, number>();
@@ -289,7 +291,17 @@ export class GameRoom {
     if (!room.locked) return;
     room.locked = false;
     this.forEachDoorTile(room, (x, y) => {
-      if (this.tiles[y][x] === 'door_locked') this.tiles[y][x] = 'door';
+      const t = this.tiles[y][x];
+      if (t === 'door_locked' || t === 'door_sealed') this.tiles[y][x] = 'door';
+    });
+  }
+
+  /** Seal a room against everyone, players included — used for the boss gate. */
+  private sealRoom(room: DungeonRoom): void {
+    if (room.locked) return;
+    room.locked = true;
+    this.forEachDoorTile(room, (x, y) => {
+      if (this.tiles[y][x] === 'door') this.tiles[y][x] = 'door_sealed';
     });
   }
 
@@ -688,6 +700,7 @@ export class GameRoom {
   }
 
   private generateFloor(floor: number): void {
+    this.bossRoomOpened = false;
     // Clear existing monsters, projectiles, loot, opened chests
     this.monsters.clear();
     this.projectiles.clear();
@@ -902,6 +915,28 @@ export class GameRoom {
     // Co-op aura computation (every 5 ticks, 4x/sec — cheap but not per-frame)
     if (this.tick % 5 === 0) {
       this.computeCoOpAuras();
+    }
+
+    // Keep the boss room sealed until the rest of the floor is cleared, then open
+    // it once. Boss floors previously placed no stairs and imposed no gate, so a
+    // party could sprint past every room straight to the boss — the exact opposite
+    // of the full-clear rule non-boss floors enforce.
+    if (!this.bossRoomOpened) {
+      const bossRoom = this.rooms.find((r) => r.isBossRoom);
+      if (bossRoom) {
+        const restCleared = this.rooms.every(
+          (r) => r.isBossRoom || r.isStartRoom || r.cleared,
+        );
+        if (restCleared) {
+          this.bossRoomOpened = true;
+          this.unlockRoom(bossRoom);
+          this.io.to(this.roomCode).emit('game:boss_room_open', { roomId: bossRoom.id });
+        } else if (!bossRoom.locked) {
+          this.sealRoom(bossRoom);
+        }
+      } else {
+        this.bossRoomOpened = true;
+      }
     }
 
     // Single-pass: determine active rooms + find most-populated room
@@ -1386,6 +1421,7 @@ export class GameRoom {
 
         for (const [monsterId, monster] of this.monsters) {
           if (!monster.state.alive) continue;
+          if (projectile.piercedIds.includes(monsterId)) continue;
 
           if (projectile.checkCircleCollision(monster.state.position, monster.getRadius())) {
             // Crit kontrolü (+ combo crit guarantee)
@@ -1456,6 +1492,14 @@ export class GameRoom {
                   }
                 }
               }
+            }
+
+            // Piercing shots continue through the target instead of stopping.
+            if (projectile.pierceRemaining > 0) {
+              projectile.pierceRemaining -= 1;
+              projectile.piercedIds.push(monsterId);
+              hitSomething = false;
+              continue;
             }
 
             break;

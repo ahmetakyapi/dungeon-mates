@@ -1,11 +1,14 @@
 // End-to-end smoke test. Drives a real solo run over Socket.IO against a running
 // server (npm run dev:server) and asserts the combat loop actually works.
 //
-//   npm run dev:server        # in one shell
-//   node scripts/smoke.mjs    # in another
+//   npm run dev:server                     # in one shell
+//   node scripts/smoke.mjs                 # in another
+//   DM_SERVER=http://localhost:3010 node scripts/smoke.mjs   # non-default port
 import { io } from 'socket.io-client';
 
-const socket = io('http://localhost:3001', { transports: ['polling', 'websocket'] });
+// Port follows the server's own default; override with DM_SERVER when 3001 is busy.
+const SERVER = process.env.DM_SERVER ?? 'http://localhost:3001';
+const socket = io(SERVER, { transports: ['polling', 'websocket'] });
 
 const seen = {
   phases: new Set(),

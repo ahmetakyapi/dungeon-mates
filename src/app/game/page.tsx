@@ -22,6 +22,7 @@ import { CinematicWipe } from '@/components/game/CinematicWipe';
 import { ChatBox } from '@/components/game/ChatBox';
 import { TalentSelect } from '@/components/game/TalentSelect';
 import { ShopScreen } from '@/components/game/ShopScreen';
+import { BuildSheet } from '@/components/game/BuildSheet';
 import { PixelButton } from '@/components/ui/PixelButton';
 import { PixelHero } from '@/components/game/PixelHero';
 import { GameErrorBoundary } from '@/components/game/ErrorBoundary';
@@ -126,6 +127,7 @@ function GamePage() {
     damageEvents,
     bossPhaseEvent,
     ultimateActivatedEvents,
+    ping,
   } = useGameSocket();
 
   const [gameOverStats, setGameOverStats] = useState<{
@@ -192,13 +194,17 @@ function GamePage() {
   const [earnedShards, setEarnedShards] = useState(0);
   const [bestFloorEver, setBestFloorEver] = useState(0);
   const [teammateNotice, setTeammateNotice] = useState<{ text: string; tone: 'good' | 'danger'; at: number } | null>(null);
+  // Tab already reached the server as `toggleMap` but had no client handler at all.
+  // It now opens the build sheet, which is the natural home for "what am I?".
+  const [showBuildSheet, setShowBuildSheet] = useState(false);
 
   // Cinematics and blocking overlays must actually suspend control. Previously only
   // phase and the pause menu were checked, so the player kept moving — and could be
   // killed — behind the prologue, boss intro, tutorial and floor transition screens.
   const inputBlocked =
     showPauseMenu || showPrologue || showBossIntro || showTutorial ||
-    showFloorTransition || showLoading || talentChoiceEvent !== null || shopOpenEvent !== null;
+    showFloorTransition || showLoading || talentChoiceEvent !== null || shopOpenEvent !== null ||
+    showBuildSheet;
 
   const handleInput = useCallback(
     (input: PlayerInput) => {
@@ -815,6 +821,19 @@ function GamePage() {
     return () => clearTimeout(t);
   }, [teammateNotice]);
 
+  useEffect(() => {
+    if (phase !== 'playing' && phase !== 'boss') return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'Tab') return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
+      e.preventDefault();
+      setShowBuildSheet((v) => !v);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [phase]);
+
   const handleToggleFps = useCallback(() => {
     setShowFps(!showFps);
   }, [setShowFps, showFps]);
@@ -1087,6 +1106,15 @@ function GamePage() {
       )}
 
       {/* Solo lives indicator removed — lives shown in HUD */}
+
+      {localPlayer && (
+        <BuildSheet
+          open={showBuildSheet}
+          player={localPlayer}
+          ping={ping}
+          onClose={() => setShowBuildSheet(false)}
+        />
+      )}
 
       {/* Teammate events — deaths and level-ups were previously invisible */}
       <AnimatePresence>

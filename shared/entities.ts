@@ -12,7 +12,7 @@ import type { EliteAffix } from './elites';
 
 // --- Enum'lar ---
 export type GamePhase = 'lobby' | 'class_select' | 'playing' | 'boss' | 'victory' | 'defeat' | 'game_over' | 'shopping';
-export type TileType = 'floor' | 'wall' | 'door' | 'door_locked' | 'stairs' | 'chest' | 'void';
+export type TileType = 'floor' | 'wall' | 'door' | 'door_locked' | 'door_sealed' | 'stairs' | 'chest' | 'void';
 export type Direction = 'up' | 'down' | 'left' | 'right';
 
 // --- Entity Tipleri ---

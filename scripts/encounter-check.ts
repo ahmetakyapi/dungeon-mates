@@ -36,3 +36,20 @@ console.log(
   `def ${base.scaledDefense}->${elite.scaledDefense}`,
   `affix=${elite.state.eliteAffix}`,
 );
+
+// --- Boss gate + chest economy ---
+// Boss floors used to place no stairs and impose no gate, so a party could sprint
+// straight past every room to the boss, while non-boss floors demanded a full
+// clear. Chests were 1-2 in every room — 6-14 free ones per floor.
+const gen2 = new DungeonGenerator();
+let chestTotal = 0;
+let doorTotal = 0;
+for (let floor = 1; floor <= 10; floor++) {
+  const d = gen2.generate(floor, 1);
+  for (const row of d.tiles) for (const t of row) {
+    if (t === 'chest') chestTotal++;
+    if (t === 'door') doorTotal++;
+  }
+}
+console.log('chests across 10 floors:', chestTotal, `(avg ${(chestTotal / 10).toFixed(1)}/floor)`);
+console.log('boss rooms have doors to seal:', doorTotal > 0 ? 'yes' : 'NO — gate cannot work');
