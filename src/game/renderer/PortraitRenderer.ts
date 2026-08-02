@@ -46,8 +46,8 @@ const SKIN: Ramp = { shadow: '#a3654a', base: '#d99b74', light: '#f0bd94', hi: '
 
 const PALETTES: Record<string, PortraitPalette> = {
   warrior: {
-    cloth: { shadow: '#6b1414', base: '#b91c1c', light: '#e04141', hi: '#f87171' },
-    metal: { shadow: '#3f4653', base: '#6b7280', light: '#a3adbb', hi: '#e2e8f0' },
+    cloth: { shadow: '#5c0f14', base: '#c81e2a', light: '#f0454f', hi: '#ff8d92' },
+    metal: { shadow: '#333b4a', base: '#6f7c92', light: '#b3c0d4', hi: '#f2f7ff' },
     accent: '#fbbf24',
     accentGlow: 'rgba(251,191,36,0.5)',
     skin: SKIN,
@@ -56,17 +56,17 @@ const PALETTES: Record<string, PortraitPalette> = {
     rim: '#93c5fd',
   },
   mage: {
-    cloth: { shadow: '#3b1d75', base: '#6d28d9', light: '#8b5cf6', hi: '#c4b5fd' },
+    cloth: { shadow: '#2e1065', base: '#6d1fe0', light: '#a06bff', hi: '#ddd0ff' },
     metal: { shadow: '#4a3a20', base: '#8a6a30', light: '#c79a48', hi: '#f0cf80' },
     accent: '#22d3ee',
     accentGlow: 'rgba(34,211,238,0.55)',
     skin: SKIN,
-    hair: { shadow: '#4a4458', base: '#6f6880', light: '#9c93ab', hi: '#cfc7dd' },
+    hair: { shadow: '#2a1f4a', base: '#4a3a7a', light: '#7a63b8', hi: '#b7a3e8' },
     eye: '#a5f3fc',
     rim: '#67e8f9',
   },
   archer: {
-    cloth: { shadow: '#14432a', base: '#166534', light: '#22a355', hi: '#4ade80' },
+    cloth: { shadow: '#0d3d22', base: '#14783a', light: '#25c463', hi: '#7dfaa6' },
     metal: { shadow: '#3d2a16', base: '#6b4a24', light: '#9c6f38', hi: '#c99a54' },
     accent: '#a3e635',
     accentGlow: 'rgba(163,230,53,0.45)',
@@ -76,12 +76,12 @@ const PALETTES: Record<string, PortraitPalette> = {
     rim: '#86efac',
   },
   healer: {
-    cloth: { shadow: '#8a6a2a', base: '#d9c48a', light: '#f0e2b8', hi: '#fffaee' },
+    cloth: { shadow: '#96701f', base: '#e8ce85', light: '#fbf0c4', hi: '#fffdf5' },
     metal: { shadow: '#8a6512', base: '#c9930f', light: '#f0b429', hi: '#fde68a' },
     accent: '#fde68a',
     accentGlow: 'rgba(253,230,138,0.6)',
     skin: SKIN,
-    hair: { shadow: '#6b5a2a', base: '#a08a44', light: '#cfb76a', hi: '#efe0a6' },
+    hair: { shadow: '#8a6a1a', base: '#c9a544', light: '#e8cf7a', hi: '#fff0b8' },
     eye: '#fef3c7',
     rim: '#fef08a',
   },
@@ -104,6 +104,16 @@ function pxPair(
 export type PortraitClass = 'warrior' | 'mage' | 'archer' | 'healer';
 
 /**
+ * Warrior and archer read male, mage and healer female.
+ *
+ * At 48px this is carried by three things and nothing else: hair that falls
+ * past the shoulders, a narrower jaw, and a slimmer shoulder line. Faces this
+ * small have no room for anything subtler, and piling on more cues would just
+ * make them read as caricature.
+ */
+const FEMININE: ReadonlySet<PortraitClass> = new Set<PortraitClass>(['mage', 'healer']);
+
+/**
  * Draw one portrait into a 48×64 context.
  *
  * `t` is seconds; it drives the breathing, the cloth sway and the weapon glint.
@@ -121,6 +131,7 @@ export function drawPortrait(
   const sway = Math.sin(t * 1.1);
 
   drawCastShadow(ctx, cx, p);
+  drawBackHair(ctx, cls, cx, p, sway);
   drawCape(ctx, cls, cx, p, sway, t);
   drawLegs(ctx, cls, cx, p);
   drawTorso(ctx, cls, cx, p, breathe);
@@ -144,6 +155,29 @@ function drawCastShadow(ctx: CanvasRenderingContext2D, cx: number, _p: PortraitP
   ctx.ellipse(cx, 60, 18, 5, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
+}
+
+/**
+ * Hair falling behind the shoulders. Feminine classes only — this is the single
+ * strongest read at this size, which is why it is drawn behind the cape where
+ * it frames the whole figure rather than as a detail on the head.
+ */
+function drawBackHair(
+  ctx: CanvasRenderingContext2D, cls: PortraitClass, cx: number, p: PortraitPalette, sway: number,
+): void {
+  if (!FEMININE.has(cls)) return;
+  const drift = sway * 1.2;
+  for (let i = 0; i < 24; i++) {
+    const y = 12 + i;
+    const k = i / 24;
+    // Widest at the shoulder, tapering to a point at the tips.
+    const spread = 9 + Math.sin(k * Math.PI) * 3 - k * 3;
+    const shift = Math.round(k * drift);
+    px(ctx, cx - spread + shift, y, 3, 1, p.hair.base);
+    px(ctx, cx + spread + shift - 3, y, 3, 1, p.hair.shadow);
+    // A lit strand catching the key light on the left fall.
+    if (i % 3 === 0) px(ctx, cx - spread + shift, y, 1, 1, p.hair.light);
+  }
 }
 
 // ── cape / robe skirt, behind everything ─────────────────────────────────
@@ -286,8 +320,9 @@ function drawTorso(
   px(ctx, cx - 8, top, 16, 20, p.cloth.base);
   px(ctx, cx - 8, top, 3, 20, p.cloth.shadow);
   px(ctx, cx + 5, top, 3, 20, p.cloth.light);
-  // Collar
-  px(ctx, cx - 6, top - 1, 12, 3, p.cloth.light);
+  // Collar — narrower on the feminine silhouettes.
+  const narrow = FEMININE.has(cls);
+  px(ctx, cx - (narrow ? 5 : 6), top - 1, narrow ? 10 : 12, 3, p.cloth.light);
   // Vertical trim down the front.
   px(ctx, cx - 1, top + 2, 2, 18, cls === 'healer' ? p.metal.light : p.accent);
   if (cls === 'healer') {
@@ -413,9 +448,12 @@ function drawHead(
   px(ctx, cx - 3, top + 15, 6, 4, p.skin.shadow);
 
   // Face — a rounded box. Wide for the anime read, with the jaw tapering in.
-  px(ctx, cx - 7, top + 2, 14, 13, p.skin.base);
-  px(ctx, cx - 6, top + 15, 12, 2, p.skin.base);
-  px(ctx, cx - 5, top + 17, 10, 1, p.skin.shadow);
+  // The feminine faces taper harder and one row sooner, which is most of what
+  // separates them at this size.
+  const soft = FEMININE.has(cls);
+  px(ctx, cx - 7, top + 2, 14, soft ? 12 : 13, p.skin.base);
+  px(ctx, cx - (soft ? 5 : 6), top + (soft ? 14 : 15), soft ? 10 : 12, 2, p.skin.base);
+  px(ctx, cx - (soft ? 3 : 5), top + (soft ? 16 : 17), soft ? 6 : 10, 1, p.skin.shadow);
   // Key light from the upper left, shade down the right cheek.
   px(ctx, cx - 7, top + 2, 5, 13, p.skin.light);
   px(ctx, cx + 4, top + 4, 3, 12, p.skin.shadow);
@@ -459,7 +497,14 @@ function drawHead(
   }
 
   // Hair showing under the headwear.
-  if (cls !== 'mage') {
+  if (soft) {
+    // A parted fringe plus locks framing the cheeks.
+    px(ctx, cx - 7, top + 4, 6, 3, p.hair.base);
+    px(ctx, cx + 1, top + 4, 6, 3, p.hair.base);
+    px(ctx, cx - 7, top + 4, 6, 1, p.hair.light);
+    px(ctx, cx - 8, top + 5, 2, 11, p.hair.base);
+    px(ctx, cx + 6, top + 5, 2, 11, p.hair.shadow);
+  } else if (cls !== 'mage') {
     px(ctx, cx - 7, top + 6, 3, 5, p.hair.base);
     px(ctx, cx + 4, top + 6, 3, 5, p.hair.shadow);
   }
@@ -469,8 +514,9 @@ function drawHead(
   // Lash line: a dark band above each eye. This one row does most of the
   // work in making a pixel face read as a face rather than as two dots.
   pxPair(ctx, cx, 1, eyeY - 1, 4, 1, p.hair.shadow);
-  // Whites
-  pxPair(ctx, cx, 1, eyeY, 4, 4, '#ffffff');
+  // Whites — taller on the feminine faces, which is the last of the three cues.
+  pxPair(ctx, cx, 1, eyeY, 4, soft ? 5 : 4, '#ffffff');
+  if (soft) pxPair(ctx, cx, 1, eyeY - 2, 4, 1, p.hair.shadow);
   // Iris
   pxPair(ctx, cx, 2, eyeY + 1, 2, 3, p.eye);
   // Pupil
