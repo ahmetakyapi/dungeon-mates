@@ -49,9 +49,9 @@ const THEMES: Record<number, FloorTheme> = {
     accent: '#8b7fa6',
     light: '#ffb04f',
   },
-  // 3 — Derin Tüneller: topraklı kahve, dar ve boğucu
+  // 3 — Demircinin Ocağı: topraklı kahve, dar ve boğucu
   3: {
-    name: 'Derin Tüneller',
+    name: 'Demircinin Ocağı',
     floor: ['#302820', '#42372c', '#544639', '#665648'],
     wall: ['#3a2f25', '#4d3f32', '#615040', '#77644f'],
     mortar: '#241d17',
@@ -69,9 +69,9 @@ const THEMES: Record<number, FloorTheme> = {
     accent: '#c08a4a',
     light: '#ffbe63',
   },
-  // 5 — Örümcek Kraliçe'nin İni: hastalıklı mor-yeşil, ağ dokusu
+  // 5 — Dokuyucunun Evi: hastalıklı mor-yeşil, ağ dokusu
   5: {
-    name: "Örümcek Kraliçe'nin İni",
+    name: 'Dokuyucunun Evi',
     floor: ['#241f30', '#332b42', '#423755', '#524569'],
     wall: ['#2c2440', '#3c3255', '#4d406c', '#614f86'],
     mortar: '#1c1826',

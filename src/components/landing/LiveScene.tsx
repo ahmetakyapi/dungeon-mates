@@ -259,12 +259,20 @@ function drawSkirmish(s: Stage) {
 
 // ── scene 2: telegraph — one attack, slowed down ──────────────────────────
 
-function makeTelegraph(monster: MonsterType, cols: number, rows: number) {
+function makeTelegraph(monster: MonsterType, cols: number, rows: number, timeScale = 1) {
   const profile = ATTACK_PROFILES[monster];
-  const WINDUP = profile.windupTicks * MS_PER_TICK;
-  const ACTIVE = profile.activeTicks * MS_PER_TICK;
-  const RECOVER = profile.recoveryTicks * MS_PER_TICK;
-  const IDLE = 900; // breathing room between demonstrations
+  // Slowed for the page.
+  //
+  // At real speed the active frame is 200ms — the hit is over before the eye
+  // can find it, so the readout appeared to skip straight from wind-up to
+  // recovery. The three phases keep their true proportions to each other; only
+  // the clock is stretched, the way a replay is.
+  const WINDUP = profile.windupTicks * MS_PER_TICK * timeScale;
+  const ACTIVE = profile.activeTicks * MS_PER_TICK * timeScale;
+  const RECOVER = profile.recoveryTicks * MS_PER_TICK * timeScale;
+  // The pause between demonstrations is not part of the attack, so it does not
+  // get stretched — that would just be dead air.
+  const IDLE = 900;
   const duration = WINDUP + ACTIVE + RECOVER + IDLE;
 
   const mTile = { x: cols * 0.34, y: rows * 0.5 };
@@ -600,6 +608,7 @@ export function LiveScene({
   className = '',
   showLabel = true,
   label,
+  timeScale = 1,
 }: {
   scene?: SceneKind;
   floor?: number;
@@ -610,6 +619,8 @@ export function LiveScene({
   className?: string;
   showLabel?: boolean;
   label?: string;
+  /** Stretches the telegraph scene's attack phases so they can be read. */
+  timeScale?: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Kept in a ref so the animation loop never re-subscribes on parent re-render.
@@ -629,7 +640,7 @@ export function LiveScene({
     const sprites = new SpriteRenderer();
     const baseTiles = buildChamber(cols, rows);
 
-    const telegraph = scene === 'telegraph' ? makeTelegraph(monster, cols, rows) : null;
+    const telegraph = scene === 'telegraph' ? makeTelegraph(monster, cols, rows, timeScale) : null;
     const duration =
       scene === 'telegraph' ? telegraph!.duration
       : scene === 'skirmish' ? SKIRMISH_DUR
@@ -729,7 +740,7 @@ export function LiveScene({
 
     raf = requestAnimationFrame(draw);
     return () => { cancelAnimationFrame(raf); io.disconnect(); };
-  }, [scene, floor, monster, cols, rows]);
+  }, [scene, floor, monster, cols, rows, timeScale]);
 
   return (
     // The canvas carries an intrinsic width; taking it out of flow keeps it from

@@ -7,7 +7,7 @@
 import {
   FLOOR_MODIFIERS, MODIFIER_EFFECTS, MIN_MONSTERS_PER_ROOM, MAX_MONSTERS_PER_ROOM,
   ROOM_AREA_PER_MONSTER, type FloorModifier,
-  BOSS_LORE, FLOOR_LORE, monsterDisplay,
+  BOSS_LORE, FLOOR_LORE, monsterDisplay, floorTheme,
 } from '../shared/types';
 
 let failures = 0;
@@ -91,6 +91,16 @@ check('Brittle Foes gives and takes', MODIFIER_EFFECTS.brittleDamageMult > 1);
   check('every floor with lore has a name and reveal',
     Object.values(FLOOR_LORE).every((f) => f.name && f.lore && f.reveal));
   // The nameplate and the narrative must agree — they did not before.
+  // The palette and the narrative each carry a floor name, and they had already
+  // drifted: floor 3 was titled "Derin Tüneller" on the card while its own text
+  // described a forge, and floor 5 was named for the boss rather than for what
+  // Selvira actually is.
+  const nameDrift = Object.keys(FLOOR_LORE)
+    .map(Number)
+    .filter((f) => floorTheme(f).name !== FLOOR_LORE[f].name)
+    .map((f) => `${f}: ${floorTheme(f).name} vs ${FLOOR_LORE[f].name}`);
+  check('floor names agree between palette and lore', nameDrift.length === 0, nameDrift.join('; '));
+
   check('final boss is named consistently',
     BOSS_LORE.boss_demon.name === monsterDisplay('boss_demon').name,
     `${BOSS_LORE.boss_demon.name} vs ${monsterDisplay('boss_demon').name}`);

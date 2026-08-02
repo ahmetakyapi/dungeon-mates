@@ -123,6 +123,16 @@ function StatCell({ stat, run, index }: {
   );
 }
 
+/**
+ * How far the telegraph demonstration is slowed for the page.
+ *
+ * The real active frame is 200ms; at that speed the middle row lit and cleared
+ * before it could be read, so the list looked like it jumped from wind-up
+ * straight to recovery. Only the clock is stretched — the phases keep their
+ * true proportions.
+ */
+const TELEGRAPH_SLOWDOWN = 4;
+
 const PHASE_ROWS: ReadonlyArray<{
   key: ScenePhase; num: string; label: string; time: string; note: string;
 }> = [
@@ -366,38 +376,75 @@ export default function HomePage() {
           Sana Bir Canavarı Öldürmen Söylendi
         </h2>
 
-        <div className="dm-story-grid" style={{ display: 'grid', gap: 'clamp(24px, 4vw, 56px)', marginTop: 28, alignItems: 'start' }}>
-          <div style={{ minWidth: 0 }}>
-            {/* The prologue, set as a sequence of beats rather than a wall of
-                text — each line is one thing that happened. */}
-            <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 14, maxWidth: '46ch' }}>
-              {PROLOGUE.map((line, i) => (
-                <li key={line} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 14, alignItems: 'baseline' }}>
-                  <span className="text-muted" style={{ fontSize: 11, fontVariantNumeric: 'tabular-nums', opacity: 0.6 }}>
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
+        <div className="dm-story-grid" style={{ display: 'grid', gap: 'clamp(28px, 4vw, 64px)', marginTop: 34, alignItems: 'start' }}>
+          {/*
+            The prologue as a descent rather than a list. A lit spine runs down
+            the left with a node per beat, and an ember travels it on a loop —
+            the story is about a fire going down into the ground, so the eye is
+            led the same way. Beats stagger in as the section reveals.
+          */}
+          <ol style={{ listStyle: 'none', margin: 0, padding: 0, position: 'relative' }}>
+            <span aria-hidden style={{
+              position: 'absolute', left: 7, top: 6, bottom: 6, width: 2, borderRadius: 2,
+              background: 'linear-gradient(to bottom, color-mix(in srgb, var(--color-accent) 55%, transparent), color-mix(in srgb, var(--color-accent) 12%, transparent) 70%, transparent)',
+            }} />
+            {story.shown && (
+              <span aria-hidden style={{
+                position: 'absolute', left: 4, top: 0, width: 8, height: 8, borderRadius: '50%',
+                background: 'var(--color-accent-300)',
+                boxShadow: '0 0 12px 3px color-mix(in srgb, var(--color-accent) 70%, transparent)',
+                animation: 'dmEmber 7s cubic-bezier(.55,0,.45,1) infinite',
+              }} />
+            )}
+
+            {PROLOGUE.map((line, i) => {
+              const last = i === PROLOGUE.length - 1;
+              return (
+                <li
+                  key={line}
+                  style={{
+                    position: 'relative', paddingLeft: 34,
+                    paddingBottom: last ? 0 : 'clamp(16px, 2vw, 22px)',
+                    animation: story.shown ? `dmBeatIn .6s cubic-bezier(.22,1,.36,1) ${0.08 * i}s both` : undefined,
+                  }}
+                >
+                  <span aria-hidden style={{
+                    position: 'absolute', left: 3, top: 8, width: 10, height: 10,
+                    borderRadius: '50%', boxSizing: 'border-box',
+                    border: `2px solid ${last ? 'var(--color-accent-300)' : 'color-mix(in srgb, var(--color-accent) 45%, transparent)'}`,
+                    background: last ? 'var(--color-accent-300)' : 'var(--color-bg)',
+                    boxShadow: last ? '0 0 14px 3px color-mix(in srgb, var(--color-accent) 60%, transparent)' : undefined,
+                  }} />
                   <span style={{
-                    fontSize: i === PROLOGUE.length - 1 ? 17 : 15,
+                    display: 'block', maxWidth: '44ch',
+                    fontSize: last ? 'clamp(17px, 2vw, 21px)' : 15,
                     lineHeight: 1.6,
-                    color: i === PROLOGUE.length - 1 ? 'var(--color-text)' : undefined,
-                  }} className={i === PROLOGUE.length - 1 ? undefined : 'text-muted'}>
+                    color: last ? 'var(--color-text)' : undefined,
+                    fontFamily: last ? 'var(--font-heading)' : undefined,
+                    letterSpacing: last ? '-0.015em' : undefined,
+                  }} className={last ? undefined : 'text-muted'}>
                     {line}
                   </span>
                 </li>
-              ))}
-            </ol>
-          </div>
+              );
+            })}
+          </ol>
 
-          <aside style={{ minWidth: 0 }}>
-            <div className="card elev-sm" style={{ padding: 18, gap: 12 }}>
+          <aside style={{ minWidth: 0, position: 'relative' }}>
+            {/* A warm bloom behind the card — the Fire the copy is about,
+                present as light rather than as an illustration of it. */}
+            <span aria-hidden style={{
+              position: 'absolute', inset: '-18% -12% auto -12%', height: '70%',
+              background: 'radial-gradient(closest-side, color-mix(in srgb, var(--color-accent) 22%, transparent), transparent)',
+              pointerEvents: 'none',
+            }} />
+            <div className="card elev-md" style={{ position: 'relative', padding: 20, gap: 12 }}>
               <span className="card-kicker">Neden Sen</span>
               {CALLING.map((line) => (
-                <p key={line} className="card-body" style={{ fontSize: 14, lineHeight: 1.6, opacity: 0.9 }}>{line}</p>
+                <p key={line} className="card-body" style={{ fontSize: 14, lineHeight: 1.65, opacity: 0.92 }}>{line}</p>
               ))}
-              <hr className="hr" style={{ margin: '4px 0' }} />
-              {/* The hook. Stated as the question the run answers, without
-                  answering it — the reveal belongs in the throne room. */}
-              <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6 }}>
+              <hr className="hr" style={{ margin: '6px 0' }} />
+              <p style={{ margin: 0, fontSize: 16, lineHeight: 1.6 }}>
                 Aşağıda bulacağın şey bir canavar değil.{' '}
                 <span style={{ color: 'var(--color-accent)' }}>
                   Altı yüz yıldır sönmeyi reddeden bir adam.
@@ -430,23 +477,65 @@ export default function HomePage() {
                 {act.question}
               </p>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(270px, 100%), 1fr))', gap: 16 }}>
                 {act.floors.map((f) => {
                   const t = floorTheme(f);
+                  const boss = BOSS_FLOORS[f];
                   return (
-                    <article key={f} className="card elev-sm" style={{ padding: 14 }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                        <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 20, color: 'var(--color-accent)' }}>
+                    <article
+                      key={f}
+                      className="dm-floor-card"
+                      style={{
+                        // Each card is lit by the floor it describes: its own
+                        // stone in the wash behind it, its own accent on the
+                        // edge. Ten cards, ten palettes — which is the claim the
+                        // heading makes, shown rather than stated.
+                        position: 'relative', overflow: 'hidden',
+                        borderRadius: 'var(--radius-md)',
+                        padding: '15px 15px 13px',
+                        background: `linear-gradient(158deg, ${t.wall[1]}2e 0%, var(--color-surface) 62%)`,
+                        boxShadow: `inset 0 0 0 1px ${t.accent}2b`,
+                        ['--floor-accent' as string]: t.accent,
+                      }}
+                    >
+                      {/* The accent as a lit edge down the left. */}
+                      <span aria-hidden style={{
+                        position: 'absolute', left: 0, top: 0, bottom: 0, width: 3,
+                        background: `linear-gradient(to bottom, ${t.accent}, ${t.accent}22)`,
+                      }} />
+                      {/* A soft pool of the floor's own light in the corner. */}
+                      <span aria-hidden style={{
+                        position: 'absolute', right: -30, top: -30, width: 120, height: 120,
+                        borderRadius: '50%', pointerEvents: 'none',
+                        background: `radial-gradient(closest-side, ${t.light}26, transparent)`,
+                      }} />
+
+                      <div style={{ position: 'relative', display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                        <span style={{
+                          fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 26,
+                          lineHeight: 1, letterSpacing: '-0.04em', color: t.accent,
+                        }}>
                           {String(f).padStart(2, '0')}
                         </span>
                         <span className="card-title" style={{ flex: 1 }}>{t.name}</span>
-                        {BOSS_FLOORS[f] && <span className="tag tag-outline">{BOSS_FLOORS[f]}</span>}
+                        {boss && (
+                          <span style={{
+                            fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
+                            padding: '3px 7px', borderRadius: 4, whiteSpace: 'nowrap',
+                            color: t.accent, border: `1px solid ${t.accent}55`,
+                            background: `${t.accent}14`,
+                          }}>{boss}</span>
+                        )}
                       </div>
-                      <p className="card-body">{FLOOR_LORE[f].lore}</p>
+
+                      <p className="card-body" style={{ position: 'relative', marginTop: 8, minHeight: '3.2em' }}>
+                        {FLOOR_LORE[f].lore}
+                      </p>
+
                       {/* The floor's real stone ramp, straight from shared/palette.ts */}
-                      <div aria-hidden style={{ display: 'flex', borderRadius: 3, overflow: 'hidden', marginTop: 2 }}>
+                      <div aria-hidden style={{ position: 'relative', display: 'flex', gap: 2, marginTop: 10 }}>
                         {[...t.wall, t.growth, t.accent].map((c, i) => (
-                          <span key={i} style={{ background: c, height: 8, flex: 1 }} />
+                          <span key={i} style={{ background: c, height: 5, flex: 1, borderRadius: 2 }} />
                         ))}
                       </div>
                     </article>
@@ -513,8 +602,9 @@ export default function HomePage() {
                       display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', gap: 12,
                       alignItems: 'baseline', padding: '11px 13px',
                       borderRadius: 'var(--radius-md)',
-                      transition: 'box-shadow .2s ease, opacity .2s ease',
-                      opacity: on ? 1 : 0.55,
+                      transition: 'box-shadow .35s cubic-bezier(.22,1,.36,1), opacity .35s cubic-bezier(.22,1,.36,1), transform .35s cubic-bezier(.22,1,.36,1)',
+                      opacity: on ? 1 : 0.42,
+                      transform: on ? 'translateX(4px)' : 'translateX(0)',
                       boxShadow: on
                         ? 'inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 70%, transparent)'
                         : 'inset 0 0 0 1px var(--color-divider)',
@@ -558,9 +648,16 @@ export default function HomePage() {
               borderRadius: 'var(--radius-lg)', overflow: 'hidden',
               background: 'var(--color-surface)', aspectRatio: '16 / 10',
             }}>
-              <LiveScene scene="telegraph" floor={3} monster="dark_knight" cols={21} rows={13} onPhase={onPhase} />
+              <LiveScene
+                scene="telegraph" floor={3} monster="dark_knight" cols={21} rows={13}
+                onPhase={onPhase}
+                timeScale={TELEGRAPH_SLOWDOWN}
+              />
             </div>
-            <figcaption>Yandaki sahne oyunun telegraf zamanlamasıyla, gerçek zamanlı çiziliyor.</figcaption>
+            <figcaption>
+              Oyunun kendi telegraf zamanlaması, okunabilsin diye {TELEGRAPH_SLOWDOWN} kat yavaşlatılmış.
+              Üç fazın birbirine oranı gerçek.
+            </figcaption>
           </figure>
         </div>
       </section>
@@ -730,6 +827,12 @@ export default function HomePage() {
         .dm-hero-grid { grid-template-columns: 1fr; }
         .dm-mech-grid, .dm-play-grid, .dm-rhythm-grid, .dm-story-grid { grid-template-columns: 1fr; }
         .dm-navlinks { display: none; align-items: center; gap: 22px; }
+        .dm-floor-card { transition: transform .3s cubic-bezier(.22,1,.36,1), box-shadow .3s cubic-bezier(.22,1,.36,1); }
+        .dm-floor-card:hover {
+          transform: translateY(-3px);
+          box-shadow: inset 0 0 0 1px var(--floor-accent), 0 10px 28px rgba(0,0,0,.45);
+        }
+        @media (prefers-reduced-motion: reduce) { .dm-floor-card:hover { transform: none; } }
         @media (min-width: 900px) {
           .dm-hero-grid { grid-template-columns: 1.08fr 0.92fr; }
           .dm-mech-grid { grid-template-columns: 1.15fr 0.85fr; }
