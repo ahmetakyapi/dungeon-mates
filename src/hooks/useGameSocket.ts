@@ -62,6 +62,14 @@ type UseGameSocketReturn = {
   playerDiedEvents: string[];
   floorCompleteEvent: number | null;
   lootPickupEvents: Array<{ playerId: string; lootType: string; value: number }>;
+  /** Monotonic per-event counters — see the note by their declarations. */
+  lootPickupSeq: number;
+  monsterKillSeq: number;
+  roomClearedSeq: number;
+  playerDiedSeq: number;
+  chestOpenedSeq: number;
+  stairsUsedSeq: number;
+  ultimateActivatedSeq: number;
   chestOpenedEvents: Array<{ x: number; y: number }>;
   stairsUsedEvents: number[];
   reconnectAttempt: number;
@@ -126,6 +134,25 @@ export function useGameSocket(): UseGameSocketReturn {
   const [bossDialogue, setBossDialogue] = useState<{ bossType: string; dialogue: string; phase: number } | null>(null);
   const [bossPhaseEvent, setBossPhaseEvent] = useState<{ monsterId: string; phase: number } | null>(null);
   const [ultimateActivatedEvents, setUltimateActivatedEvents] = useState<Array<{ playerId: string; playerClass: string; kind: string; _ts: number }>>([]);
+
+  /**
+   * Monotonic counters, one per event list.
+   *
+   * The lists are capped with slice(-N), so they never empty and their length
+   * saturates. That broke consumers two different ways: an effect keyed on
+   * `length` stopped firing once the cap was reached, and an effect that also
+   * depended on `gameState` re-ran on every 20Hz state broadcast — replaying a
+   * single loot pickup's sound and burst forever, which is exactly the stuck
+   * effect players were seeing. A counter that only ever increments fires once
+   * per event and never repeats.
+   */
+  const [lootPickupSeq, setLootPickupSeq] = useState(0);
+  const [monsterKillSeq, setMonsterKillSeq] = useState(0);
+  const [roomClearedSeq, setRoomClearedSeq] = useState(0);
+  const [playerDiedSeq, setPlayerDiedSeq] = useState(0);
+  const [chestOpenedSeq, setChestOpenedSeq] = useState(0);
+  const [stairsUsedSeq, setStairsUsedSeq] = useState(0);
+  const [ultimateActivatedSeq, setUltimateActivatedSeq] = useState(0);
 
   // Timer refs for proper cleanup
   const levelUpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -348,6 +375,7 @@ export function useGameSocket(): UseGameSocketReturn {
           _ts: Date.now(),
         },
       ]);
+      setLootPickupSeq((n) => n + 1);
       setLootPickupEvents((prev) => [...prev.slice(-9), {
         playerId: data.playerId,
         lootType: data.loot.type,
@@ -373,14 +401,17 @@ export function useGameSocket(): UseGameSocketReturn {
     });
 
     socket.on('game:monster_killed', (data) => {
+      setMonsterKillSeq((n) => n + 1);
       setMonsterKillEvents((prev) => [...prev.slice(-9), data]);
     });
 
     socket.on('game:room_cleared', (data) => {
+      setRoomClearedSeq((n) => n + 1);
       setRoomClearedEvents((prev) => [...prev.slice(-19), data.roomId]);
     });
 
     socket.on('game:player_died', (data) => {
+      setPlayerDiedSeq((n) => n + 1);
       setPlayerDiedEvents((prev) => [...prev.slice(-19), data.playerId]);
     });
 
@@ -389,10 +420,12 @@ export function useGameSocket(): UseGameSocketReturn {
     });
 
     socket.on('game:chest_opened', (data) => {
+      setChestOpenedSeq((n) => n + 1);
       setChestOpenedEvents((prev) => [...prev.slice(-9), data]);
     });
 
     socket.on('game:stairs_used', () => {
+      setStairsUsedSeq((n) => n + 1);
       setStairsUsedEvents((prev) => [...prev.slice(-9), Date.now()]);
     });
 
@@ -438,6 +471,7 @@ export function useGameSocket(): UseGameSocketReturn {
     });
 
     socket.on('game:ultimate_activated', (data) => {
+      setUltimateActivatedSeq((n) => n + 1);
       setUltimateActivatedEvents((prev) => [
         ...prev.slice(-7),
         { ...data, _ts: Date.now() },
@@ -648,6 +682,13 @@ export function useGameSocket(): UseGameSocketReturn {
     playerDiedEvents,
     floorCompleteEvent,
     lootPickupEvents,
+    lootPickupSeq,
+    monsterKillSeq,
+    roomClearedSeq,
+    playerDiedSeq,
+    chestOpenedSeq,
+    stairsUsedSeq,
+    ultimateActivatedSeq,
     chestOpenedEvents,
     stairsUsedEvents,
     reconnectAttempt,

@@ -111,6 +111,13 @@ function GamePage() {
     playerDiedEvents,
     floorCompleteEvent,
     lootPickupEvents,
+    lootPickupSeq,
+    monsterKillSeq,
+    roomClearedSeq,
+    playerDiedSeq,
+    chestOpenedSeq,
+    stairsUsedSeq,
+    ultimateActivatedSeq,
     chatMessages,
     sendChat,
     chestOpenedEvents,
@@ -228,6 +235,7 @@ function GamePage() {
     gameState,
     localPlayerId: playerId,
     onInput: handleInput,
+    showFps: settings.showFps,
   });
 
   // Auto-join or create room on mount
@@ -461,7 +469,7 @@ function GamePage() {
   // Monster kill sounds
   useEffect(() => {
     if (monsterKillEvents.length > 0) { sound.playMonsterHurt(); haptic('kill'); }
-  }, [monsterKillEvents.length, sound]);
+  }, [monsterKillSeq]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Loot pickup: sound plus a sparkle burst at the picker's feet.
   useEffect(() => {
@@ -477,7 +485,7 @@ function GamePage() {
     if (picker && r?.emitPickupBurst) {
       r.emitPickupBurst(picker.position.x, picker.position.y, latest.lootType);
     }
-  }, [lootPickupEvents.length, sound, gameState, lootPickupEvents, rendererRef]);
+  }, [lootPickupSeq]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Player damage sound
   useEffect(() => {
@@ -505,7 +513,7 @@ function GamePage() {
       const timer = setTimeout(() => setShowRoomCleared(false), 2000);
       return () => clearTimeout(timer);
     }
-  }, [roomClearedEvents.length, sound]);
+  }, [roomClearedSeq]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Room entry flash
   useEffect(() => {
@@ -534,12 +542,12 @@ function GamePage() {
   // Chest opened sound
   useEffect(() => {
     if (chestOpenedEvents.length > 0) sound.playChestOpen();
-  }, [chestOpenedEvents.length, sound]);
+  }, [chestOpenedSeq]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Stairs used sound
   useEffect(() => {
     if (stairsUsedEvents.length > 0) sound.playStairsDescend();
-  }, [stairsUsedEvents.length, sound]);
+  }, [stairsUsedSeq]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pause menu sound.
   //
@@ -841,7 +849,7 @@ function GamePage() {
       sound.duckMusic(400, 0.5);
     }
     lastUltIdxRef.current = ultimateActivatedEvents.length;
-  }, [ultimateActivatedEvents, gameState, rendererRef, sound]);
+  }, [ultimateActivatedSeq]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Teammate death feedback. `game:player_died` was populated and destructured but
   // never read, and playDeath() existed in useSound and was never called anywhere.
@@ -860,7 +868,7 @@ function GamePage() {
       }
     }
     lastDeathIdxRef.current = playerDiedEvents.length;
-  }, [playerDiedEvents, playerId, gameState, sound]);
+  }, [playerDiedSeq]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Teammate level-ups — same story: the event existed, nothing consumed it.
   useEffect(() => {

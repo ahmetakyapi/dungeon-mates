@@ -200,8 +200,10 @@ export class Camera {
   /** Preset: scaled shake from damage/maxHp ratio (0..1). Reduced curve. */
   shakeFromDamageRatio(ratio: number): void {
     const r = Math.max(0, Math.min(1, ratio));
-    // Damped curve: no base, grows gently
-    this.shake(r * 4, 80 + r * 180);
+    // Only called for hits worth shaking over, so the curve starts from a real
+    // value rather than ramping from nothing — and tops out lower than before,
+    // because the directional punch is now doing most of the work.
+    this.shake(1 + r * 2.6, 90 + r * 150);
   }
 
   /** Preset: punch in a direction (used on hit landings) */

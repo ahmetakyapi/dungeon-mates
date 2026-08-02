@@ -83,6 +83,11 @@ type FogState = 0 | 1 | 2; // 0 = hidden, 1 = explored, 2 = visible
 // Performance monitor
 const PERF_SAMPLE_COUNT = 30;
 const PERF_CHECK_INTERVAL = 2000; // ms
+/**
+ * Below this fraction of max HP a hit shakes nothing and only punches.
+ * Roughly "a scratch does not move the camera".
+ */
+const HIT_SHAKE_MIN_RATIO = 0.06;
 
 // Vision radius for fog (reduced with darkness modifier)
 // Matches AIM_SNAP_TOLERANCE on the server (~35°) so the highlighted target is
@@ -3226,10 +3231,18 @@ export class GameRenderer {
           const kx = serverMeta?.kx ?? 0;
           const ky = serverMeta?.ky ?? 0;
           const mag = Math.abs(kx) + Math.abs(ky);
+          // The punch carries direction, the shake carries magnitude. Firing
+          // both at full strength on every point of chip damage is what made
+          // the screen rattle constantly. Small hits now get the directional
+          // nudge only — crisper to read, and far less tiring over a long run —
+          // and the shake is held back for damage that actually matters.
+          const ratio = diff / Math.max(1, p.maxHp);
           if (mag > 0.001) {
-            this.camera.punchHit(kx / mag, ky / mag, 1.6);
+            this.camera.punchHit(kx / mag, ky / mag, 1.1 + ratio * 2.2);
           }
-          this.camera.shakeFromDamageRatio(diff / Math.max(1, p.maxHp));
+          if (ratio >= HIT_SHAKE_MIN_RATIO) {
+            this.camera.shakeFromDamageRatio(ratio);
+          }
         }
         if (diff > 0) {
           // Prefer server metadata; fallback to heuristic

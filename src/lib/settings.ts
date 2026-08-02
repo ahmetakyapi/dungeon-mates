@@ -37,7 +37,9 @@ const STORAGE_KEY = 'dungeon-mates-settings-v1';
 export const DEFAULT_SETTINGS: GameSettings = {
   quality: 'high',
   showFps: false,
-  screenShake: 1,
+  // Full strength was fatiguing over a 15-minute run. Still clearly present,
+  // and the slider goes back to 1 for anyone who wants it.
+  screenShake: 0.7,
   screenFlash: true,
   ambientEffects: true,
   reducedMotion: false,

@@ -24,6 +24,8 @@ type UseGameLoopOptions = {
   gameState: GameState | null;
   localPlayerId: string;
   onInput: (input: PlayerInput) => void;
+  /** Publishing the FPS number costs a full re-render, so it is opt-in. */
+  showFps?: boolean;
 };
 
 type UseGameLoopReturn = {
@@ -41,6 +43,7 @@ export function useGameLoop({
   gameState,
   localPlayerId,
   onInput,
+  showFps = false,
 }: UseGameLoopOptions): UseGameLoopReturn {
   const [fps, setFps] = useState(0);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
@@ -51,6 +54,9 @@ export function useGameLoop({
   const lastTimeRef = useRef(0);
   const frameCountRef = useRef(0);
   const fpsTimeRef = useRef(0);
+  // Read inside the loop without making the loop depend on it.
+  const showFpsRef = useRef(showFps);
+  showFpsRef.current = showFps;
   const gameStateRef = useRef<GameState | null>(null);
   const isPausedRef = useRef(false);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
@@ -231,10 +237,16 @@ export function useGameLoop({
       const dt = (time - lastTimeRef.current) / 1000;
       lastTimeRef.current = time;
 
-      // FPS counter
+      // FPS counter.
+      //
+      // setFps is React state, so publishing it re-renders the whole game page
+      // — HUD included — once a second. That was happening even with the
+      // counter switched off, which is a full tree render per second bought for
+      // nothing, and it is felt as a regular hitch. Now it only runs when the
+      // number is actually on screen.
       frameCountRef.current++;
       if (time - fpsTimeRef.current >= 1000) {
-        setFps(frameCountRef.current);
+        if (showFpsRef.current) setFps(frameCountRef.current);
         frameCountRef.current = 0;
         fpsTimeRef.current = time;
       }
