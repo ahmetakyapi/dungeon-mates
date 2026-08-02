@@ -142,6 +142,7 @@ function GamePage() {
     level: number;
     deaths: number;
     isMVP: boolean;
+    floorHistory: Array<{ floor: number; kills: number; seconds: number }>;
     partyStats: Array<{ name: string; playerClass: string; kills: number; damage: number; gold: number }>;
     defeatCause: string | undefined;
   } | null>(null);
@@ -190,6 +191,8 @@ function GamePage() {
   const gameStartTime = useRef(Date.now());
   const floorStartTime = useRef(Date.now());
   const floorKillsRef = useRef(0);
+  /** Per-floor kills and time, accumulated for the end-of-run breakdown. */
+  const floorHistoryRef = useRef<Array<{ floor: number; kills: number; seconds: number }>>([]);
   const prevMonsterCountRef = useRef(0);
   const prevRoomIdRef = useRef<number | null>(null);
   const prevHpRef = useRef<number | null>(null);
@@ -321,6 +324,13 @@ function GamePage() {
     const currentFloor = gameState.dungeon.currentFloor;
     if (currentFloor > previousFloorRef.current) {
       const floorTime = Math.floor((Date.now() - floorStartTime.current) / 1000);
+      // Kept for the run summary — a total says how the run went, the breakdown
+      // says where it went wrong.
+      floorHistoryRef.current.push({
+        floor: previousFloorRef.current,
+        kills: floorKillsRef.current,
+        seconds: floorTime,
+      });
       setFloorTransitionData({
         completed: previousFloorRef.current,
         next: currentFloor,
@@ -655,6 +665,7 @@ function GamePage() {
         level: localPlayer?.level ?? 1,
         deaths: localPlayer?.alive === false ? 1 : 0,
         isMVP: playerIsMVP,
+        floorHistory: floorHistoryRef.current.slice(),
         partyStats,
         defeatCause,
       });
@@ -1263,6 +1274,7 @@ function GamePage() {
               deaths: gameOverStats.deaths,
               isMVP: gameOverStats.isMVP,
               partyStats: gameOverStats.partyStats,
+              floorHistory: gameOverStats.floorHistory,
               defeatCause: gameOverStats.defeatCause,
             }}
             isSolo={isSolo}

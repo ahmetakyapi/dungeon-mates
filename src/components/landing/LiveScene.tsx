@@ -19,6 +19,15 @@ import {
 export type ScenePhase = 'windup' | 'active' | 'recovery' | 'idle';
 
 /**
+ * A phase change, with how long the new phase will last.
+ *
+ * The page uses the duration to run its fill for exactly that long, so the bar
+ * in the copy and the telegraph on the canvas are driven by one clock rather
+ * than being two things that happen to look similar.
+ */
+export type PhaseEvent = { phase: ScenePhase; durationMs: number };
+
+/**
  * A live dungeon scene, drawn with the game's own renderer.
  *
  * None of these are screenshots or mock-ups: tiles come from
@@ -263,7 +272,7 @@ function makeTelegraph(monster: MonsterType, cols: number, rows: number) {
   // Keep the target inside the telegraph but visibly separate.
   const pTile = { x: mTile.x + Math.max(2.2, profile.range * 0.95), y: rows * 0.5 };
 
-  const draw = (s: Stage, onPhase?: (p: ScenePhase) => void) => {
+  const draw = (s: Stage, onPhase?: (p: ScenePhase, durationMs: number) => void) => {
     const { ctx, sprites, t } = s;
     let phase: ScenePhase;
     let progress = 0;
@@ -271,7 +280,8 @@ function makeTelegraph(monster: MonsterType, cols: number, rows: number) {
     else if (t < WINDUP + ACTIVE) { phase = 'active'; progress = 1; }
     else if (t < WINDUP + ACTIVE + RECOVER) { phase = 'recovery'; }
     else { phase = 'idle'; }
-    onPhase?.(phase);
+    // The duration of the phase the scene is currently in.
+    onPhase?.(phase, phase === 'windup' ? WINDUP : phase === 'active' ? ACTIVE : phase === 'recovery' ? RECOVER : IDLE);
 
     if (phase === 'windup' || phase === 'active') {
       telegraphShape(
@@ -596,7 +606,7 @@ export function LiveScene({
   monster?: MonsterType;
   cols?: number;
   rows?: number;
-  onPhase?: (phase: ScenePhase) => void;
+  onPhase?: (e: PhaseEvent) => void;
   className?: string;
   showLabel?: boolean;
   label?: string;
@@ -688,10 +698,10 @@ export function LiveScene({
         }
       }
 
-      // Hazard pools, so a floor that has lava in the dungeon has lava here
-      // too. Deterministic rather than random-walked: the scene loops, and a
-      // pool that reshaped itself every cycle would read as a glitch.
-      stampHazard(baseTiles, cols, rows, activeFloor);
+      // Hazard pools, but only in the scene that tours the floors. The other
+      // scenes each demonstrate one idea, and a pool through the middle of them
+      // is clutter competing with the thing being shown.
+      if (scene === 'descend') stampHazard(baseTiles, cols, rows, activeFloor);
 
       // Props are written into the grid before the tile pass so the chest and
       // the stairs are drawn as real tiles with the floor's own palette.
@@ -711,8 +721,8 @@ export function LiveScene({
       else if (scene === 'treasure') drawTreasure(stage);
       else if (scene === 'descend') drawDescend(stage, cycleIndex);
       else if (telegraph) {
-        telegraph.draw(stage, (p) => {
-          if (p !== lastPhase) { lastPhase = p; onPhaseRef.current?.(p); }
+        telegraph.draw(stage, (p, d) => {
+          if (p !== lastPhase) { lastPhase = p; onPhaseRef.current?.({ phase: p, durationMs: d }); }
         });
       }
     };

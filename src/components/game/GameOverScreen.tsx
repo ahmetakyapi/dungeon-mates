@@ -24,6 +24,8 @@ type GameOverStats = {
   deaths: number;
   isMVP: boolean;
   partyStats?: PartyMemberStat[];
+  /** Per-floor kills and time. A total says how the run went; this says where. */
+  floorHistory?: Array<{ floor: number; kills: number; seconds: number }>;
   defeatCause?: string;
   bestTime?: number;
 };
@@ -380,6 +382,44 @@ export function GameOverScreen({
             <span className="font-pixel text-[9px] text-dm-health lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">
               {stats.defeatCause}
             </span>
+          </motion.div>
+        )}
+
+        {/* Per-floor breakdown. The bar is each floor's time against the
+            slowest one, so the floor that actually cost the run is obvious at a
+            glance rather than something to work out from a list of numbers. */}
+        {stats.floorHistory && stats.floorHistory.length > 0 && (
+          <motion.div
+            className="pixel-border w-full rounded bg-dm-surface/70 p-3"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: isVictory ? 1.8 : 1.6, ease: EASE }}
+          >
+            <div className="mb-2 font-pixel text-[8px] text-dm-text-dim lg:text-[10px]">KAT KAT</div>
+            <div className="flex flex-col gap-1">
+              {(() => {
+                const slowest = Math.max(...stats.floorHistory.map((f) => f.seconds), 1);
+                return stats.floorHistory.map((f) => (
+                  <div key={f.floor} className="flex items-center gap-2">
+                    <span className="w-8 shrink-0 font-pixel text-[8px] text-dm-gold lg:text-[10px]">
+                      {String(f.floor).padStart(2, '0')}
+                    </span>
+                    <div className="h-2 flex-1 overflow-hidden rounded-sm bg-black/40">
+                      <div
+                        className="h-full rounded-sm bg-dm-accent/70"
+                        style={{ width: `${Math.max(4, (f.seconds / slowest) * 100)}%` }}
+                      />
+                    </div>
+                    <span className="w-14 shrink-0 text-right font-pixel text-[8px] text-dm-text-dim lg:text-[10px]">
+                      {Math.floor(f.seconds / 60)}:{String(f.seconds % 60).padStart(2, '0')}
+                    </span>
+                    <span className="w-12 shrink-0 text-right font-pixel text-[8px] text-dm-text-dim lg:text-[10px]">
+                      {f.kills} öl.
+                    </span>
+                  </div>
+                ));
+              })()}
+            </div>
           </motion.div>
         )}
 

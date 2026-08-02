@@ -32,7 +32,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { CLASS_STATS, type PlayerClass, floorTheme } from '../../shared/types';
-import { LiveScene, type ScenePhase } from '@/components/landing/LiveScene';
+import { LiveScene, type ScenePhase, type PhaseEvent } from '@/components/landing/LiveScene';
+import { ClassPortrait } from '@/components/landing/ClassPortrait';
 import { MetaProgression } from '@/components/game/MetaProgression';
 import { loadMeta, type MetaState } from '@/lib/meta-progression';
 import '../styles/nocturne.css';
@@ -69,8 +70,78 @@ const CLASSES: ReadonlyArray<{
   { key: 'healer', role: 'Destek', art: '/art/class-sifaci.png', line: 'Takımı ayakta tutar. Ultimate ekibe üç saniye dokunulmazlık verir.' },
 ];
 
-const STATS: ReadonlyArray<readonly [string, string]> = [
-  ['Kat', '10'], ['Sınıf', '4'], ['Canavar', '17'], ['Oyuncu', '1–4'], ['Kurulum', 'Yok'],
+/**
+ * The one saturated band the system allows.
+ *
+ * `to` counts up when the band scrolls into view; `text` is for the two values
+ * that are not numbers and should just appear. A number that counts is worth
+ * reading — five static numbers on a flat field were wallpaper.
+ */
+const STATS: ReadonlyArray<{ label: string; to?: number; text?: string; suffix?: string }> = [
+  { label: 'Kat', to: 10 },
+  { label: 'Sınıf', to: 4 },
+  { label: 'Canavar', to: 17 },
+  { label: 'Oyuncu', text: '1–4' },
+  { label: 'Kurulum', text: 'Yok' },
+];
+
+/** Counts from 0 to `to` once `run` flips true. Respects reduced motion. */
+function useCountUp(to: number, run: boolean, ms = 900): number {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (!run) return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { setN(to); return; }
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / ms);
+      // Ease-out so the last few digits settle rather than snapping.
+      setN(Math.round(to * (1 - Math.pow(1 - t, 3))));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [to, run, ms]);
+  return n;
+}
+
+function StatCell({ stat, run, index }: {
+  stat: (typeof STATS)[number]; run: boolean; index: number;
+}) {
+  const counted = useCountUp(stat.to ?? 0, run);
+  const value = stat.text ?? String(counted);
+  return (
+    <div style={{
+      position: 'relative',
+      // Hairline separators that fade out at both ends — the same signature the
+      // system uses for its rules, turned on its side.
+      paddingLeft: index === 0 ? 0 : 'clamp(14px, 2.4vw, 30px)',
+      background: index === 0 ? undefined
+        : 'linear-gradient(to bottom, transparent, color-mix(in srgb, var(--color-neutral-100) 26%, transparent) 22%, color-mix(in srgb, var(--color-neutral-100) 26%, transparent) 78%, transparent) no-repeat left / 1px 100%',
+    }}>
+      <div style={{
+        fontSize: 'clamp(30px, 4.6vw, 48px)', fontWeight: 500,
+        letterSpacing: '-0.035em', lineHeight: 1,
+        fontVariantNumeric: 'tabular-nums',
+        // A touch of light on the numerals so they sit on the field rather than
+        // being painted flat onto it.
+        background: 'linear-gradient(180deg, #ffffff 0%, color-mix(in srgb, var(--color-neutral-200) 78%, transparent) 100%)',
+        WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent',
+      }}>{value}</div>
+      <div style={{
+        fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase',
+        opacity: 0.62, marginTop: 10, fontWeight: 500,
+      }}>{stat.label}</div>
+    </div>
+  );
+}
+
+const PHASE_ROWS: ReadonlyArray<{
+  key: ScenePhase; num: string; label: string; time: string; note: string;
+}> = [
+  { key: 'windup', num: '01', label: 'Hazırlık', time: '0.25 – 0.65 sn', note: 'alan dolar' },
+  { key: 'active', num: '02', label: 'Vuruş', time: '0.1 – 0.2 sn', note: 'hasar çözülür' },
+  { key: 'recovery', num: '03', label: 'Toparlanma', time: '0.2 – 0.7 sn', note: 'karşılık ver' },
 ];
 
 const CONTROLS: ReadonlyArray<readonly [string, string]> = [
@@ -110,6 +181,7 @@ function useReveal<T extends HTMLElement>() {
   const hidden = armed && !shown;
   return {
     ref,
+    shown,
     style: {
       animation: shown ? 'dmRise .7s cubic-bezier(.22,1,.36,1) both' : undefined,
       opacity: hidden ? 0 : 1,
@@ -127,7 +199,14 @@ export default function HomePage() {
   const [meta, setMeta] = useState<MetaState | null>(null);
   const [scrolled, setScrolled] = useState(false);
   // Driven by the live scene so the phase list reads out what is on screen.
-  const [phase, setPhase] = useState<ScenePhase>('idle');
+  // `seq` increments on every change so React remounts the fill element and the
+  // CSS animation restarts even when the same phase comes round again.
+  const [phase, setPhase] = useState<{ phase: ScenePhase; durationMs: number; seq: number }>(
+    { phase: 'idle', durationMs: 0, seq: 0 },
+  );
+  const onPhase = useCallback((e: PhaseEvent) => {
+    setPhase((prev) => ({ phase: e.phase, durationMs: e.durationMs, seq: prev.seq + 1 }));
+  }, []);
 
   useEffect(() => { setMeta(loadMeta()); }, [metaOpen]);
   useEffect(() => {
@@ -158,6 +237,7 @@ export default function HomePage() {
   const mechanic = useReveal<HTMLElement>();
   const classSec = useReveal<HTMLElement>();
   const rhythm = useReveal<HTMLElement>();
+  const statBand = useReveal<HTMLElement>();
 
   return (
     <div className="nocturne" style={{ position: 'relative', overflowX: 'clip', minHeight: '100dvh' }}>
@@ -269,7 +349,12 @@ export default function HomePage() {
       </header>
 
       {/* ── Stat band — the one full-bleed saturated field the system allows ── */}
-      <section style={{ marginTop: 'clamp(44px, 8vh, 92px)', background: 'var(--color-section)', position: 'relative', overflow: 'hidden' }}>
+      <section ref={statBand.ref} style={{
+        marginTop: 'clamp(44px, 8vh, 92px)', position: 'relative', overflow: 'hidden',
+        // A field with a light source in it rather than a flat fill.
+        background: 'linear-gradient(160deg, var(--color-section-glow) -10%, var(--color-section) 55%, #1e2150 100%)',
+        boxShadow: 'inset 0 1px 0 color-mix(in srgb, var(--color-neutral-100) 14%, transparent), inset 0 -1px 0 rgba(0,0,0,0.35)',
+      }}>
         <span aria-hidden style={{
           position: 'absolute', inset: '-40% 30% auto -10%', height: '180%',
           background: 'radial-gradient(closest-side, var(--color-section-glow), transparent)', opacity: .8,
@@ -279,11 +364,8 @@ export default function HomePage() {
           padding: 'clamp(22px, 4vw, 38px) clamp(16px, 4vw, 40px)',
           display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(120px, 100%), 1fr))', gap: 18,
         }}>
-          {STATS.map(([k, v]) => (
-            <div key={k}>
-              <div style={{ fontSize: 'clamp(26px, 4vw, 40px)', fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1 }}>{v}</div>
-              <div style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', opacity: .72, marginTop: 8 }}>{k}</div>
-            </div>
+          {STATS.map((stat, i) => (
+            <StatCell key={stat.label} stat={stat} run={statBand.shown} index={i} />
           ))}
         </div>
       </section>
@@ -364,25 +446,58 @@ export default function HomePage() {
               Alandan çıkarsan gerçekten kurtulursun.
             </p>
 
-            <div style={{ display: 'grid', gap: 10, marginTop: 24, maxWidth: 460 }}>
-              {([
-                ['windup', '01', 'Hazırlık', '0.25 – 0.65 sn', 'alan dolar'],
-                ['active', '02', 'Vuruş', '0.1 – 0.2 sn', 'hasar çözülür'],
-                ['recovery', '03', 'Toparlanma', '0.2 – 0.7 sn', 'karşılık ver'],
-              ] as const).map(([key, num, label, time, note]) => {
-                const on = phase === key;
+            {/*
+              Each row plays the thing its label describes, on the same clock as
+              the canvas beside it: the wind-up fills left to right and finishes
+              exactly when the telegraph does, the hit is a flash that is gone
+              before you finish reading it, and the recovery drains back. A row
+              that merely changed colour said "this is happening now" but
+              nothing about what it was.
+            */}
+            <div style={{ display: 'grid', gap: 8, marginTop: 24, maxWidth: 470 }}>
+              {PHASE_ROWS.map(({ key, num, label, time, note }) => {
+                const on = phase.phase === key;
+                const anim =
+                  key === 'windup' ? 'dmPhaseFill'
+                  : key === 'active' ? 'dmPhaseSnap'
+                  : 'dmPhaseDrain';
                 return (
-                  <div key={key} style={{
-                    display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', gap: 12, alignItems: 'baseline',
-                    padding: '10px 12px', borderRadius: 'var(--radius-md)',
-                    transition: 'background .25s ease, box-shadow .25s ease',
-                    background: on ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)' : 'transparent',
-                    boxShadow: on ? 'inset 0 0 0 1px var(--color-accent)' : 'none',
-                  }}>
-                    <span className="text-muted" style={{ fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>{num}</span>
-                    <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 500 }}>{label}</span>
-                    <span style={{ color: 'var(--color-accent)', fontSize: 13 }}>{time}</span>
-                    <span className="text-muted" style={{ fontSize: 12 }}>{note}</span>
+                  <div
+                    key={key}
+                    style={{
+                      position: 'relative', overflow: 'hidden',
+                      display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', gap: 12,
+                      alignItems: 'baseline', padding: '11px 13px',
+                      borderRadius: 'var(--radius-md)',
+                      transition: 'box-shadow .2s ease, opacity .2s ease',
+                      opacity: on ? 1 : 0.55,
+                      boxShadow: on
+                        ? 'inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 70%, transparent)'
+                        : 'inset 0 0 0 1px var(--color-divider)',
+                    }}
+                  >
+                    {/* The moving part. Keyed on the phase counter so restarting
+                        the same phase next cycle replays the animation. */}
+                    {on && (
+                      <span
+                        key={phase.seq}
+                        aria-hidden
+                        style={{
+                          position: 'absolute', inset: 0, transformOrigin: 'left center',
+                          background: key === 'active'
+                            ? 'color-mix(in srgb, var(--color-neutral-100) 22%, transparent)'
+                            : 'color-mix(in srgb, var(--color-accent) 16%, transparent)',
+                          animation: `${anim} ${phase.durationMs}ms linear forwards`,
+                        }}
+                      />
+                    )}
+                    <span className="text-muted" style={{ position: 'relative', fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>{num}</span>
+                    <span style={{
+                      position: 'relative', fontFamily: 'var(--font-heading)', fontWeight: 500,
+                      animation: on && key === 'active' ? `dmPhaseKick ${phase.durationMs}ms ease-out` : undefined,
+                    }}>{label}</span>
+                    <span style={{ position: 'relative', color: 'var(--color-accent)', fontSize: 13 }}>{time}</span>
+                    <span className="text-muted" style={{ position: 'relative', fontSize: 12 }}>{note}</span>
                   </div>
                 );
               })}
@@ -399,7 +514,7 @@ export default function HomePage() {
               borderRadius: 'var(--radius-lg)', overflow: 'hidden',
               background: 'var(--color-surface)', aspectRatio: '16 / 10',
             }}>
-              <LiveScene scene="telegraph" floor={3} monster="dark_knight" cols={21} rows={13} onPhase={setPhase} />
+              <LiveScene scene="telegraph" floor={3} monster="dark_knight" cols={21} rows={13} onPhase={onPhase} />
             </div>
             <figcaption>Yandaki sahne oyunun telegraf zamanlamasıyla, gerçek zamanlı çiziliyor.</figcaption>
           </figure>
@@ -418,10 +533,15 @@ export default function HomePage() {
             const s = CLASS_STATS[key];
             return (
               <article key={key} className="card elev-sm" style={{ padding: 16, gap: 10 }}>
-                {/* .lighten drops the sprite's dark ground into the page */}
-                <div className="lighten" style={{ display: 'grid', placeItems: 'center' }}>
-                  <Image src={art} alt={`${s.label} karakteri`} width={520} height={520}
-                         style={{ width: '100%', maxWidth: 190, height: 'auto', imageRendering: 'pixelated' }} />
+                {/* Drawn live at 48x64 rather than a 16px sprite upscaled to 190. */}
+                <div style={{
+                  display: 'grid', placeItems: 'center', padding: '6px 0 2px',
+                  // A pool of the class colour under the figure, so each card
+                  // carries its own light rather than four identical grey boxes.
+                  background: `radial-gradient(ellipse 60% 52% at 50% 62%, ${s.color}22, transparent 70%)`,
+                  borderRadius: 'var(--radius-md)',
+                }}>
+                  <ClassPortrait cls={key} height={168} />
                 </div>
                 <span className="card-kicker">{role}</span>
                 <span className="card-title" style={{ color: s.color }}>{s.label}</span>

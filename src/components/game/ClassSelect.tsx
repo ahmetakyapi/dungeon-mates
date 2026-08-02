@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PixelButton } from '@/components/ui/PixelButton';
-import { PixelHero } from '@/components/game/PixelHero';
+import { ClassPortrait } from '@/components/landing/ClassPortrait';
 import {
   CLASS_STATS,
   type PlayerClass,
@@ -82,162 +82,6 @@ function StatBar({ label, value, max, color }: StatBarProps) {
 }
 
 // Animated class preview showing attack animation
-function ClassPreview({ cls, isSelected }: { cls: PlayerClass; isSelected: boolean }) {
-  const stats = CLASS_STATS[cls];
-
-  if (cls === 'warrior') {
-    return (
-      <div className="relative flex h-16 w-full items-center justify-center overflow-hidden sm:h-20">
-        <motion.div
-          className="relative z-10 h-8 w-6 rounded-sm sm:h-10 sm:w-8"
-          style={{ backgroundColor: stats.color }}
-          animate={isSelected ? { y: [0, -2, 0] } : { y: 0 }}
-          transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        <motion.div
-          className="absolute z-20 h-1 rounded-full bg-zinc-300 sm:h-1.5"
-          style={{ originX: 0 }}
-          animate={
-            isSelected
-              ? { width: [0, 20, 24, 0], rotate: [0, -60, 60, 0], opacity: [0, 1, 1, 0] }
-              : { width: 0, opacity: 0 }
-          }
-          transition={{
-            duration: 0.8,
-            repeat: Infinity,
-            repeatDelay: 0.6,
-            ease: EASE,
-          }}
-        />
-      </div>
-    );
-  }
-
-  if (cls === 'mage') {
-    const orbIndices = [0, 1, 2] as const;
-    return (
-      <div className="relative flex h-16 w-full items-center justify-center overflow-hidden sm:h-20">
-        <motion.div
-          className="relative z-10 h-8 w-6 rounded-sm sm:h-10 sm:w-8"
-          style={{ backgroundColor: stats.color }}
-          animate={isSelected ? { y: [0, -3, 0] } : { y: 0 }}
-          transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        {isSelected &&
-          orbIndices.map((i) => (
-            <motion.div
-              key={i}
-              className="absolute h-2 w-2 rounded-full bg-blue-400 sm:h-3 sm:w-3"
-              style={{
-                boxShadow: '0 0 8px rgba(96, 165, 250, 0.6)',
-              }}
-              animate={{
-                x: [
-                  Math.cos((i * 2 * Math.PI) / 3) * 18,
-                  Math.cos((i * 2 * Math.PI) / 3 + Math.PI) * 18,
-                  Math.cos((i * 2 * Math.PI) / 3 + 2 * Math.PI) * 18,
-                ],
-                y: [
-                  Math.sin((i * 2 * Math.PI) / 3) * 12,
-                  Math.sin((i * 2 * Math.PI) / 3 + Math.PI) * 12,
-                  Math.sin((i * 2 * Math.PI) / 3 + 2 * Math.PI) * 12,
-                ],
-                opacity: [0.6, 1, 0.6],
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                ease: 'linear',
-              }}
-            />
-          ))}
-      </div>
-    );
-  }
-
-  if (cls === 'healer') {
-    const healOrbIndices = [0, 1, 2, 3] as const;
-    return (
-      <div className="relative flex h-16 w-full items-center justify-center overflow-hidden sm:h-20">
-        <motion.div
-          className="relative z-10 h-8 w-6 rounded-sm sm:h-10 sm:w-8"
-          style={{ backgroundColor: stats.color }}
-          animate={isSelected ? { y: [0, -3, 0] } : { y: 0 }}
-          transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        {/* Healing aura ring */}
-        {isSelected && (
-          <motion.div
-            className="absolute h-14 w-14 rounded-full border-2 border-amber-400/40 sm:h-16 sm:w-16"
-            animate={{
-              scale: [0.8, 1.2, 0.8],
-              opacity: [0.2, 0.6, 0.2],
-            }}
-            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-          />
-        )}
-        {/* Healing orbs */}
-        {isSelected &&
-          healOrbIndices.map((i) => (
-            <motion.div
-              key={i}
-              className="absolute h-1.5 w-1.5 rounded-full bg-amber-300 sm:h-2 sm:w-2"
-              style={{
-                boxShadow: '0 0 6px rgba(251, 191, 36, 0.7)',
-              }}
-              animate={{
-                x: [
-                  Math.cos((i * Math.PI) / 2) * 20,
-                  Math.cos((i * Math.PI) / 2 + Math.PI) * 20,
-                  Math.cos((i * Math.PI) / 2 + 2 * Math.PI) * 20,
-                ],
-                y: [
-                  Math.sin((i * Math.PI) / 2) * 14,
-                  Math.sin((i * Math.PI) / 2 + Math.PI) * 14,
-                  Math.sin((i * Math.PI) / 2 + 2 * Math.PI) * 14,
-                ],
-                opacity: [0.5, 1, 0.5],
-                scale: [0.8, 1.3, 0.8],
-              }}
-              transition={{
-                duration: 2.5,
-                repeat: Infinity,
-                ease: 'linear',
-              }}
-            />
-          ))}
-      </div>
-    );
-  }
-
-  // Archer
-  return (
-    <div className="relative flex h-16 w-full items-center justify-center overflow-hidden sm:h-20">
-      <motion.div
-        className="relative z-10 h-8 w-6 rounded-sm sm:h-10 sm:w-8"
-        style={{ backgroundColor: stats.color }}
-        animate={isSelected ? { y: [0, -2, 0] } : { y: 0 }}
-        transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
-      />
-      <AnimatePresence>
-        {isSelected && (
-          <motion.div
-            className="absolute left-1/2 h-0.5 w-4 rounded-full bg-dm-gold sm:h-1 sm:w-5"
-            initial={{ x: 0, opacity: 1 }}
-            animate={{ x: [0, 60], opacity: [1, 1, 0] }}
-            transition={{
-              duration: 0.5,
-              repeat: Infinity,
-              repeatDelay: 0.8,
-              ease: EASE,
-            }}
-          />
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
 type ClassSelectProps = {
   players: Record<string, PlayerState>;
   localPlayerId: string;
@@ -458,12 +302,14 @@ export function ClassSelect({
                 </motion.div>
               )}
 
-              {/* Animated character preview */}
-              <ClassPreview cls={cls} isSelected={isSelected} />
-
-              {/* Pixel Hero */}
+              {/*
+                ClassPreview used to sit here: an abstract coloured rectangle
+                that stood in for character art before there was any. With a
+                real animated portrait directly beneath it, it read as a
+                rendering fault rather than a flourish.
+              */}
               <div className="mb-3 flex justify-center">
-                <PixelHero playerClass={cls} size="md" animate={isSelected} glow={isSelected} />
+                <ClassPortrait cls={cls} height={isSelected ? 132 : 116} />
               </div>
 
               {/* Name */}
