@@ -7,6 +7,7 @@
 import {
   FLOOR_MODIFIERS, MODIFIER_EFFECTS, MIN_MONSTERS_PER_ROOM, MAX_MONSTERS_PER_ROOM,
   ROOM_AREA_PER_MONSTER, type FloorModifier,
+  BOSS_LORE, FLOOR_LORE, monsterDisplay,
 } from '../shared/types';
 
 let failures = 0;
@@ -78,6 +79,21 @@ check('Brittle Foes gives and takes', MODIFIER_EFFECTS.brittleDamageMult > 1);
 {
   const net = MODIFIER_EFFECTS.glassCannonPlayerDamage / MODIFIER_EFFECTS.glassCannonDamageTaken;
   check('Glass Cannon is close to even', net > 0.9 && net < 1.2, `${net.toFixed(2)}× net`);
+}
+
+// --- boss lore covers every boss the intro can show ---
+{
+  const ids = ['boss_forge_guardian', 'boss_spider_queen', 'boss_stone_warden', 'boss_flame_knight', 'boss_demon'];
+  check('every boss has lore', ids.every((id) => Boolean(BOSS_LORE[id])),
+    ids.filter((id) => !BOSS_LORE[id]).join(', '));
+  check('every boss has intro lines and a fall line',
+    ids.every((id) => BOSS_LORE[id]?.intro.length > 0 && BOSS_LORE[id]?.fall.length > 0));
+  check('every floor with lore has a name and reveal',
+    Object.values(FLOOR_LORE).every((f) => f.name && f.lore && f.reveal));
+  // The nameplate and the narrative must agree — they did not before.
+  check('final boss is named consistently',
+    BOSS_LORE.boss_demon.name === monsterDisplay('boss_demon').name,
+    `${BOSS_LORE.boss_demon.name} vs ${monsterDisplay('boss_demon').name}`);
 }
 
 console.log(failures === 0 ? '\nAll modifier checks passed.\n' : `\n${failures} modifier check(s) failed.\n`);

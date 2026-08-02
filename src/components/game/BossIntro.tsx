@@ -2,67 +2,23 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { BOSS_LORE } from '../../../shared/types';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 const AUTO_COMPLETE_MS = 7000;
 const PARTICLE_COUNT = 30;
-const BOSS_DATA: Record<string, { name: string; title: string; dialogue: string[]; color: string; emoji: string; battleText: string }> = {
-  forge: {
-    name: 'DEMIRCI KORUYUCU',
-    title: 'Zephara\'nın Baş Ustası',
-    dialogue: [
-      'Bu örsün sesi... altı yüz yıldır susmadı.',
-      'Geçmek istiyorsanız, ateşten geçeceksiniz.',
-    ],
-    color: '#f97316',
-    emoji: '🔨',
-    battleText: 'SAVAŞ BAŞLIYOR!',
-  },
-  mid: {
-    name: 'SELVİRA',
-    title: 'Zephara\'nın Dokumacısı',
-    dialogue: [
-      'Kapıları... kapalı tutmalıyım...',
-      'Geçmeyin... aşağısı... daha kötü...',
-    ],
-    color: '#7c3aed',
-    emoji: '🕸️',
-    battleText: 'SAVAŞ BAŞLIYOR!',
-  },
-  stone: {
-    name: 'TAŞ MUHAFIZ',
-    title: 'Bahçelerin Bekçisi',
-    dialogue: [
-      'Bir zamanlar çiçekler büyütürdüm.',
-      'Şimdi sadece taş büyütüyorum.',
-    ],
-    color: '#6b7280',
-    emoji: '🗿',
-    battleText: 'SAVAŞ BAŞLIYOR!',
-  },
-  flame: {
-    name: 'ALEV ŞÖVALYESİ',
-    title: 'Karanmir\'in Son Muhafızı',
-    dialogue: [
-      'Kralımız için. Zephara için.',
-      'Bu koridordan kimse geçemez.',
-    ],
-    color: '#b91c1c',
-    emoji: '🔥',
-    battleText: 'SAVAŞ BAŞLIYOR!',
-  },
-  final: {
-    name: 'KARANMİR',
-    title: 'Ateş-i Kadim\'in Esiri',
-    dialogue: [
-      'Ben... onları koruyacaktım.',
-      'Ama ateş... ateş her şeyi aldı.',
-      'Durdurun beni... lütfen...',
-    ],
-    color: '#dc2626',
-    emoji: '👑',
-    battleText: 'SON PERDE',
-  },
+/**
+ * Presentation only — colour and emoji. Names, titles and dialogue come from
+ * shared/lore.ts, which is also what the floor transitions and the boss health
+ * bar read from. This component used to carry its own copy and had already
+ * drifted: it called the final boss by a name no other screen used.
+ */
+const BOSS_STYLE: Record<string, { color: string; emoji: string; monsterId: string }> = {
+  forge: { color: '#f97316', emoji: '🔨', monsterId: 'boss_forge_guardian' },
+  mid: { color: '#7c3aed', emoji: '🕸️', monsterId: 'boss_spider_queen' },
+  stone: { color: '#6b7280', emoji: '🗿', monsterId: 'boss_stone_warden' },
+  flame: { color: '#ef4444', emoji: '🔥', monsterId: 'boss_flame_knight' },
+  final: { color: '#dc2626', emoji: '👑', monsterId: 'boss_demon' },
 };
 
 const FLOOR_TO_BOSS: Record<number, string> = {
@@ -142,7 +98,17 @@ function LightningFlash({ delay }: { delay: number }) {
 
 export function BossIntro({ onComplete, floor }: BossIntroProps) {
   const bossKey = FLOOR_TO_BOSS[floor ?? 10] ?? 'final';
-  const boss = BOSS_DATA[bossKey];
+  const style = BOSS_STYLE[bossKey];
+  const lore = BOSS_LORE[style.monsterId];
+  const boss = {
+    // The intro shouts the name; the lore stores it in normal case.
+    name: lore.name.toLocaleUpperCase('tr-TR'),
+    title: lore.title,
+    dialogue: lore.intro,
+    color: style.color,
+    emoji: style.emoji,
+    battleText: 'SAVAŞ BAŞLIYOR!',
+  };
   const particles = useMemo(generateParticles, []);
   const nameLetters = useMemo(() => boss.name.split(''), [boss.name]);
   // Varied ring configs — different delay/size/thickness for visual richness
