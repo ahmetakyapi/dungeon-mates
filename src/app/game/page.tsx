@@ -419,6 +419,7 @@ function GamePage() {
         case 'warrior': sound.playSwordSlash(); break;
         case 'archer': sound.playArrowShoot(); break;
         case 'mage': sound.playFireball(); break;
+        case 'healer': sound.playHolyBolt(); break;
       }
     }
   }, [localPlayer?.attacking, localPlayer?.class, sound]);
@@ -518,10 +519,32 @@ function GamePage() {
     if (stairsUsedEvents.length > 0) sound.playStairsDescend();
   }, [stairsUsedEvents.length, sound]);
 
-  // Pause menu sound
+  // Pause menu sound.
+  //
+  // Guarded on a ref rather than just the boolean: the effect also runs on
+  // mount, when the menu is closed, and would fire a close chime at the moment
+  // the player enters the dungeon.
+  const pauseWasOpen = useRef(false);
   useEffect(() => {
     if (showPauseMenu) sound.playMenuOpen();
+    else if (pauseWasOpen.current) sound.playMenuClose();
+    pauseWasOpen.current = showPauseMenu;
   }, [showPauseMenu, sound]);
+
+  const floorForSfx = gameState?.dungeon.currentFloor ?? 1;
+
+  // Footsteps.
+  //
+  // Driven off the server's velocity rather than a timer, so the cadence
+  // follows what the character is actually doing — it stops the instant the
+  // player does, and it does not fire while stunned or knocked back into a
+  // wall. playFootstep carries its own 220ms gate, so calling it on every
+  // 20Hz state update is the intended usage rather than a spam risk.
+  useEffect(() => {
+    if (!localPlayer?.alive) return;
+    const v = localPlayer.velocity;
+    if (Math.abs(v.x) > 0.02 || Math.abs(v.y) > 0.02) sound.playFootstep(floorForSfx);
+  }, [localPlayer?.position.x, localPlayer?.position.y, localPlayer?.alive, floorForSfx, sound]);
 
   // Stop music & ambience on unmount
   useEffect(() => {

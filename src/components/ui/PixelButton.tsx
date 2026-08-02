@@ -2,6 +2,7 @@
 
 import { type ButtonHTMLAttributes, type MouseEvent, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSound } from '@/hooks/useSound';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -49,9 +50,13 @@ export function PixelButton({
 }: PixelButtonProps) {
   const [ripples, setRipples] = useState<Ripple[]>([]);
   const nextId = useRef(0);
+  const sound = useSound();
 
   const handleClick = (e: MouseEvent<HTMLButtonElement>) => {
     if (disabled) return;
+    // Every button in the game goes through this component, so this is the one
+    // place a click needs a sound. playButtonClick has its own 100ms gate.
+    sound.playButtonClick();
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;

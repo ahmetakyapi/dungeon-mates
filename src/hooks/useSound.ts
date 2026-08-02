@@ -63,7 +63,6 @@ export function useSound() {
   const playHolyBolt = useCallback(() => getManager()?.playHolyBolt(), [getManager]);
   const playBossPhaseMusic = useCallback((phase: number) => getManager()?.playBossPhaseMusic(phase), [getManager]);
   const duckMusic = useCallback((durationMs?: number, depth?: number) => getManager()?.duckMusic(durationMs, depth), [getManager]);
-  const playDungeonMusic = useCallback(() => getManager()?.playDungeonMusic(), [getManager]);
   const playFloorMusic = useCallback((floor: number) => getManager()?.playFloorMusic(floor), [getManager]);
   const playBossMusic = useCallback(() => getManager()?.playBossMusic(), [getManager]);
   const stopMusic = useCallback(() => getManager()?.stopMusic(), [getManager]);
@@ -87,7 +86,7 @@ export function useSound() {
     playRoomCleared, playLevelUp, playBossAppear, playFloorComplete,
     playVictory, playDefeat, playDoorOpen, playChestOpen, playStairsDescend,
     playFootstep,
-    playDungeonMusic, playFloorMusic, playBossMusic, playBossPhaseMusic, duckMusic, stopMusic,
+    playFloorMusic, playBossMusic, playBossPhaseMusic, duckMusic, stopMusic,
     startAmbience, stopAmbience,
     setMasterVolume, setSfxVolume, setMusicVolume,
     toggleMute, isMuted, getMasterVolume, getSfxVolume, getMusicVolume,
@@ -100,7 +99,7 @@ export function useSound() {
     playRoomCleared, playLevelUp, playBossAppear, playFloorComplete,
     playVictory, playDefeat, playDoorOpen, playChestOpen, playStairsDescend,
     playFootstep,
-    playDungeonMusic, playFloorMusic, playBossMusic, playBossPhaseMusic, duckMusic, stopMusic,
+    playFloorMusic, playBossMusic, playBossPhaseMusic, duckMusic, stopMusic,
     startAmbience, stopAmbience,
     setMasterVolume, setSfxVolume, setMusicVolume,
     toggleMute, isMuted, getMasterVolume, getSfxVolume, getMusicVolume,

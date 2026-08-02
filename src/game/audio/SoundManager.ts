@@ -707,10 +707,6 @@ export class SoundManager {
     this.musicIntervals.push(interval);
   }
 
-  playDungeonMusic(): void {
-    this.playFloorMusic(1);
-  }
-
   playBossMusic(): void {
     this.stopMusic();
     const ctx = this.getContext();
