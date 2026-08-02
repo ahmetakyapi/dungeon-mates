@@ -17,7 +17,8 @@
     "check:revive": "tsx scripts/revive-check.ts",
     "check:shop": "tsx scripts/shop-check.ts",
     "check:modifiers": "tsx scripts/modifier-check.ts",
-    "check:audio": "tsx scripts/audio-check.ts"
+    "check:audio": "tsx scripts/audio-check.ts",
+    "check:boss": "tsx scripts/boss-check.ts"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",

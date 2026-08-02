@@ -49,6 +49,7 @@ import {
   BOSS_CHARGE_SPEED_MULT,
   BOSS_CHARGE_DURATION,
   BOSS_SUMMON_COOLDOWN,
+  NOVA_COOLDOWN,
   FORGE_SLAM_COOLDOWN,
   FORGE_OVERHEAT_HP,
   STONE_PETRIFY_COOLDOWN,
@@ -125,6 +126,7 @@ export class Monster implements MonsterContext {
 
   // Side boss state
   public slamCooldown: number;
+  public novaCooldown: number;
   public spinCooldown: number;
   public petrifyGazeCooldown: number;
   public shieldActive: boolean;
@@ -221,6 +223,7 @@ export class Monster implements MonsterContext {
 
     // Side boss
     this.slamCooldown = FORGE_SLAM_COOLDOWN;
+    this.novaCooldown = NOVA_COOLDOWN;
     this.spinCooldown = FLAME_SPIN_COOLDOWN;
     this.petrifyGazeCooldown = STONE_PETRIFY_COOLDOWN;
     this.shieldActive = false;
@@ -328,6 +331,7 @@ export class Monster implements MonsterContext {
     if (this.summonCooldown > 0) this.summonCooldown -= 1;
     if (this.webCooldown > 0) this.webCooldown -= 1;
     if (this.slamCooldown > 0) this.slamCooldown -= 1;
+    if (this.novaCooldown > 0) this.novaCooldown -= 1;
     if (this.spinCooldown > 0) this.spinCooldown -= 1;
     if (this.petrifyGazeCooldown > 0) this.petrifyGazeCooldown -= 1;
     if (this.flameChargeCooldown > 0) this.flameChargeCooldown -= 1;

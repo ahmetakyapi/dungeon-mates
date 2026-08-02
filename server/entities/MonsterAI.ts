@@ -34,7 +34,10 @@ export const GOBLIN_RETREAT_HP_RATIO = 0.3;
 
 // --- Types for monster context passed to AI functions ---
 
-export type AIState = 'idle' | 'chase' | 'attack' | 'retreat' | 'charge' | 'phase';
+// 'cast' is a boss committing to a telegraphed ability: it holds position until
+// the wind-up resolves, so the danger area cannot slide out from under a player
+// who already read it and moved.
+export type AIState = 'idle' | 'chase' | 'attack' | 'retreat' | 'charge' | 'phase' | 'cast';
 
 export type NearestPlayer = { id: string; position: Vec2; distance: number };
 
@@ -114,6 +117,8 @@ export interface MonsterContext {
 
   // Side boss state
   slamCooldown: number;
+  /** Karanmir's fire nova. Phase-gated; see updateBossDemon. */
+  novaCooldown: number;
   spinCooldown: number;
   petrifyGazeCooldown: number;
   shieldActive: boolean;

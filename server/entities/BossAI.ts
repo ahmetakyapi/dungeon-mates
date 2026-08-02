@@ -27,6 +27,24 @@ export const BOSS_CHARGE_SPEED_MULT = 3.0;
 export const BOSS_CHARGE_DURATION = 20; // ticks
 export const BOSS_SUMMON_COOLDOWN = 200; // ticks
 
+// --- Karanmir's fire ---
+//
+// The final fight used to escalate purely by multiplying numbers: each phase
+// made him faster, hit harder and summon sooner. A fight that only speeds up is
+// not more interesting, it is just tighter — the player learns nothing new and
+// has no new decision to make. These give each phase a mechanic of its own, and
+// they are the Fire, which is what the whole story is about: the thing he is
+// carrying keeps getting out.
+export const NOVA_COOLDOWN = 150;
+/** Long enough to read and walk out of, short enough to be a real threat. */
+export const NOVA_WINDUP = 26;
+export const NOVA_RADIUS_P1 = 3.6;
+export const NOVA_RADIUS_P2 = 4.4;
+/** Phase 3's sunburst: wide enough that the answer is the arena wall. */
+export const SUNBURST_RADIUS = 7.0;
+export const SUNBURST_WINDUP = 40;
+export const SUNBURST_COOLDOWN = 220;
+
 // --- Forge Guardian constants ---
 export const FORGE_SLAM_COOLDOWN = 120; // ticks — AoE slam every 6s
 export const FORGE_SLAM_RANGE = 2.5; // tiles
@@ -168,10 +186,36 @@ export function updateBossDemon(
   const speedMult = phase >= 3 ? 1.5 : phase >= 2 ? 1.3 : phase >= 1 ? 1.1 : 1.0;
   const atkMult = phase >= 3 ? 1.6 : phase >= 2 ? 1.3 : phase >= 1 ? 1.1 : 1.0;
 
-  // Summon minions periodically
-  if (m.summonCooldown <= 0) {
+  // Summons arrive in phase 2. Holding them back keeps phases 0-1 legible —
+  // the player learns the charge and the nova before anything else is on the
+  // floor competing for attention.
+  if (phase >= 2 && m.summonCooldown <= 0) {
     m.summonCooldown = Math.floor(BOSS_SUMMON_COOLDOWN * summonCdMult);
     m.shouldSummon = true;
+  }
+
+  // Fire nova — a telegraphed ring centred on him. This is the phase-1
+  // mechanic: it makes standing next to him a timed decision rather than the
+  // default, and gives melee classes something to read.
+  if (phase >= 1 && m.novaCooldown <= 0 && !m.pendingAoe) {
+    const sunburst = phase >= 3;
+    m.novaCooldown = sunburst ? SUNBURST_COOLDOWN : Math.floor(NOVA_COOLDOWN * (phase >= 2 ? 0.8 : 1));
+    startBossAoe(m, {
+      kind: TELEGRAPH_CIRCLE,
+      radius: sunburst ? SUNBURST_RADIUS : phase >= 2 ? NOVA_RADIUS_P2 : NOVA_RADIUS_P1,
+      damage: Math.floor(m.scaledAttack * (sunburst ? 1.6 : 1.15) * atkMult),
+      windupTicks: sunburst ? SUNBURST_WINDUP : NOVA_WINDUP,
+    });
+    m.aiState = 'cast';
+    m.state.velocity = { x: 0, y: 0 };
+    return null;
+  }
+
+  // He commits to the cast: no chasing or charging while a nova is winding up,
+  // otherwise the telegraph would slide out from under the player who read it.
+  if (m.pendingAoe) {
+    m.state.velocity = { x: 0, y: 0 };
+    return null;
   }
 
   // Handle charging
