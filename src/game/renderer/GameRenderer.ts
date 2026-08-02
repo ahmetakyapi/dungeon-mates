@@ -280,6 +280,15 @@ export class GameRenderer {
   }
 
   // Last known monster position+color — used to emit death FX when server drops a dead monster from state
+  // Previous-frame flags for edge-triggered VFX. See detectStateTransitions.
+  private readonly prevPlayerFlags: Map<string, {
+    dodging: boolean; alive: boolean; abilityCd: number; stun: number;
+    abilityActive: boolean; comboTier: number;
+  }> = new Map();
+  private readonly prevMonsterFlags: Map<string, {
+    enraged: boolean; shield: boolean; phased: boolean; stun: number; casting: boolean;
+  }> = new Map();
+
   private readonly prevMonsterSnapshot: Map<string, { x: number; y: number; type: string; isBoss: boolean; facing: Direction; isElite: boolean }> = new Map();
   // Client-side dying entities for squash+spin animation (2 ticks ~100ms)
   private readonly dyingEntities: Array<{
@@ -743,6 +752,9 @@ export class GameRenderer {
       this.bossEntranceFlash = 0.5;
       this.bossEntranceShake = true;
       this.camera.shake(6, 400);
+      if (QUALITY_PRESETS[this.quality].particles) {
+        this.particles.emitBossEntrance(this.logicalWidth, this.logicalHeight);
+      }
     } else if (!isBossPhase && this.wasBossPhase) {
       this.camera.leaveBossRoom();
     }
@@ -838,6 +850,7 @@ export class GameRenderer {
 
     // Detect HP changes for flash effects + damage numbers
     this.detectHpChanges(state, localPlayerId, playersArr, monstersArr);
+    this.detectStateTransitions(playersArr, monstersArr, localPlayerId);
 
     // Update fog of war
     this.updateFog(state, localPlayerId, playersArr);
@@ -1179,6 +1192,33 @@ export class GameRenderer {
   }
 
   /** Trigger loot pickup screen flash */
+  /**
+   * Sparkle burst where loot was picked up. emitGoldPickup and emitLootPickup were
+   * authored and never called — pickups only ever got a full-screen colour flash,
+   * with nothing happening at the actual pickup point.
+   */
+  /**
+   * Burst at a room's doorways when its seal lifts. Rooms lock during combat, and
+   * nothing told the player when they had opened again — emitDoorOpen was written
+   * for this and never called.
+   */
+  emitRoomUnlock(room: { x: number; y: number; width: number; height: number }): void {
+    if (!QUALITY_PRESETS[this.quality].particles) return;
+    const cx = (room.x + room.width / 2) * TILE_SIZE;
+    const midY = (room.y + room.height / 2) * TILE_SIZE;
+    this.particles.emitDoorOpen(room.x * TILE_SIZE, midY);
+    this.particles.emitDoorOpen((room.x + room.width) * TILE_SIZE, midY);
+    this.particles.emitDoorOpen(cx, room.y * TILE_SIZE);
+  }
+
+  emitPickupBurst(worldX: number, worldY: number, lootType: string): void {
+    if (!QUALITY_PRESETS[this.quality].particles) return;
+    const x = worldX * TILE_SIZE + TILE_SIZE / 2;
+    const y = worldY * TILE_SIZE + TILE_SIZE / 2;
+    if (lootType === 'gold') this.particles.emitGoldPickup(x, y);
+    else this.particles.emitLootPickup(x, y);
+  }
+
   triggerLootFlash(color: string): void {
     this.lootFlashAlpha = 0.25;
     this.lootFlashColor = color;
@@ -1193,10 +1233,24 @@ export class GameRenderer {
   }
 
   /** Build environmental decorations for the current floor layout */
+  /** Burst when the party arrives on a new floor. */
+  private emitFloorArrival(state: GameState, players: PlayerState[]): void {
+    if (!QUALITY_PRESETS[this.quality].particles) return;
+    for (let i = 0; i < players.length; i++) {
+      if (!players[i].alive) continue;
+      this.particles.emitFloorTransition(
+        players[i].position.x * TILE_SIZE + TILE_SIZE / 2,
+        players[i].position.y * TILE_SIZE + TILE_SIZE / 2,
+      );
+    }
+  }
+
   private buildEnvironmentalDecor(state: GameState): void {
     const floorId = state.dungeon.currentFloor ?? 0;
     if (this.decorCacheFloor === floorId) return;
+    const isFloorChange = this.decorCacheFloor !== -1;
     this.decorCacheFloor = floorId;
+    if (isFloorChange) this.emitFloorArrival(state, Object.values(state.players));
     this.clearDecorations();
 
     const tiles = state.dungeon.tiles;
@@ -1691,14 +1745,6 @@ export class GameRenderer {
     }
   }
 
-  /** Render glowing highlights around interactable tiles (chests, stairs) */
-  /**
-   * Draw ground danger indicators for monsters currently winding up.
-   *
-   * The shape shown is exactly the shape the server will test at resolution time,
-   * so "step outside the red" is a promise the game actually keeps. Fill opacity
-   * tracks windup progress, and the outline snaps bright right before impact.
-   */
   /**
    * Draw the aim reticle and highlight the enemy the attack will resolve against.
    * Mirrors the server's snap tolerance so what is highlighted is what gets hit.
@@ -1788,6 +1834,13 @@ export class GameRenderer {
     ctx.globalAlpha = 1;
   }
 
+  /**
+   * Draw ground danger indicators for monsters currently winding up.
+   *
+   * The shape shown is exactly the shape the server will test at resolution time,
+   * so "step outside the red" is a promise the game actually keeps. Fill opacity
+   * tracks windup progress, and the outline snaps bright right before impact.
+   */
   private renderTelegraphs(
     ctx: CanvasRenderingContext2D,
     monsters: MonsterState[],
@@ -2985,6 +3038,91 @@ export class GameRenderer {
     }
   }
 
+  /**
+   * Fire the one-shot VFX that hang off entity state edges.
+   *
+   * The particle system shipped with 18 authored emitters that nothing ever
+   * called — dodge puffs, shield breaks, stun stars, enrage flares, phase blinks,
+   * gold sparkles, combo rings, the ability-ready pop. All of it was written and
+   * then left unwired. These are edge-triggered, so they need a previous-frame
+   * snapshot rather than a per-frame check.
+   */
+  private detectStateTransitions(
+    players: PlayerState[],
+    monsters: MonsterState[],
+    localPlayerId: string,
+  ): void {
+    const preset = QUALITY_PRESETS[this.quality];
+    if (!preset.particles) return;
+
+    for (let i = 0; i < players.length; i++) {
+      const p = players[i];
+      const wx = p.position.x * TILE_SIZE + TILE_SIZE / 2;
+      const wy = p.position.y * TILE_SIZE + TILE_SIZE / 2;
+      const prev = this.prevPlayerFlags.get(p.id);
+      const color = CLASS_STATS[p.class].color;
+
+      if (prev) {
+        if (p.dodging && !prev.dodging) this.particles.emitDodge(wx, wy, color);
+        if (!p.alive && prev.alive) {
+          this.particles.emitPlayerDeath(wx, wy);
+          if (p.id === localPlayerId) this.camera.shakeTakeDamage();
+        }
+        // Ability just came off cooldown — a small pop at the caster's feet.
+        if (prev.abilityCd > 0 && p.abilityCooldownTicks <= 0 && p.alive) {
+          this.particles.emitAbilityReady(wx, wy, color);
+        }
+        if (p.stunTicks > 0 && prev.stun <= 0) this.particles.emitStunStars(wx, wy - 10);
+        // Combo tier crossings: 4 / 6 / 10, same thresholds the HUD uses.
+        const tier = p.comboCount >= 10 ? 3 : p.comboCount >= 6 ? 2 : p.comboCount >= 4 ? 1 : 0;
+        if (tier > prev.comboTier) this.particles.emitComboRing(wx, wy, tier);
+        // Casters get an arcane burst on activation.
+        if (p.abilityActive && !prev.abilityActive && (p.class === 'mage' || p.class === 'healer')) {
+          this.particles.emitMagicBurst(wx, wy);
+        }
+      }
+
+      this.prevPlayerFlags.set(p.id, {
+        dodging: p.dodging,
+        alive: p.alive,
+        abilityCd: p.abilityCooldownTicks,
+        stun: p.stunTicks,
+        abilityActive: p.abilityActive,
+        comboTier: p.comboCount >= 10 ? 3 : p.comboCount >= 6 ? 2 : p.comboCount >= 4 ? 1 : 0,
+      });
+    }
+
+    for (let i = 0; i < monsters.length; i++) {
+      const m = monsters[i];
+      if (!m.alive) { this.prevMonsterFlags.delete(m.id); continue; }
+      const wx = m.position.x * TILE_SIZE + TILE_SIZE / 2;
+      const wy = m.position.y * TILE_SIZE + TILE_SIZE / 2;
+      if (!this.camera.isVisible(wx, wy, 64, 64)) { continue; }
+      const prev = this.prevMonsterFlags.get(m.id);
+
+      if (prev) {
+        if (m.enraged && !prev.enraged) this.particles.emitEnrageFlare(wx, wy);
+        // Shield dropping is the opening the player was waiting for — show it.
+        if (!m.shieldActive && prev.shield) this.particles.emitShieldBreak(wx, wy);
+        if (m.phased !== prev.phased) this.particles.emitWraithPhase(wx, wy);
+        if (m.staggerTicks > 0 && prev.stun <= 0) this.particles.emitStunStars(wx, wy - 10);
+        // Spiders telegraph their web with `casting`; the emitter was written for
+        // exactly this and never hooked up.
+        if (m.casting && !prev.casting && (m.type === 'spider' || m.type === 'boss_spider_queen')) {
+          this.particles.emitWebShot(wx, wy, wx + 24, wy);
+        }
+      }
+
+      this.prevMonsterFlags.set(m.id, {
+        enraged: m.enraged,
+        shield: m.shieldActive,
+        phased: m.phased,
+        stun: m.staggerTicks,
+        casting: m.casting,
+      });
+    }
+  }
+
   private detectHpChanges(state: GameState, localPlayerId: string, players: PlayerState[], monsters: MonsterState[]): void {
     const preset = QUALITY_PRESETS[this.quality];
 
@@ -2997,6 +3135,15 @@ export class GameRenderer {
         const wy = p.position.y * TILE_SIZE;
         const serverMeta = this.pendingDamageMeta.get(p.id);
         if (serverMeta) this.pendingDamageMeta.delete(p.id);
+        if (diff > 0 && p.id === localPlayerId) {
+          const kx = serverMeta?.kx ?? 0;
+          const ky = serverMeta?.ky ?? 0;
+          const mag = Math.abs(kx) + Math.abs(ky);
+          if (mag > 0.001) {
+            this.camera.punchHit(kx / mag, ky / mag, 1.6);
+          }
+          this.camera.shakeFromDamageRatio(diff / Math.max(1, p.maxHp));
+        }
         if (diff > 0) {
           // Prefer server metadata; fallback to heuristic
           const isCritical = serverMeta?.isCrit ?? (diff > p.maxHp * 0.25);

@@ -76,10 +76,6 @@ export class Camera {
     this.viewHeight = viewHeight;
   }
 
-  setViewSize(width: number, height: number): void {
-    this.viewWidth = width;
-    this.viewHeight = height;
-  }
 
   /** Update dungeon bounds for edge clamping */
   setBounds(width: number, height: number): void {
@@ -108,10 +104,6 @@ export class Camera {
     this.punchDecay = decayRate;
   }
 
-  /** Set lerp mode: 'smooth' (0.08) or 'responsive' (0.15) */
-  setLerpMode(mode: 'smooth' | 'responsive'): void {
-    this.lerpSpeed = mode === 'smooth' ? LERP_SMOOTH : LERP_RESPONSIVE;
-  }
 
   /** Snap immediately to target (no lerp) */
   snapToTarget(): void {
@@ -292,28 +284,8 @@ export class Camera {
   private readonly _stwVec: Vec2 = { x: 0, y: 0 };
   private readonly _sttVec: Vec2 = { x: 0, y: 0 };
 
-  /** Convert world coordinates (pixels) to screen coordinates (mutates reusable vec) */
-  worldToScreen(wx: number, wy: number): Vec2 {
-    this._wtsVec.x = (wx - this.scrollX) * this._zoom;
-    this._wtsVec.y = (wy - this.scrollY) * this._zoom;
-    return this._wtsVec;
-  }
 
-  /** Convert screen coordinates to world coordinates (mutates reusable vec) */
-  screenToWorld(sx: number, sy: number): Vec2 {
-    this._stwVec.x = sx / this._zoom + this.scrollX;
-    this._stwVec.y = sy / this._zoom + this.scrollY;
-    return this._stwVec;
-  }
 
-  /** Convert screen coordinates to tile coordinates (mutates reusable vec) */
-  screenToTile(sx: number, sy: number): Vec2 {
-    const wx = sx / this._zoom + this.scrollX;
-    const wy = sy / this._zoom + this.scrollY;
-    this._sttVec.x = Math.floor(wx / TILE_SIZE);
-    this._sttVec.y = Math.floor(wy / TILE_SIZE);
-    return this._sttVec;
-  }
 
   /** Check if a world-space rect is visible on screen */
   isVisible(wx: number, wy: number, w: number, h: number): boolean {

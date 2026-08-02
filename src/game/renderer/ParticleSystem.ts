@@ -540,27 +540,6 @@ export class ParticleSystem {
   }
 
   /** Portal Open: swirling blue particles for floor transition (25 particles, 2s) */
-  emitPortalOpen(x: number, y: number): void {
-    for (let i = 0; i < 25; i++) {
-      const angle = (i / 25) * Math.PI * 2;
-      const radius = 8 + Math.random() * 12;
-      const p = this.acquire();
-      if (!p) return;
-
-      p.x = x + Math.cos(angle) * radius;
-      p.y = y + Math.sin(angle) * radius;
-      p.vx = -Math.sin(angle) * 30 + Math.cos(angle) * -5;
-      p.vy = Math.cos(angle) * 30 + Math.sin(angle) * -5;
-      p.life = 1.0 + Math.random() * 1.0;
-      p.maxLife = p.life;
-      p.color = ['#3b82f6', '#60a5fa', '#93c5fd', '#2563eb', '#ffffff'][Math.floor(Math.random() * 5)];
-      p.size = 1 + Math.random() * 2;
-      p.gravity = 0;
-      p.friction = 0.98;
-      p.fadeOut = true;
-      p.shrink = true;
-    }
-  }
 
   /** Critical Hit: white flash + star burst (15 particles, 0.5s) */
   emitCriticalHit(x: number, y: number): void {
@@ -750,22 +729,6 @@ export class ParticleSystem {
   }
 
   /** footstep: 2-3 tiny dust particles when player/monster walks */
-  emitFootstep(x: number, y: number): void {
-    this.emit({
-      x, y,
-      count: 2 + Math.floor(Math.random() * 2),
-      color: '#4a4a4a',
-      speedMin: 3, speedMax: 10,
-      sizeMin: 1, sizeMax: 1,
-      lifeMin: 0.15, lifeMax: 0.2,
-      gravity: 0,
-      friction: 0.9,
-      fadeOut: true,
-      shrink: false,
-      angleMin: -Math.PI,
-      angleMax: 0,
-    });
-  }
 
   /** loot_glow: 1 particle rising slowly above loot item */
   emitLootGlow(x: number, y: number, color: string): void {
@@ -1040,9 +1003,6 @@ export class ParticleSystem {
   }
 
   /** Magic sparkles for mage attack */
-  emitMagic(x: number, y: number): void {
-    this.emitMagicBurst(x, y);
-  }
 
   /** Gold shimmer for loot pickup */
   emitGoldPickup(x: number, y: number): void {
@@ -1060,19 +1020,6 @@ export class ParticleSystem {
   }
 
   /** Dust puff for player movement */
-  emitDust(x: number, y: number): void {
-    this.emit({
-      x, y: y + 6, count: 3,
-      color: ['#6b7280', '#9ca3af'],
-      speedMin: 5, speedMax: 15,
-      sizeMin: 1, sizeMax: 2,
-      lifeMin: 0.15, lifeMax: 0.35,
-      gravity: -10,
-      fadeOut: true,
-      angleMin: -Math.PI,
-      angleMax: 0,
-    });
-  }
 
   /** Death explosion when monster dies */
   emitDeath(x: number, y: number, color: string): void {

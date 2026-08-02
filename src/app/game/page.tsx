@@ -446,15 +446,20 @@ function GamePage() {
     if (monsterKillEvents.length > 0) sound.playMonsterHurt();
   }, [monsterKillEvents.length, sound]);
 
-  // Loot pickup sounds
+  // Loot pickup: sound plus a sparkle burst at the picker's feet.
   useEffect(() => {
-    if (lootPickupEvents.length > 0) {
-      const latest = lootPickupEvents[lootPickupEvents.length - 1];
-      if (latest.lootType === 'gold') sound.playGoldPickup();
-      else if (latest.lootType === 'health_potion') sound.playHealthPotion();
-      else sound.playLootPickup();
+    if (lootPickupEvents.length === 0) return;
+    const latest = lootPickupEvents[lootPickupEvents.length - 1];
+    if (latest.lootType === 'gold') sound.playGoldPickup();
+    else if (latest.lootType === 'health_potion') sound.playHealthPotion();
+    else sound.playLootPickup();
+
+    const picker = gameState?.players[latest.playerId];
+    const r = rendererRef.current as { emitPickupBurst?: (x: number, y: number, t: string) => void } | null;
+    if (picker && r?.emitPickupBurst) {
+      r.emitPickupBurst(picker.position.x, picker.position.y, latest.lootType);
     }
-  }, [lootPickupEvents.length, sound]);
+  }, [lootPickupEvents.length, sound, gameState, lootPickupEvents, rendererRef]);
 
   // Player damage sound
   useEffect(() => {
