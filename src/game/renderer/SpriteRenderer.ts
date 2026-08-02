@@ -64,6 +64,8 @@ const N = 1, E = 2, S = 4, W = 8;
 // more room than a dry one. Overflow clears the whole map rather than evicting
 // one entry, so running out mid-floor costs a re-bake of everything on screen.
 const TILE_CACHE_MAX = 2600;
+/** Entries dropped per overflow. Small, so the re-bake cost stays spread out. */
+const TILE_CACHE_EVICT = 64;
 
 /** True for tiles that visually belong to the same "solid" family as `kind`. */
 function sameKind(t: TileType | undefined, kind: TileType): boolean {
@@ -3185,9 +3187,26 @@ export class SpriteRenderer {
           case 'water': this.drawWaterTile(sprCtx, 0, 0, hash, mask, phase); break;
         }
       }
-      // Bound the cache. It previously grew without limit and was never cleared,
-      // and adding theme + neighbour mask to the key multiplies the key space.
-      if (this.tileCache.size >= TILE_CACHE_MAX) this.tileCache.clear();
+      // Bound the cache with LRU eviction.
+      //
+      // This used to clear() the entire map on overflow, which meant every tile
+      // on screen had to be re-rasterised on the same frame — a guaranteed
+      // multi-hundred-millisecond hitch, repeating as soon as the cache filled
+      // again. A Map iterates in insertion order, so the first key is the
+      // least recently inserted; dropping a handful of those spreads the cost
+      // over many frames instead of paying it all at once.
+      if (this.tileCache.size >= TILE_CACHE_MAX) {
+        let toEvict = TILE_CACHE_EVICT;
+        for (const key of this.tileCache.keys()) {
+          this.tileCache.delete(key);
+          if (--toEvict <= 0) break;
+        }
+      }
+      this.tileCache.set(cacheKey, cached);
+    } else {
+      // Touch: re-inserting moves the key to the end of the iteration order, so
+      // tiles that are actually on screen survive eviction.
+      this.tileCache.delete(cacheKey);
       this.tileCache.set(cacheKey, cached);
     }
     ctx.drawImage(cached, Math.floor(x), Math.floor(y));
