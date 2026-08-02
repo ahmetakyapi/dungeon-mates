@@ -60,12 +60,19 @@ export const isTorchWall = (tileX: number, tileY: number): boolean =>
 // its shadow on, and whether it is an inner or outer corner.
 const N = 1, E = 2, S = 4, W = 8;
 
-const TILE_CACHE_MAX = 1400;
+// Liquids bake LIQUID_PHASES variants each, so a lava floor needs noticeably
+// more room than a dry one. Overflow clears the whole map rather than evicting
+// one entry, so running out mid-floor costs a re-bake of everything on screen.
+const TILE_CACHE_MAX = 2600;
 
 /** True for tiles that visually belong to the same "solid" family as `kind`. */
 function sameKind(t: TileType | undefined, kind: TileType): boolean {
   if (t === undefined) return true; // treat out-of-bounds as solid
   if (kind === 'wall') return t === 'wall' || t === 'void';
+  // A pool's edge is defined against everything that is not the same liquid, so
+  // these must not fall through to the walkable-floor rule below — that would
+  // report plain stone as "same kind" and no pool would ever draw a rim.
+  if (kind === 'lava' || kind === 'water') return t === kind;
   return t === 'floor' || t === 'door' || t === 'door_locked' || t === 'stairs' || t === 'chest';
 }
 
@@ -97,6 +104,8 @@ const SPRITE_CACHE_MAX = 768;
 // marched in place, which is the single most obvious "unfinished" tell in a
 // pixel-art game.
 const IDLE_ANIM_IDX = 0;
+/** Animation phases baked per liquid tile. Enough to read as flowing. */
+const LIQUID_PHASES = 8;
 const ANIM_PERIOD = 12;      // covers %2 %3 %4 %6 %12 cycles
 const BOSS_ANIM_PERIOD = 24; // covers %8 and %24 as well
 
@@ -3141,14 +3150,21 @@ export class SpriteRenderer {
     // Neighbour bitmask for autotiling. These parameters were already being passed
     // in and then ignored, so every wall was drawn as the same flat slab with no
     // top face, corners or floor transition.
-    const mask = type === 'wall' || type === 'floor'
+    const isLiquid = type === 'lava' || type === 'water';
+    const mask = type === 'wall' || type === 'floor' || isLiquid
       ? neighbourMask(tiles, tileX, tileY, type)
       : 0;
 
     // Cache each tile as an offscreen canvas — tiles are fully deterministic per
     // hash, neighbour mask and floor theme.
+    //
+    // Liquids are the exception: they have to move, so their key carries a
+    // coarse animation phase. LIQUID_PHASES variants per liquid tile is a small
+    // price; baking the phase into the key keeps the hot path a drawImage
+    // instead of re-rasterising a pool every frame.
     const reducedHash = hash & 0x7ff;
-    const cacheKey = `t${type}_${reducedHash}_${roomCleared ? 1 : 0}_${mask}_${this.themeFloor}`;
+    const phase = isLiquid ? Math.floor((_animFrame ?? 0) / 2) % LIQUID_PHASES : 0;
+    const cacheKey = `t${type}_${reducedHash}_${roomCleared ? 1 : 0}_${mask}_${this.themeFloor}_${phase}`;
     let cached = this.tileCache.get(cacheKey);
     if (!cached) {
       cached = document.createElement('canvas');
@@ -3165,6 +3181,8 @@ export class SpriteRenderer {
           case 'stairs': this.drawStairsTile(sprCtx, 0, 0); break;
           case 'chest': this.drawChestTile(sprCtx, 0, 0, roomCleared); break;
           case 'void': px(sprCtx, 0, 0, TILE_SIZE, TILE_SIZE, '#000000'); break;
+          case 'lava': this.drawLavaTile(sprCtx, 0, 0, hash, mask, phase); break;
+          case 'water': this.drawWaterTile(sprCtx, 0, 0, hash, mask, phase); break;
         }
       }
       // Bound the cache. It previously grew without limit and was never cleared,
@@ -3173,6 +3191,69 @@ export class SpriteRenderer {
       this.tileCache.set(cacheKey, cached);
     }
     ctx.drawImage(cached, Math.floor(x), Math.floor(y));
+  }
+
+  /**
+   * Molten rock. Bright cracks drift across a dark crust, and the edge tiles
+   * (any neighbour that is not also lava) get a cooled rim so a pool reads as a
+   * pool rather than a flat red square.
+   */
+  private drawLavaTile(
+    ctx: CanvasRenderingContext2D, x: number, y: number, hash: number, mask: number, phase: number,
+  ): void {
+    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#4a1206');
+
+    // Convection cells: bright blobs that shift with the phase.
+    for (let i = 0; i < 5; i++) {
+      const n = (hash >> (i * 3)) & 7;
+      const drift = (phase + i * 2) % LIQUID_PHASES;
+      const bx = x + ((n + drift) % TILE_SIZE);
+      const by = y + ((n * 5 + drift * 2) % TILE_SIZE);
+      const w = 2 + (n & 3);
+      px(ctx, bx, by, w, 2, i % 2 === 0 ? '#c2410c' : '#ea580c');
+    }
+    // Hottest veins, thinner and faster.
+    for (let i = 0; i < 3; i++) {
+      const n = (hash >> (i * 4 + 2)) & 15;
+      const drift = (phase * 2 + i * 3) % TILE_SIZE;
+      px(ctx, x + ((n + drift) % TILE_SIZE), y + ((n * 3) % TILE_SIZE), 2, 1, '#fbbf24');
+    }
+    // Cooled crust on any edge facing something that is not lava.
+    const crust = '#1c0a06';
+    if (!(mask & 1)) px(ctx, x, y, TILE_SIZE, 2, crust);
+    if (!(mask & 2)) px(ctx, x + TILE_SIZE - 2, y, 2, TILE_SIZE, crust);
+    if (!(mask & 4)) px(ctx, x, y + TILE_SIZE - 2, TILE_SIZE, 2, crust);
+    if (!(mask & 8)) px(ctx, x, y, 2, TILE_SIZE, crust);
+  }
+
+  /**
+   * Standing water. Dark base with a drifting specular band, plus a lighter
+   * shoreline on the edges — the same neighbour logic the lava uses.
+   */
+  private drawWaterTile(
+    ctx: CanvasRenderingContext2D, x: number, y: number, hash: number, mask: number, phase: number,
+  ): void {
+    px(ctx, x, y, TILE_SIZE, TILE_SIZE, '#0f2e42');
+    px(ctx, x, y + 2, TILE_SIZE, TILE_SIZE - 4, '#155e75');
+
+    // Ripples: two bands sliding at different speeds so the surface never
+    // resolves into an obvious loop.
+    for (let i = 0; i < 3; i++) {
+      const n = (hash >> (i * 3)) & 7;
+      const row = (n + phase + i * 4) % TILE_SIZE;
+      px(ctx, x + ((n * 2 + phase) % TILE_SIZE), y + row, 4 + (n & 3), 1, '#22d3ee');
+    }
+    for (let i = 0; i < 2; i++) {
+      const n = (hash >> (i * 5 + 3)) & 15;
+      const row = (n + LIQUID_PHASES - phase) % TILE_SIZE;
+      px(ctx, x + ((n + phase * 2) % TILE_SIZE), y + row, 2, 1, '#a5f3fc');
+    }
+    // Shoreline.
+    const shore = '#0c4a6e';
+    if (!(mask & 1)) px(ctx, x, y, TILE_SIZE, 1, shore);
+    if (!(mask & 2)) px(ctx, x + TILE_SIZE - 1, y, 1, TILE_SIZE, shore);
+    if (!(mask & 4)) px(ctx, x, y + TILE_SIZE - 1, TILE_SIZE, 1, shore);
+    if (!(mask & 8)) px(ctx, x, y, 1, TILE_SIZE, shore);
   }
 
   /**

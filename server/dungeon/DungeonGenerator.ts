@@ -5,6 +5,7 @@ import {
   DUNGEON_HEIGHT,
   ROOM_MIN_SIZE,
   ROOM_MAX_SIZE,
+  hazardForFloor,
 } from '../../shared/types';
 
 type BSPNode = {
@@ -150,6 +151,8 @@ export class DungeonGenerator {
     // same doorways twice.
     this.placeChests();
     this.placeStairs(config.hasBoss);
+    // After chests and stairs, so a pool can never swallow either.
+    this.placeHazards(floor);
 
     const floorDifficulty: FloorDifficulty = {
       hpMultiplier: config.hpMultiplier,
@@ -557,6 +560,56 @@ export class DungeonGenerator {
 
     // Çıkış odasının merkezine merdiven yerleştir
     this.tiles[exitRoom.centerY][exitRoom.centerX] = 'stairs';
+  }
+
+  /**
+   * Lava and water pools.
+   *
+   * Both are walkable, so they add pressure rather than obstruction: lava burns
+   * what stands in it, water slows. They are placed last, only on plain floor
+   * tiles, so they can never cover a chest, the stairs or a doorway, and never
+   * in the start room — you should not have to cross a hazard to begin.
+   *
+   * Pools grow by random walk from a seed tile, which gives an organic edge the
+   * autotiler can read, instead of the rectangles a box fill would produce.
+   */
+  private placeHazards(floor: number): void {
+    const spec = hazardForFloor(floor);
+    if (!spec) return;
+
+    for (const room of this.rooms) {
+      if (room.isStartRoom) continue;
+      // A boss arena needs clean footing for its telegraphs to be fair.
+      if (room.isBossRoom) continue;
+      if (Math.random() > spec.roomChance) continue;
+
+      const pools = 1 + Math.floor(Math.random() * spec.maxPools);
+      for (let p = 0; p < pools; p++) {
+        // Seed away from the walls so a pool never reaches a doorway.
+        const sx = room.x + 2 + Math.floor(Math.random() * Math.max(1, room.width - 4));
+        const sy = room.y + 2 + Math.floor(Math.random() * Math.max(1, room.height - 4));
+        if (this.tiles[sy]?.[sx] !== 'floor') continue;
+
+        let cx = sx;
+        let cy = sy;
+        const size = spec.minSize + Math.floor(Math.random() * (spec.maxSize - spec.minSize + 1));
+        for (let i = 0; i < size; i++) {
+          // Two tiles clear of the room border. Doorways are carved on that
+          // border, and a pool sitting right inside one means stepping out of a
+          // corridor straight into lava with no chance to see it first.
+          if (
+            cy > room.y + 1 && cy < room.y + room.height - 2 &&
+            cx > room.x + 1 && cx < room.x + room.width - 2 &&
+            this.tiles[cy]?.[cx] === 'floor'
+          ) {
+            this.tiles[cy][cx] = spec.type;
+          }
+          // Random walk to the next tile in the pool.
+          if (Math.random() < 0.5) cx += Math.random() < 0.5 ? 1 : -1;
+          else cy += Math.random() < 0.5 ? 1 : -1;
+        }
+      }
+    }
   }
 
   private placeWalls(): void {

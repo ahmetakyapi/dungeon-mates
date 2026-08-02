@@ -12,7 +12,16 @@ import type { EliteAffix } from './elites';
 
 // --- Enum'lar ---
 export type GamePhase = 'lobby' | 'class_select' | 'playing' | 'boss' | 'victory' | 'defeat' | 'game_over' | 'shopping';
-export type TileType = 'floor' | 'wall' | 'door' | 'door_locked' | 'door_sealed' | 'stairs' | 'chest' | 'void';
+// 'lava' and 'water' are walkable hazards, not obstacles — collision is a
+// blocklist of wall/void/sealed, so neither needs a movement rule. Lava burns
+// what stands in it; water slows. Floor 8 was named "Lav Nehirleri" and had no
+// lava anywhere in it.
+export type TileType =
+  | 'floor' | 'wall' | 'door' | 'door_locked' | 'door_sealed'
+  | 'stairs' | 'chest' | 'void' | 'lava' | 'water';
+
+/** Tiles a character can stand on. */
+export const HAZARD_TILES: ReadonlySet<TileType> = new Set<TileType>(['lava', 'water']);
 export type Direction = 'up' | 'down' | 'left' | 'right';
 
 // --- Entity Tipleri ---

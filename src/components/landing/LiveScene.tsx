@@ -8,6 +8,7 @@ import {
   ATTACK_PROFILES,
   TELEGRAPH_CONE,
   floorTheme,
+  hazardForFloor,
   type TileType,
   type MonsterType,
 
@@ -551,6 +552,32 @@ function drawDescend(s: Stage, cycleIndex: number) {
   }
 }
 
+/**
+ * A fixed pool shape for the floors that carry one. Uses the same shared table
+ * the dungeon generator does, so the page never advertises lava on a floor that
+ * does not have it.
+ */
+function stampHazard(tiles: TileType[][], cols: number, rows: number, floor: number): void {
+  const spec = hazardForFloor(floor);
+  if (!spec) return;
+  const cx = Math.floor(cols * 0.42);
+  const cy = Math.floor(rows * 0.62);
+  // A blob, widest through the middle, so the autotiler has real edges to find.
+  const shape = [
+    [0, -1], [1, -1],
+    [-1, 0], [0, 0], [1, 0], [2, 0],
+    [-1, 1], [0, 1], [1, 1], [2, 1], [3, 1],
+    [0, 2], [1, 2], [2, 2],
+  ];
+  for (const [dx, dy] of shape) {
+    const x = cx + dx;
+    const y = cy + dy;
+    if (x > 1 && y > 1 && x < cols - 2 && y < rows - 2 && tiles[y][x] === 'floor') {
+      tiles[y][x] = spec.type;
+    }
+  }
+}
+
 // ── component ─────────────────────────────────────────────────────────────
 
 export function LiveScene({
@@ -652,7 +679,19 @@ export function LiveScene({
       if (activeFloor !== lastThemeFloor) {
         sprites.setFloorTheme(activeFloor);
         lastThemeFloor = activeFloor;
+        // The descend scene walks through floors; last floor's pool must not
+        // survive into the next one's palette.
+        for (let y = 1; y < rows - 1; y++) {
+          for (let x = 1; x < cols - 1; x++) {
+            if (baseTiles[y][x] === 'lava' || baseTiles[y][x] === 'water') baseTiles[y][x] = 'floor';
+          }
+        }
       }
+
+      // Hazard pools, so a floor that has lava in the dungeon has lava here
+      // too. Deterministic rather than random-walked: the scene loops, and a
+      // pool that reshaped itself every cycle would read as a glitch.
+      stampHazard(baseTiles, cols, rows, activeFloor);
 
       // Props are written into the grid before the tile pass so the chest and
       // the stairs are drawn as real tiles with the floor's own palette.

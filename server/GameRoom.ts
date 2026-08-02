@@ -172,12 +172,24 @@ const generateLootId = (): string => {
   return `loot_${nextLootId}_${Date.now()}`;
 };
 
+/** Lava: a cost you can choose to pay, not an instant death. */
+const LAVA_DAMAGE = 8;
+/** Ticks between lava hits — 20 TPS, so roughly twice a second. */
+const LAVA_DAMAGE_INTERVAL = 10;
+/** Water drag. Refreshed while standing in it, expires shortly after leaving. */
+const WATER_SLOW_MULT = 0.62;
+const WATER_SLOW_TICKS = 6;
+/** How close a player must be to be credited for a lava kill. */
+const LAVA_CREDIT_RADIUS = 9;
+
 export class GameRoom {
   public readonly roomCode: string;
   public isSolo: boolean;
   private readonly io: Server;
   private phase: GamePhase;
   private tick: number;
+  /** Next tick each player may take lava damage on — see applyHazardTile. */
+  private readonly lavaTickAt: Map<string, number> = new Map();
   private gameLoopTimer: ReturnType<typeof setInterval> | null;
 
   private players: Map<string, Player>;
@@ -957,6 +969,7 @@ export class GameRoom {
     roomCounts.clear();
     for (const player of this.players.values()) {
       if (!player.state.alive) continue;
+      this.applyHazardTile(player);
       const roomId = this.getRoomAtPosition(player.state.position);
       if (roomId !== null) {
         activeRoomIds.add(roomId);
@@ -1190,6 +1203,25 @@ export class GameRoom {
           const poisonSrc = monster.poisonSourceId ?? 'poison';
           this.queueDamage(monsterId, actual, poisonSrc, { damageType: 'poison', shake: 0.05 });
           if (!monster.state.alive) this.handleMonsterKilled(monster, poisonSrc);
+        }
+
+        // Lava burns monsters too.
+        //
+        // If it only hurt players it would be a pure tax; hurting both makes a
+        // pool a piece of terrain you can fight around, and kiting something
+        // heavy across one is a real answer to it. Bosses are exempt — their
+        // arenas have no pools, and a boss cooked by scenery is not a fight.
+        if (!monster.state.type.startsWith('boss_')) {
+          const mx = Math.floor(monster.state.position.x);
+          const my = Math.floor(monster.state.position.y);
+          if (this.tiles[my]?.[mx] === 'lava') {
+            const actual = monster.takeDamage(LAVA_DAMAGE, 'normal', 'physical');
+            // Credit the nearest player, so pulling an enemy into lava still
+            // pays out. With nobody close it is scenery and awards nothing.
+            const src = this.nearestPlayerId(monster.state.position, LAVA_CREDIT_RADIUS) ?? 'lava';
+            this.queueDamage(monsterId, actual, src, { damageType: 'fire', shake: 0.05 });
+            if (!monster.state.alive) this.handleMonsterKilled(monster, src);
+          }
         }
       }
     }
@@ -1975,6 +2007,51 @@ export class GameRoom {
   }
 
   /** O(1) room lookup via pre-built grid */
+  /**
+   * Lava burns, water slows.
+   *
+   * Damage is applied on an interval rather than every tick so a pool is a cost
+   * you can choose to pay — crossing two tiles of lava should hurt, not kill.
+   * It routes through takeDamage so dodge i-frames and the healer's ultimate
+   * immunity are respected, exactly like any other damage source.
+   */
+  private applyHazardTile(player: Player): void {
+    const tx = Math.floor(player.state.position.x);
+    const ty = Math.floor(player.state.position.y);
+    const tile = this.tiles[ty]?.[tx];
+    if (tile === 'water') {
+      // Refreshed every tick while standing in it; expires shortly after leaving.
+      player.applySlow(WATER_SLOW_MULT, WATER_SLOW_TICKS);
+      return;
+    }
+    if (tile !== 'lava') return;
+
+    const id = player.state.id;
+    const next = this.lavaTickAt.get(id) ?? 0;
+    if (this.tick < next) return;
+    this.lavaTickAt.set(id, this.tick + LAVA_DAMAGE_INTERVAL);
+
+    const result = player.takeDamage(LAVA_DAMAGE + Math.floor(this.currentFloor * 0.6));
+    if (!result.dodged && result.effectiveDamage > 0) {
+      this.queueDamage(id, result.effectiveDamage, 'lava', { shake: 0.3, damageType: 'fire' });
+    }
+    if (!player.state.alive) this.handlePlayerDeath(player);
+  }
+
+  /** Closest living player within `radius` tiles, or null. */
+  private nearestPlayerId(pos: Vec2, radius: number): string | null {
+    let best: string | null = null;
+    let bestDist = radius * radius;
+    for (const p of this.players.values()) {
+      if (!p.state.alive) continue;
+      const dx = p.state.position.x - pos.x;
+      const dy = p.state.position.y - pos.y;
+      const d = dx * dx + dy * dy;
+      if (d <= bestDist) { bestDist = d; best = p.state.id; }
+    }
+    return best;
+  }
+
   private getRoomAtPosition(pos: Vec2): number | null {
     const tx = Math.floor(pos.x);
     const ty = Math.floor(pos.y);

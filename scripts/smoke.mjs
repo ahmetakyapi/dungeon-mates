@@ -60,7 +60,9 @@ socket.on('game:damage_batch', (batch) => {
   }
 });
 
-const WALKABLE = new Set(['floor', 'door', 'stairs']);
+// Lava and water are walkable hazards, so the bot has to path across them or it
+// will report itself stuck in any room with a pool in the middle.
+const WALKABLE = new Set(['floor', 'door', 'stairs', 'lava', 'water']);
 
 /** BFS over walkable tiles; returns a unit step toward the next waypoint. */
 function bfsStep(state, from, to) {
