@@ -22,6 +22,8 @@ import {
   MONSTER_STATS,
   LOOT_TABLE,
   SHOP_ITEMS,
+  rollShopStock,
+  rerollCost,
   FLOOR_MODIFIERS,
   goldValueForFloor,
   SUMMONER_COOLDOWN_TICKS,
@@ -217,6 +219,9 @@ export class GameRoom {
   /** Per-player, per-item purchase counts for permanent upgrades this run. */
   private readonly shopPurchaseCounts: Map<string, Map<string, number>> = new Map();
   private shopTimeout: ReturnType<typeof setTimeout> | null = null;
+  /** The stock currently on offer, and how many times it has been re-rolled. */
+  private shopStock: ShopItem[] = [];
+  private shopRerollCount = 0;
   private currentFloorModifiers: FloorModifier[] = [];
   private bossPhaseTracker: Map<string, number> = new Map();
   /** Boss room stays sealed until the rest of the floor is cleared. */
@@ -638,7 +643,9 @@ export class GameRoom {
     if (this.phase !== 'shopping') return;
     const player = this.players.get(socketId);
     if (!player) return;
-    const item = SHOP_ITEMS.find(i => i.id === itemId);
+    // Only what is actually on offer. Looking the id up in the full catalogue
+    // would let a client buy anything it named, stock or no stock.
+    const item = this.shopStock.find(i => i.id === itemId);
     if (!item) return;
     if (item.floorRequirement && this.currentFloor < item.floorRequirement) return;
     if (item.levelRequirement && player.state.level < item.levelRequirement) return;
@@ -678,24 +685,55 @@ export class GameRoom {
   private startShoppingPhase(): void {
     this.phase = 'shopping';
     this.shopReadyPlayers.clear();
-    const currentFloor = this.currentFloor;
-    // Send all items up to this floor — client filters by player level
-    const availableItems = SHOP_ITEMS.filter(
-      item => (!item.floorRequirement || currentFloor >= item.floorRequirement)
-    );
-    const playerGold: Record<string, number> = {};
-    for (const [id, player] of this.players) {
-      playerGold[id] = player.state.gold;
-    }
+    this.shopRerollCount = 0;
+    // A limited, rolled stock rather than the full catalogue. Showing every
+    // item every time meant the shop was a list, not a choice.
+    this.shopStock = rollShopStock(this.currentFloor, this.maxPlayerLevel());
     this.io.to(this.roomCode).emit('game:phase_change', { phase: 'shopping' });
-    this.io.to(this.roomCode).emit('game:shop_open', {
-      items: availableItems as ShopItem[],
-      playerGold,
-    });
+    this.emitShopState();
     // 30 saniye timeout
     this.shopTimeout = setTimeout(() => {
       this.endShoppingPhase();
     }, 30000);
+  }
+
+  /** Highest level in the party — gates which tiers can appear in stock. */
+  private maxPlayerLevel(): number {
+    let max = 1;
+    for (const p of this.players.values()) max = Math.max(max, p.state.level);
+    return max;
+  }
+
+  private emitShopState(): void {
+    const playerGold: Record<string, number> = {};
+    for (const [id, player] of this.players) playerGold[id] = player.state.gold;
+    this.io.to(this.roomCode).emit('game:shop_open', {
+      items: this.shopStock as ShopItem[],
+      playerGold,
+      rerollCost: rerollCost(this.shopRerollCount),
+      rerollCount: this.shopRerollCount,
+    });
+  }
+
+  /**
+   * Pay to re-roll the stock.
+   *
+   * The cost escalates, so rerolling is a way out of a bad shop rather than a
+   * way to shop for exactly what you want. Purchases already made are kept —
+   * only the offer changes.
+   */
+  handleShopReroll(socketId: string): void {
+    if (this.phase !== 'shopping') return;
+    const player = this.players.get(socketId);
+    if (!player) return;
+
+    const cost = rerollCost(this.shopRerollCount);
+    if (player.state.gold < cost) return;
+
+    player.state.gold -= cost;
+    this.shopRerollCount++;
+    this.shopStock = rollShopStock(this.currentFloor, this.maxPlayerLevel());
+    this.emitShopState();
   }
 
   private endShoppingPhase(): void {

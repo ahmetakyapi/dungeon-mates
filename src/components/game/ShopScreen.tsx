@@ -3,13 +3,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import type { ShopItem } from '../../../shared/types';
+import { shopRarity, RARITY_STYLE } from '../../../shared/types';
 
 type ShopScreenProps = {
   items: ShopItem[];
   playerGold: number;
   playerLevel: number;
   floor: number;
+  /** Cost of the next re-roll; escalates within a visit. */
+  rerollCost: number;
   onBuy: (itemId: string) => void;
+  onReroll: () => void;
   onContinue: () => void;
 };
 
@@ -26,17 +30,12 @@ function getMerchantLine(floor: number): string {
   return MERCHANT_LINES.late;
 }
 
-// Tier bilgisi
-function getItemTier(item: ShopItem): { label: string; color: string } {
-  const lvl = item.levelRequirement ?? 0;
-  if (lvl >= 9) return { label: 'Efsane', color: '#f59e0b' };
-  if (lvl >= 7) return { label: 'Uzman', color: '#a855f7' };
-  if (lvl >= 5) return { label: 'İleri', color: '#3b82f6' };
-  if (lvl >= 3) return { label: 'Orta', color: '#10b981' };
-  return { label: 'Temel', color: '#71717a' };
+/** Rarity comes from shared/shop.ts so the label and colour never drift. */
+function getItemTier(item: ShopItem): { label: string; color: string; glow: string } {
+  return RARITY_STYLE[shopRarity(item)];
 }
 
-export function ShopScreen({ items, playerGold, playerLevel, floor, onBuy, onContinue }: ShopScreenProps) {
+export function ShopScreen({ items, playerGold, playerLevel, floor, rerollCost, onBuy, onReroll, onContinue }: ShopScreenProps) {
   const [gold, setGold] = useState(playerGold);
   const [purchasedIds, setPurchasedIds] = useState<Set<string>>(new Set());
   const [timer, setTimer] = useState(30);
@@ -150,8 +149,20 @@ export function ShopScreen({ items, playerGold, playerLevel, floor, onBuy, onCon
           </div>
         )}
 
-        {/* Devam butonu */}
-        <div className="flex justify-center mt-4">
+        {/* Yeniden çek + devam */}
+        <div className="flex justify-center items-center gap-3 mt-4">
+          <button
+            onClick={() => { if (gold >= rerollCost) { setGold((g) => g - rerollCost); onReroll(); } }}
+            disabled={gold < rerollCost}
+            className={`px-4 py-2.5 rounded-lg font-bold text-sm transition-colors border ${
+              gold >= rerollCost
+                ? 'bg-violet-900/40 border-violet-500/40 text-violet-200 hover:bg-violet-800/50'
+                : 'bg-zinc-800/60 border-zinc-700/40 text-zinc-600 cursor-not-allowed'
+            }`}
+            title="Tezgâhı yenile — bedeli her seferinde artar"
+          >
+            🎲 Yenile · {rerollCost}
+          </button>
           <button
             onClick={onContinue}
             className="px-6 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition-colors"

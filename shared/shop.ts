@@ -57,3 +57,99 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'soul_blade', name: 'Ruh Kılıcı', description: '+12 saldırı, +0.1 hız', cost: 450, type: 'upgrade', emoji: '🗡️', levelRequirement: 9, floorRequirement: 8, effect: { attack: 12, speed: 0.1 } },
   { id: 'phoenix_elixir', name: 'Anka İksiri', description: 'Tam can ve mana', cost: 300, type: 'consumable', emoji: '🦅', levelRequirement: 9, effect: { hp: 999, mana: 999 } },
 ] as const;
+
+// ==========================================
+// Stok, nadirlik ve yeniden çekme
+//
+// Dükkân eskiden o kata uygun HER eşyayı gösteriyordu. Bu, dükkânı bir karar
+// olmaktan çıkarıp bir listeye çeviriyordu: ne istiyorsan hep oradaydı, tek
+// kısıt altındı. Sınırlı stok kıtlık yaratıyor, yeniden çekme de kötü bir
+// stoğa mahkûm kalmamak için altınla ödenen bir çıkış yolu veriyor.
+// ==========================================
+
+export type ShopRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+
+/** Nadirlik seviye şartından türetiliyor — ayrı bir alan drift ederdi. */
+export function shopRarity(item: ShopItem): ShopRarity {
+  const lv = item.levelRequirement ?? 1;
+  if (lv >= 9) return 'legendary';
+  if (lv >= 7) return 'epic';
+  if (lv >= 5) return 'rare';
+  if (lv >= 3) return 'uncommon';
+  return 'common';
+}
+
+export const RARITY_STYLE: Record<ShopRarity, { label: string; color: string; glow: string }> = {
+  common: { label: 'Sıradan', color: '#a1a1aa', glow: 'rgba(161,161,170,0.25)' },
+  uncommon: { label: 'Nadir', color: '#4ade80', glow: 'rgba(74,222,128,0.3)' },
+  rare: { label: 'Ender', color: '#60a5fa', glow: 'rgba(96,165,250,0.35)' },
+  epic: { label: 'Destansı', color: '#c084fc', glow: 'rgba(192,132,252,0.4)' },
+  legendary: { label: 'Efsane', color: '#fbbf24', glow: 'rgba(251,191,36,0.45)' },
+};
+
+/** Bir dükkân ziyaretinde kaç eşya sergilenir. */
+export const SHOP_STOCK_SIZE = 6;
+/** İlk yeniden çekmenin bedeli; her çekmede bu kadar artar. */
+export const SHOP_REROLL_BASE_COST = 30;
+
+export function rerollCost(timesRerolled: number): number {
+  return SHOP_REROLL_BASE_COST * (timesRerolled + 1);
+}
+
+/**
+ * Bir ziyaret için stok çek.
+ *
+ * Ağırlıklar oyuncunun seviyesine göre kayıyor: erken oyunda çoğunlukla ucuz
+ * ve kullanışlı şeyler, geç oyunda üst kademeler. En az bir tüketimlik garanti
+ * — canı azalmış bir takımın iksir bulamadan çıktığı bir dükkân, dükkân değil
+ * cezadır.
+ */
+export function rollShopStock(
+  floor: number,
+  maxPlayerLevel: number,
+  rng: () => number = Math.random,
+): ShopItem[] {
+  const eligible = SHOP_ITEMS.filter((item) =>
+    (!item.floorRequirement || floor >= item.floorRequirement) &&
+    (!item.levelRequirement || maxPlayerLevel >= item.levelRequirement));
+
+  if (eligible.length <= SHOP_STOCK_SIZE) return [...eligible];
+
+  const weightOf = (item: ShopItem): number => {
+    const gap = maxPlayerLevel - (item.levelRequirement ?? 1);
+    // Kendi kademesindekiler en olası; çok gerideki kademeler seyrekleşiyor
+    // ama tamamen kaybolmuyor (ucuz iksirler her zaman işe yarar).
+    if (gap <= 1) return 5;
+    if (gap <= 3) return 3;
+    if (gap <= 5) return 2;
+    return 1;
+  };
+
+  const pool = [...eligible];
+  const picked: ShopItem[] = [];
+
+  // Önce bir tüketimlik garanti et.
+  const consumables = pool.filter((i) => i.type === 'consumable');
+  if (consumables.length > 0) {
+    const c = consumables[Math.floor(rng() * consumables.length)];
+    picked.push(c);
+    pool.splice(pool.indexOf(c), 1);
+  }
+
+  while (picked.length < SHOP_STOCK_SIZE && pool.length > 0) {
+    let total = 0;
+    for (const item of pool) total += weightOf(item);
+    let roll = rng() * total;
+    let idx = 0;
+    for (let i = 0; i < pool.length; i++) {
+      roll -= weightOf(pool[i]);
+      if (roll <= 0) { idx = i; break; }
+      idx = i;
+    }
+    picked.push(pool[idx]);
+    pool.splice(idx, 1);
+  }
+
+  // Ucuzdan pahalıya — göz önce ödeyebileceği şeyi görsün.
+  return picked.sort((a, b) => a.cost - b.cost);
+}

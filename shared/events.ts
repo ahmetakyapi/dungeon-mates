@@ -54,6 +54,7 @@ export type ClientEvents = {
   'player:interact': () => void;
   'player:select_talent': (data: { talentId: TalentId }) => void;
   'player:buy_item': (data: { itemId: string }) => void;
+  'player:shop_reroll': () => void;
   'player:shop_done': () => void;
   'chat:send': (data: { text: string }) => void;
 };
@@ -84,7 +85,13 @@ export type ServerEvents = {
   'game:talent_choice': (data: { playerId: string; talents: TalentDef[] }) => void;
   'game:talent_selected': (data: { playerId: string; talentId: TalentId }) => void;
   'game:level_up': (data: { playerId: string; level: number }) => void;
-  'game:shop_open': (data: { items: ShopItem[]; playerGold: Record<string, number> }) => void;
+  'game:shop_open': (data: {
+    items: ShopItem[];
+    playerGold: Record<string, number>;
+    /** Cost of the NEXT re-roll; escalates within a visit. */
+    rerollCost?: number;
+    rerollCount?: number;
+  }) => void;
   'game:item_purchased': (data: { playerId: string; itemId: string; remainingGold: number }) => void;
   'game:boss_phase': (data: { monsterId: string; phase: number }) => void;
   'game:ultimate_activated': (data: { playerId: string; playerClass: string; kind: 'berserker_rush' | 'arcane_nova' | 'piercing_volley' | 'divine_intervention' }) => void;

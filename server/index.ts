@@ -275,6 +275,14 @@ io.on('connection', (socket) => {
     room.handleBuyItem(socket.id, itemId);
   });
 
+  socket.on('player:shop_reroll', () => {
+    if (!checkRateLimit(socket.id)) return;
+    if (!currentRoomCode) return;
+    const room = rooms.get(currentRoomCode);
+    if (!room) return;
+    room.handleShopReroll(socket.id);
+  });
+
   socket.on('player:shop_done', () => {
     if (!currentRoomCode) return;
     const room = rooms.get(currentRoomCode);

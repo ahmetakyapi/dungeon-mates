@@ -125,6 +125,7 @@ function GamePage() {
     selectTalent,
     buyItem,
     shopDone,
+    rerollShop,
     damageEvents,
     bossPhaseEvent,
     ultimateActivatedEvents,
@@ -1358,7 +1359,9 @@ function GamePage() {
           playerGold={localPlayer?.gold ?? 0}
           playerLevel={localPlayer?.level ?? 1}
           floor={gameState?.dungeon.currentFloor ?? 1}
+          rerollCost={shopOpenEvent.rerollCost ?? 30}
           onBuy={buyItem}
+          onReroll={rerollShop}
           onContinue={shopDone}
         />
       )}

@@ -19,6 +19,17 @@ import type {
 } from '../../shared/types';
 import type { ChatMessage } from '@/components/game/ChatBox';
 
+/**
+ * The shop's current offer. `rerollCost` is what the next re-roll costs, which
+ * escalates within a single visit — the client shows it on the button.
+ */
+type ShopOpenPayload = {
+  items: ShopItem[];
+  playerGold: Record<string, number>;
+  rerollCost?: number;
+  rerollCount?: number;
+};
+
 type ConnectionState = 'disconnected' | 'connecting' | 'connected';
 
 type DamageEvent = {
@@ -66,7 +77,7 @@ type UseGameSocketReturn = {
   retryConnection: () => void;
   // Talent & Shop
   talentChoiceEvent: { playerId: string; talents: TalentDef[] } | null;
-  shopOpenEvent: { items: ShopItem[]; playerGold: Record<string, number> } | null;
+  shopOpenEvent: ShopOpenPayload | null;
   levelUpEvent: { playerId: string; level: number } | null;
   floorModifiers: FloorModifier[];
   bossDialogue: { bossType: string; dialogue: string; phase: number } | null;
@@ -75,6 +86,7 @@ type UseGameSocketReturn = {
   selectTalent: (talentId: string) => void;
   buyItem: (itemId: string) => void;
   shopDone: () => void;
+  rerollShop: () => void;
 };
 
 export function useGameSocket(): UseGameSocketReturn {
@@ -108,7 +120,7 @@ export function useGameSocket(): UseGameSocketReturn {
   const [ping, setPing] = useState(0);
   // Talent & Shop
   const [talentChoiceEvent, setTalentChoiceEvent] = useState<{ playerId: string; talents: TalentDef[] } | null>(null);
-  const [shopOpenEvent, setShopOpenEvent] = useState<{ items: ShopItem[]; playerGold: Record<string, number> } | null>(null);
+  const [shopOpenEvent, setShopOpenEvent] = useState<ShopOpenPayload | null>(null);
   const [levelUpEvent, setLevelUpEvent] = useState<{ playerId: string; level: number } | null>(null);
   const [floorModifiers, setFloorModifiers] = useState<FloorModifier[]>([]);
   const [bossDialogue, setBossDialogue] = useState<{ bossType: string; dialogue: string; phase: number } | null>(null);
@@ -593,6 +605,10 @@ export function useGameSocket(): UseGameSocketReturn {
     socketRef.current?.emit('player:buy_item', { itemId });
   }, []);
 
+  const rerollShop = useCallback(() => {
+    socketRef.current?.emit('player:shop_reroll');
+  }, []);
+
   const shopDone = useCallback(() => {
     socketRef.current?.emit('player:shop_done');
     setShopOpenEvent(null);
@@ -654,5 +670,6 @@ export function useGameSocket(): UseGameSocketReturn {
     selectTalent,
     buyItem,
     shopDone,
+    rerollShop,
   };
 }
