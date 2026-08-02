@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import type { ShopItem } from '../../../shared/types';
-import { shopRarity, RARITY_STYLE } from '../../../shared/types';
+import { shopRarity, RARITY_STYLE, merchantLine } from '../../../shared/types';
 
 type ShopScreenProps = {
   items: ShopItem[];
@@ -17,18 +17,8 @@ type ShopScreenProps = {
   onContinue: () => void;
 };
 
-// Vezneci Arin diyalogları
-const MERCHANT_LINES: Record<string, string> = {
-  early: 'Ah, yeni yüzler. Altınlarınız varsa, Zephara\'nın kalıntılarından bir şeyler sunabilirim.',
-  mid: 'Selvira\'yı gördünüz demek... Daha derine inecekseniz, hazırlıklı olun.',
-  late: 'Karanmir\'in yakınına gidiyorsunuz. Alabildiğinizi alın — geri dönemeyen çok oldu.',
-};
-
-function getMerchantLine(floor: number): string {
-  if (floor <= 4) return MERCHANT_LINES.early;
-  if (floor <= 7) return MERCHANT_LINES.mid;
-  return MERCHANT_LINES.late;
-}
+// Merchant dialogue lives in shared/lore.ts with the rest of the narrative.
+const getMerchantLine = merchantLine;
 
 /** Rarity comes from shared/shop.ts so the label and colour never drift. */
 function getItemTier(item: ShopItem): { label: string; color: string; glow: string } {

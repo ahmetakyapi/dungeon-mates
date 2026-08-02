@@ -31,7 +31,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { CLASS_STATS, type PlayerClass, floorTheme } from '../../shared/types';
+import { CLASS_STATS, type PlayerClass, floorTheme, ACTS, FLOOR_LORE, PROLOGUE, CALLING } from '../../shared/types';
 import { LiveScene, type ScenePhase, type PhaseEvent } from '@/components/landing/LiveScene';
 import { ClassPortrait } from '@/components/landing/ClassPortrait';
 import { MetaProgression } from '@/components/game/MetaProgression';
@@ -40,24 +40,11 @@ import '../styles/nocturne.css';
 
 type Mode = 'idle' | 'multiplayer';
 
-const ACTS = [
-  { n: 'Perde I', name: 'Yüzey', floors: [1, 2, 3, 4] },
-  { n: 'Perde II', name: 'Derinlikler', floors: [5, 6, 7] },
-  { n: 'Perde III', name: 'Karanlığın Kalbi', floors: [8, 9, 10] },
-] as const;
+// Acts and per-floor copy come from shared/lore.ts, the same table the game
+// itself narrates from. The page used to carry its own, and the two had already
+// drifted — the landing still called Act III "Karanlığın Kalbi" and the final
+// boss "Mor'Khan" while the game called them "Ateşin Kalbi" and "Karanmir".
 
-const FLOOR_NOTE: Record<number, string> = {
-  1: 'Sıçan, balçık, yarasa. Hazırlıksız saldırırlar — telegraf yok.',
-  2: 'İskelet ve örümcek. İlk koni telegrafları burada görülür.',
-  3: 'Ocak Muhafızı. Yer sarsıntısı önce zeminde belirir.',
-  4: 'Goblin ve mantar. Ağır saldırılar: uzun hazırlık, uzun toparlanma.',
-  5: 'İkinci fazda alanı köklendirir. Ağlar hızını yer.',
-  6: 'İlk menzilli düşmanlar. Gargoyle taş fırlatır.',
-  7: 'Taş Muhafız. Taşlaştırma bakışı koni hâlinde gelir.',
-  8: 'Alev Şövalyesi. Hücum çizgisi zeminde görünür.',
-  9: 'Fantomlar duvarlardan geçer. Açık alanda durma.',
-  10: "Kral Mor'Khan. Üç faz; her fazda daha hızlı.",
-};
 
 const BOSS_FLOORS: Record<number, string> = { 3: 'BOSS', 5: 'BOSS', 7: 'BOSS', 8: 'BOSS', 10: 'FİNAL' };
 
@@ -238,6 +225,7 @@ export default function HomePage() {
   const classSec = useReveal<HTMLElement>();
   const rhythm = useReveal<HTMLElement>();
   const statBand = useReveal<HTMLElement>();
+  const story = useReveal<HTMLElement>();
 
   return (
     <div className="nocturne" style={{ position: 'relative', overflowX: 'clip', minHeight: '100dvh' }}>
@@ -265,6 +253,7 @@ export default function HomePage() {
         </a>
 
         <div className="dm-navlinks">
+          <button className="btn btn-ghost" onClick={() => go('hikaye')}>Hikâye</button>
           <button className="btn btn-ghost" onClick={() => go('katalog')}>Katlar</button>
           <button className="btn btn-ghost" onClick={() => go('telegraf')}>Dövüş</button>
           <button className="btn btn-ghost" onClick={() => go('siniflar')}>Sınıflar</button>
@@ -370,6 +359,58 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ── Story ───────────────────────────────────────────── */}
+      <section id="hikaye" ref={story.ref} style={{ ...story.style, maxWidth: 1240, margin: '0 auto', padding: 'clamp(56px, 10vh, 110px) clamp(16px, 4vw, 40px) 0' }}>
+        <h6 className="text-muted">Hikâye</h6>
+        <h2 className="balance" style={{ fontSize: 'clamp(28px, 4.4vw, 46px)', letterSpacing: '-0.025em', maxWidth: '22ch' }}>
+          Sana Bir Canavarı Öldürmen Söylendi
+        </h2>
+
+        <div className="dm-story-grid" style={{ display: 'grid', gap: 'clamp(24px, 4vw, 56px)', marginTop: 28, alignItems: 'start' }}>
+          <div style={{ minWidth: 0 }}>
+            {/* The prologue, set as a sequence of beats rather than a wall of
+                text — each line is one thing that happened. */}
+            <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 14, maxWidth: '46ch' }}>
+              {PROLOGUE.map((line, i) => (
+                <li key={line} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 14, alignItems: 'baseline' }}>
+                  <span className="text-muted" style={{ fontSize: 11, fontVariantNumeric: 'tabular-nums', opacity: 0.6 }}>
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <span style={{
+                    fontSize: i === PROLOGUE.length - 1 ? 17 : 15,
+                    lineHeight: 1.6,
+                    color: i === PROLOGUE.length - 1 ? 'var(--color-text)' : undefined,
+                  }} className={i === PROLOGUE.length - 1 ? undefined : 'text-muted'}>
+                    {line}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          <aside style={{ minWidth: 0 }}>
+            <div className="card elev-sm" style={{ padding: 18, gap: 12 }}>
+              <span className="card-kicker">Neden Sen</span>
+              {CALLING.map((line) => (
+                <p key={line} className="card-body" style={{ fontSize: 14, lineHeight: 1.6, opacity: 0.9 }}>{line}</p>
+              ))}
+              <hr className="hr" style={{ margin: '4px 0' }} />
+              {/* The hook. Stated as the question the run answers, without
+                  answering it — the reveal belongs in the throne room. */}
+              <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6 }}>
+                Aşağıda bulacağın şey bir canavar değil.{' '}
+                <span style={{ color: 'var(--color-accent)' }}>
+                  Altı yüz yıldır sönmeyi reddeden bir adam.
+                </span>
+              </p>
+              <p className="text-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>
+                Onu öldürmek Ateş&apos;i söndürür — biri yerine geçmezse.
+              </p>
+            </div>
+          </aside>
+        </div>
+      </section>
+
       {/* ── Catalogue ───────────────────────────────────────── */}
       <section id="katalog" ref={catalogue.ref} style={{ ...catalogue.style, maxWidth: 1240, margin: '0 auto', padding: 'clamp(56px, 10vh, 110px) clamp(16px, 4vw, 40px) 0' }}>
         <h6 className="text-muted">Katlar</h6>
@@ -379,12 +420,15 @@ export default function HomePage() {
 
         <div style={{ marginTop: 34, display: 'grid', gap: 30 }}>
           {ACTS.map((act) => (
-            <div key={act.n}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 14 }}>
-                <span style={{ color: 'var(--color-accent)', fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{act.n}</span>
+            <div key={act.roman}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 6 }}>
+                <span style={{ color: 'var(--color-accent)', fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{act.roman}</span>
                 <span className="text-muted" style={{ fontSize: 13 }}>{act.name}</span>
                 <span aria-hidden style={{ flex: 1, height: 1, background: 'linear-gradient(to right, var(--color-divider), transparent)' }} />
               </div>
+              <p className="text-muted" style={{ fontSize: 13, fontStyle: 'italic', margin: '0 0 14px' }}>
+                {act.question}
+              </p>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))', gap: 14 }}>
                 {act.floors.map((f) => {
@@ -398,7 +442,7 @@ export default function HomePage() {
                         <span className="card-title" style={{ flex: 1 }}>{t.name}</span>
                         {BOSS_FLOORS[f] && <span className="tag tag-outline">{BOSS_FLOORS[f]}</span>}
                       </div>
-                      <p className="card-body">{FLOOR_NOTE[f]}</p>
+                      <p className="card-body">{FLOOR_LORE[f].lore}</p>
                       {/* The floor's real stone ramp, straight from shared/palette.ts */}
                       <div aria-hidden style={{ display: 'flex', borderRadius: 3, overflow: 'hidden', marginTop: 2 }}>
                         {[...t.wall, t.growth, t.accent].map((c, i) => (
@@ -684,13 +728,14 @@ export default function HomePage() {
           gives the copy the larger share and lets the art sit right. */}
       <style>{`
         .dm-hero-grid { grid-template-columns: 1fr; }
-        .dm-mech-grid, .dm-play-grid, .dm-rhythm-grid { grid-template-columns: 1fr; }
+        .dm-mech-grid, .dm-play-grid, .dm-rhythm-grid, .dm-story-grid { grid-template-columns: 1fr; }
         .dm-navlinks { display: none; align-items: center; gap: 22px; }
         @media (min-width: 900px) {
           .dm-hero-grid { grid-template-columns: 1.08fr 0.92fr; }
           .dm-mech-grid { grid-template-columns: 1.15fr 0.85fr; }
           .dm-play-grid { grid-template-columns: 0.9fr 1.1fr; }
           .dm-rhythm-grid { grid-template-columns: 1fr 1fr; }
+          .dm-story-grid { grid-template-columns: 1.2fr 0.8fr; }
           .dm-navlinks { display: flex; }
         }
       `}</style>

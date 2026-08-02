@@ -2,23 +2,12 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
+import { FLOOR_LORE } from '../../../shared/types';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 const AUTO_CONTINUE_MS = 5000;
 const PARTICLE_COUNT = 20;
 
-const FLOOR_LORE: Record<number, { name: string; lore: string; icon: string }> = {
-  1: { name: 'Yıkık Kapılar', lore: 'Zephara\'nın çökmüş giriş kapıları. Haşereler her yerde.', icon: '🚪' },
-  2: { name: 'Sessiz Sokaklar', lore: 'Bir zamanlar canlı mahalleler. İskeletler hâlâ nöbet tutuyor.', icon: '🏚️' },
-  3: { name: 'Demircinin Ocağı', lore: 'Eski dökümhaneler. Demirci Koruyucu hâlâ çekicini sallıyor.', icon: '🔨' },
-  4: { name: 'Terkedilmiş Pazar', lore: 'Eski ticaret merkezi. Tezgahlar devrilmiş, gölgeler hareket ediyor.', icon: '🏪' },
-  5: { name: 'Dokuyucunun Evi', lore: 'Selvira\'nın karantina hattı. Devasa ağlar her yeri kaplamış.', icon: '🕸️' },
-  6: { name: 'Yıkık Kütüphane', lore: 'Zephara\'nın bilgi hazinesi. Kitaplar çürümüş, ruhlar dolaşıyor.', icon: '📚' },
-  7: { name: 'Taş Bahçeler', lore: 'Bir zamanlar yeşillik. Şimdi taşlaşmış ağaçlar ve gargoiller.', icon: '🗿' },
-  8: { name: 'Lav Nehirleri', lore: 'Zephara\'nın en derin noktası. Magma arasında yol bul.', icon: '🌋' },
-  9: { name: 'Ruhlar Tapınağı', lore: 'Rahiplerin lanetli duaları hâlâ yankılanıyor.', icon: '🕯️' },
-  10: { name: 'Taht Salonu', lore: 'Karanmir burada bekliyor. Ateş-i Kadim\'in yozlaşmış ışığı son kez yanıyor.', icon: '👑' },
-} as const;
 
 const FLOOR_QUOTES: Record<number, string> = {
   1: 'Kapılar geçildi. Zephara seni içine çekiyor...',
@@ -252,7 +241,7 @@ export function FloorTransition({
                     {FLOOR_LORE[completedFloor].icon} {FLOOR_LORE[completedFloor].name}
                   </span>
                   <span className="font-body text-[10px] italic text-zinc-500 lg:text-xs xl:text-sm 2xl:text-base">
-                    {FLOOR_LORE[completedFloor].lore}
+                    {FLOOR_LORE[completedFloor].reveal}
                   </span>
                 </motion.div>
               )}

@@ -10,6 +10,7 @@ export * from './talents';
 export * from './monsters';
 export * from './palette';
 export * from './hazards';
+export * from './lore';
 export * from './elites';
 export * from './combat';
 export * from './monster-names';

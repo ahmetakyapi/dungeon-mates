@@ -26,7 +26,7 @@ export const MONSTER_NAMES: Record<MonsterType, MonsterDisplay> = {
   boss_spider_queen: { name: 'Örümcek Kraliçe', emoji: '🕸️' },
   boss_stone_warden: { name: 'Taş Muhafız', emoji: '🗿' },
   boss_flame_knight: { name: 'Alev Şövalyesi', emoji: '🔥' },
-  boss_demon: { name: "Kral Mor'Khan", emoji: '👹' },
+  boss_demon: { name: 'Karanmir', emoji: '👹' },
 } as const;
 
 const FALLBACK: MonsterDisplay = { name: 'Canavar', emoji: '💀' };

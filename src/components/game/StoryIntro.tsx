@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { FLOOR_LORE } from '../../../shared/types';
 import { PixelButton } from '@/components/ui/PixelButton';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -33,18 +34,6 @@ const STORY_LINES = [
   'Altı yüz yıl sonra kapılar tekrar açılıyor. Ve sen, ilk adımı atan kişisin.',
 ] as const;
 
-const FLOOR_INTROS: Record<number, { name: string; lore: string }> = {
-  1: { name: 'Yıkık Kapılar', lore: 'Zephara\'nın giriş kapıları çoktan çökmüş. Karanlıkta bir şeyler hareket ediyor...' },
-  2: { name: 'Sessiz Sokaklar', lore: 'Evler boş, sokaklar sessiz. Ama iskeletler hâlâ nöbet tutuyor.' },
-  3: { name: 'Demircinin Ocağı', lore: 'Eski dökümhaneler. Çekiçlerin sesi kesildi ama Demirci Koruyucu hâlâ burada.' },
-  4: { name: 'Terkedilmiş Pazar', lore: 'Tezgahlar devrilmiş, altınlar saçılmış. Ama dokunma — gölgeler izliyor.' },
-  5: { name: 'Dokuyucunun Evi', lore: 'Selvira\'nın karantina hattı. Devasa ağlar ve bir fısıltı: "Geçmeyin..."' },
-  6: { name: 'Yıkık Kütüphane', lore: 'Zephara\'nın tüm bilgisi buradaydı. Şimdi sadece hayaletler okuyor.' },
-  7: { name: 'Taş Bahçeler', lore: 'Bir zamanlar çiçekler açardı. Şimdi her şey taş ve sessizlik.' },
-  8: { name: 'Lav Nehirleri', lore: 'Sıcaklık dayanılmaz. Magma arasında bir yol var — tek bir yol.' },
-  9: { name: 'Ruhlar Tapınağı', lore: 'Dualar lanet oldu. Rahiplerin ruhları huzur arıyor — ve bulamıyor.' },
-  10: { name: 'Taht Salonu', lore: 'Karanmir burada bekliyor. Altı yüz yıldır her saniyesini hatırlayarak, acı çekerek.' },
-};
 
 function generateParticles(): Particle[] {
   const colors = [
@@ -121,7 +110,7 @@ export function StoryIntro({ onComplete, floor }: StoryIntroProps) {
 
   // ── Floor-specific intro ──
   if (floor != null) {
-    const floorData = FLOOR_INTROS[floor];
+    const floorData = FLOOR_LORE[floor];
     if (!floorData) {
       onComplete();
       return null;
