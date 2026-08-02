@@ -29,6 +29,7 @@ import { GameErrorBoundary } from '@/components/game/ErrorBoundary';
 import type { PlayerInput, GamePhase, PlayerState } from '../../../shared/types';
 import { CLASS_STATS, DIFFICULTY_INFO, ABILITY_MAX_COOLDOWNS, TICK_RATE, monsterDisplay } from '../../../shared/types';
 import type { PlayerClass } from '../../../shared/types';
+import { haptic, setHapticsEnabled } from '@/lib/haptics';
 import { loadMeta, saveMeta, recordRun, metaBonuses, shardsForRun } from '@/lib/meta-progression';
 import { loadSettings, saveSettings, DEFAULT_SETTINGS, type GameSettings } from '@/lib/settings';
 
@@ -156,6 +157,9 @@ function GamePage() {
   useEffect(() => { setSettings(loadSettings()); }, []);
   // Restore persisted volumes into the audio engine.
   useEffect(() => {
+    // Screen shake and vibration are two faces of the same "no physical
+    // feedback" preference, so turning the shake off silences the phone too.
+    setHapticsEnabled(settings.screenShake > 0);
     sound.setMasterVolume(settings.masterVolume);
     sound.setSfxVolume(settings.sfxVolume);
     sound.setMusicVolume(settings.musicVolume);
@@ -435,6 +439,7 @@ function GamePage() {
       sound.stopMusic();
       sound.stopAmbience();
       sound.playBossAppear();
+      haptic('boss');
       const timer = setTimeout(() => sound.playBossMusic(), 1500);
       return () => clearTimeout(timer);
     }
@@ -444,7 +449,7 @@ function GamePage() {
 
   // Monster kill sounds
   useEffect(() => {
-    if (monsterKillEvents.length > 0) sound.playMonsterHurt();
+    if (monsterKillEvents.length > 0) { sound.playMonsterHurt(); haptic('kill'); }
   }, [monsterKillEvents.length, sound]);
 
   // Loot pickup: sound plus a sparkle burst at the picker's feet.
@@ -454,6 +459,7 @@ function GamePage() {
     if (latest.lootType === 'gold') sound.playGoldPickup();
     else if (latest.lootType === 'health_potion') sound.playHealthPotion();
     else sound.playLootPickup();
+    if (latest.playerId === playerId) haptic('light');
 
     const picker = gameState?.players[latest.playerId];
     const r = rendererRef.current as { emitPickupBurst?: (x: number, y: number, t: string) => void } | null;
@@ -467,7 +473,11 @@ function GamePage() {
     if (!localPlayer) return;
     if (prevHpRef.current !== null && localPlayer.hp < prevHpRef.current) {
       sound.playPlayerHurt();
+      // A double pulse below a quarter health — the phone has no room for a
+      // vignette, so the warning has to be felt rather than seen.
+      haptic(localPlayer.hp / localPlayer.maxHp <= 0.25 ? 'critical' : 'hurt');
     }
+    if (prevHpRef.current !== null && prevHpRef.current > 0 && localPlayer.hp <= 0) haptic('death');
     prevHpRef.current = localPlayer.hp;
   }, [localPlayer?.hp, sound]);
 
@@ -505,6 +515,7 @@ function GamePage() {
     if (!localPlayer) return;
     if (prevLevelRef.current !== null && localPlayer.level > prevLevelRef.current) {
       sound.playLevelUp();
+      haptic('levelUp');
     }
     prevLevelRef.current = localPlayer.level;
   }, [localPlayer?.level, sound]);

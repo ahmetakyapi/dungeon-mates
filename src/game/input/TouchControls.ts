@@ -22,6 +22,8 @@ const BUTTON_HIT_EXTRA = 28; // Generous fat finger tolerance
 
 const HAPTIC_DURATION = 12;
 const HAPTIC_STRONG = 25; // Stronger haptic for attack
+/** Screen px the thumb must travel before a tap counts as an aimed drag. */
+const AIM_DRAG_DEADZONE = 18;
 
 // Auto-attack: hold attack button to repeat
 const AUTO_ATTACK_INTERVAL_MS = 280;
@@ -85,6 +87,19 @@ export class TouchControls {
   private attackPressAnim = 0;
   private skillPressAnim = 0;
   private interactPressAnim = 0;
+
+  /**
+   * Drag-to-aim.
+   *
+   * Touch players had no way to aim at all: the hybrid aiming system reads
+   * `aimAngle` off PlayerInput, and only the mouse ever set it, so on a phone
+   * every shot went wherever auto-target chose. A second stick would eat the
+   * screen, so the attack button doubles as one — tap to fire at the auto
+   * target, press and drag to fire where you drag.
+   */
+  private attackDragOrigin: { x: number; y: number } | null = null;
+  private aimAngle: number | null = null;
+  private aimHeld = false;
 
   // Auto-attack state
   private autoAttackTimer = 0;
@@ -194,6 +209,9 @@ export class TouchControls {
       dodge: this.dodgePressed,
       ultimate: this.ultimatePressed,
     };
+    // Omitted rather than sent as null, so the server falls back to
+    // auto-targeting exactly as it does for a keyboard player.
+    if (this.aimAngle !== null) input.aimAngle = this.aimAngle;
     this.attackPressed = false;
     this.skillPressed = false;
     this.interactPressed = false;
@@ -313,6 +331,8 @@ export class TouchControls {
       if (this.hitTestCircle(x, y, this.attackBtnX, this.attackBtnY, ATTACK_BTN_RADIUS + BUTTON_HIT_EXTRA)) {
         this.state.attackId = t.identifier;
         this.attackPressed = true;
+        this.attackDragOrigin = { x, y };
+        this.aimHeld = true;
         this.haptic(HAPTIC_STRONG);
         continue;
       }
@@ -388,6 +408,15 @@ export class TouchControls {
         this.state.joystickThumb = { x: t.clientX, y: t.clientY };
         this.updateJoystick();
       }
+      if (t.identifier === this.state.attackId && this.attackDragOrigin) {
+        const dx = t.clientX - this.attackDragOrigin.x;
+        const dy = t.clientY - this.attackDragOrigin.y;
+        // Below the deadzone this is a tap, not a drag, and auto-target keeps
+        // control — otherwise the thumb's natural wobble would steer every shot.
+        this.aimAngle = (dx * dx + dy * dy) >= AIM_DRAG_DEADZONE * AIM_DRAG_DEADZONE
+          ? Math.atan2(dy, dx)
+          : null;
+      }
     }
   }
 
@@ -411,7 +440,12 @@ export class TouchControls {
         this.rawDx = 0;
         this.rawDy = 0;
       }
-      if (t.identifier === this.state.attackId) this.state.attackId = null;
+      if (t.identifier === this.state.attackId) {
+        this.state.attackId = null;
+        this.attackDragOrigin = null;
+        this.aimHeld = false;
+        this.aimAngle = null;
+      }
       if (t.identifier === this.state.skillId) this.state.skillId = null;
       if (t.identifier === this.state.interactId) this.state.interactId = null;
     }
@@ -621,11 +655,54 @@ export class TouchControls {
     ctx.textBaseline = 'middle';
     ctx.fillText('⚔️', x, y);
 
-    // Label
+    // Label — swaps to the aim hint while the thumb is down, so the gesture is
+    // discoverable without a tutorial step.
     ctx.font = 'bold 11px sans-serif';
     ctx.textBaseline = 'top';
     ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.fillText('Saldır', x, y + r + 6);
+    ctx.fillText(this.aimHeld ? 'Sürükle: nişan al' : 'Saldır', x, y + r + 6);
+
+    this.drawAimIndicator(ctx, x, y, r);
+  }
+
+  /**
+   * The direction an aimed shot will take, drawn out of the attack button.
+   *
+   * A drag gesture with no feedback is a gesture nobody finds; this is the only
+   * thing that tells a touch player their aim is under manual control.
+   */
+  private drawAimIndicator(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+    if (this.aimAngle === null) return;
+    const a = this.aimAngle;
+    const inner = r + 6;
+    const outer = r + 42;
+    const cos = Math.cos(a);
+    const sin = Math.sin(a);
+
+    ctx.save();
+    // Shaft
+    const grad = ctx.createLinearGradient(x + cos * inner, y + sin * inner, x + cos * outer, y + sin * outer);
+    grad.addColorStop(0, 'rgba(252,165,165,0.9)');
+    grad.addColorStop(1, 'rgba(252,165,165,0)');
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x + cos * inner, y + sin * inner);
+    ctx.lineTo(x + cos * outer, y + sin * outer);
+    ctx.stroke();
+
+    // Head
+    const tipX = x + cos * (outer + 6);
+    const tipY = y + sin * (outer + 6);
+    ctx.fillStyle = 'rgba(254,226,226,0.95)';
+    ctx.beginPath();
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(tipX - cos * 12 - sin * 7, tipY - sin * 12 + cos * 7);
+    ctx.lineTo(tipX - cos * 12 + sin * 7, tipY - sin * 12 - cos * 7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
 
   private drawDodgeButton(ctx: CanvasRenderingContext2D): void {
