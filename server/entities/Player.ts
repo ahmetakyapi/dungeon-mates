@@ -76,6 +76,22 @@ const SOLO_HP_REGEN = 0.01;
 const SOLO_NO_COMBAT_THRESHOLD = 100;
 const SOLO_MAX_DEATHS = 2;
 const SOLO_RESPAWN_DELAY_TICKS = 3 * TICK_RATE;
+/**
+ * Ticks a teammate must stand over a downed player to bring them back.
+ *
+ * Short enough to be worth attempting mid-fight, long enough that doing it with
+ * a monster still swinging is a choice rather than a free action.
+ */
+const REVIVE_CHANNEL_TICKS = 30;
+/**
+ * How fast an abandoned channel drains back to zero.
+ *
+ * Same rate as it fills. Draining faster than it fills meant a 0.3s dodge —
+ * exactly the thing a reviver should be allowed to do when an attack lands on
+ * them — cost 60% of the progress, which taught players to stand still and eat
+ * the hit instead.
+ */
+const REVIVE_DECAY_PER_TICK = 1;
 
 export type MonsterTarget = { position: Vec2; alive: boolean };
 
@@ -115,6 +131,8 @@ export class Player {
   private speedBoostTicks: number;
   private slowMultiplier: number;
   private slowTicks: number;
+  /** Accumulated ticks of a teammate's revive channel on this player. */
+  private reviveTicks = 0;
   private poisonTicks: number;
   private attackAnimTicks: number;
   // Dodge/roll state
@@ -201,6 +219,7 @@ export class Player {
       shieldActive: false,
       poisoned: false,
       slowed: false,
+      reviveProgress: 0,
       hitStopTicks: 0,
       knockbackVx: 0,
       knockbackVy: 0,
@@ -747,12 +766,33 @@ export class Player {
   }
 
   /**
+   * Advance a teammate's revive channel by one tick. Returns true on the tick
+   * the channel completes, so the caller performs the revive exactly once.
+   */
+  tickReviveChannel(): boolean {
+    if (!this.canBeRevived()) { this.reviveTicks = 0; return false; }
+    this.reviveTicks++;
+    if (this.reviveTicks >= REVIVE_CHANNEL_TICKS) { this.reviveTicks = 0; return true; }
+    return false;
+  }
+
+  /**
+   * Called on any tick nobody is channelling. Drains rather than snapping to
+   * zero, so a reviver who steps out to dodge an attack does not lose all of
+   * their progress — dodging mid-revive should be allowed, not punished.
+   */
+  decayReviveChannel(): void {
+    if (this.reviveTicks > 0) this.reviveTicks = Math.max(0, this.reviveTicks - REVIVE_DECAY_PER_TICK);
+  }
+
+  /**
    * Revive this player (co-op mechanic). Must return MORE than the 5s auto-respawn
    * (50% HP) or the mechanic is strictly worse than standing still and waiting,
    * which is what the old 30% did.
    */
   revive(): void {
     if (this.state.alive) return;
+    this.reviveTicks = 0;
     this.state.alive = true;
     this.state.hp = Math.floor(this.state.maxHp * 0.65);
     this.state.mana = Math.floor(this.state.maxMana * 0.5);
@@ -1210,6 +1250,7 @@ export class Player {
       shieldActive: this.shieldActive,
       poisoned: this.poisonTicks > 0,
       slowed: this.slowTicks > 0,
+      reviveProgress: this.reviveTicks / REVIVE_CHANNEL_TICKS,
       ultimateCooldownTicks: this.ultimateCooldownTicks,
       ultimateReady: this.state.level >= ULTIMATE_UNLOCK_LEVEL && this.ultimateCooldownTicks <= 0 && this.state.mana >= this.getUltimateManaCost(1 - this.talentBonuses.manaCostReduction),
       auraFrom: auraParts.join(','),

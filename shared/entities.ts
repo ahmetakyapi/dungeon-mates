@@ -67,6 +67,12 @@ export type PlayerState = {
   shieldActive: boolean;
   poisoned: boolean;
   slowed: boolean;
+  /**
+   * 0..1 while a teammate is channelling a revive on this downed player.
+   * Instant revives asked nothing of the reviver; a channel makes helping a
+   * decision with a cost.
+   */
+  reviveProgress: number;
   // Premium combat feel — hit-stop & knockback
   hitStopTicks: number;
   knockbackVx: number;
@@ -199,7 +205,17 @@ export type PlayerInput = {
   dy: number; // -1 to 1
   attack: boolean;
   ability: boolean;
+  /** Edge-triggered: one press = one chest opened, one staircase used. */
   interact?: boolean;
+  /**
+   * Level-triggered: true for as long as the key is down.
+   *
+   * The revive channel needs "still holding", which the edge-triggered flag
+   * cannot express — browser key-repeat only starts after ~500ms and then fires
+   * at the OS repeat rate, so a channel driven by it would stall and stutter.
+   * Kept separate so holding R next to a chest still opens it exactly once.
+   */
+  interactHeld?: boolean;
   sprint?: boolean;
   dodge?: boolean;
   toggleMap?: boolean;

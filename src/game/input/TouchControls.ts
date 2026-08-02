@@ -206,6 +206,9 @@ export class TouchControls {
       attack: this.attackPressed,
       ability: this.skillPressed,
       interact: this.interactPressed,
+      // The interact button stays registered while the thumb is on it, which is
+      // what the revive channel needs.
+      interactHeld: this.state.interactId !== null,
       dodge: this.dodgePressed,
       ultimate: this.ultimatePressed,
     };

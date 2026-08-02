@@ -234,6 +234,9 @@ export class InputManager {
     const attack = this.attackPressed || this.gamepadAttackPressed;
     const ability = this.abilityPressed || this.gamepadAbilityPressed;
     const interact = this.interactPressed || this.gamepadInteractPressed;
+    // Held state, read straight off the live key set rather than the consumed
+    // edge flag — this is what drives the revive channel.
+    const interactHeld = this.isBindingDown(KEY_BINDINGS.interact) || this.isGamepadButtonDown(2);
     // Edge-detect the gamepad buttons. isGamepadButtonDown is level-triggered, so
     // holding L1/R1 previously re-fired dodge and ultimate on every single frame.
     const gpDodgeDown = this.isGamepadButtonDown(4); // L1
@@ -256,7 +259,7 @@ export class InputManager {
     this.gamepadAbilityPressed = false;
     this.gamepadInteractPressed = false;
 
-    return { dx, dy, attack, ability, interact, dodge, ultimate, sprint, toggleMap, aimAngle: this.getAimAngle() };
+    return { dx, dy, attack, ability, interact, interactHeld, dodge, ultimate, sprint, toggleMap, aimAngle: this.getAimAngle() };
   }
 
   /**
@@ -302,6 +305,12 @@ export class InputManager {
   }
 
   /** Check if a key code is one of our game keys */
+  /** True while any key bound to this action is physically down. */
+  private isBindingDown(binding: readonly string[]): boolean {
+    for (const code of binding) if (this.keysDown.has(code)) return true;
+    return false;
+  }
+
   private isGameKey(code: string): boolean {
     const allBindings = [
       KEY_BINDINGS.up,

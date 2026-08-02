@@ -2228,6 +2228,58 @@ export class GameRenderer {
     }
   }
 
+  /**
+   * Marker over a downed teammate, plus the revive channel's progress.
+   *
+   * The ring fills as an ally holds interact and drains when they step away, so
+   * the whole party can read whether the rescue is actually happening.
+   */
+  private renderDownedMarker(
+    ctx: CanvasRenderingContext2D, player: PlayerState, camX: number, camY: number,
+  ): void {
+    const wx = player.position.x * TILE_SIZE;
+    const wy = player.position.y * TILE_SIZE;
+    if (!this.camera.isVisible(wx, wy, TILE_SIZE, TILE_SIZE)) return;
+
+    const cx = Math.floor(wx - camX) + TILE_SIZE / 2;
+    const cy = Math.floor(wy - camY) + TILE_SIZE / 2;
+    const pulse = 0.5 + Math.sin(this.animFrame * 0.35) * 0.2;
+    const progress = player.reviveProgress ?? 0;
+
+    ctx.save();
+    // Body on the ground.
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = '#4b5563';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 3, 7, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Base ring: always visible, so the downed ally reads at a glance.
+    ctx.globalAlpha = progress > 0 ? 0.35 : pulse * 0.7;
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Channel progress, sweeping clockwise from the top.
+    if (progress > 0) {
+      ctx.globalAlpha = 0.95;
+      ctx.strokeStyle = '#4ade80';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 10, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+
+    // Centred by hand — the font helper draws from the left edge.
+    const label = player.name;
+    const w = measurePixelText(label, 1);
+    drawPixelTextOutlined(ctx, Math.round(cx - w / 2), Math.round(cy - 20), label, '#fca5a5', 1);
+  }
+
   private renderPlayers(
     ctx: CanvasRenderingContext2D,
     players: PlayerState[],
@@ -2240,7 +2292,13 @@ export class GameRenderer {
     const isFrozen = this.freezeFrameMs > 0;
     for (let i = 0; i < players.length; i++) {
       const player: PlayerState = players[i];
-      if (!player.alive) continue;
+      if (!player.alive) {
+        // A downed ally is still worth drawing something for: without a marker
+        // there is nothing on screen to walk towards, and no way to tell that
+        // holding interact is doing anything.
+        this.renderDownedMarker(ctx, player, camX, camY);
+        continue;
+      }
 
       // Smooth position interpolation (skip during freeze frame)
       const prevPlrPos = this.prevEntityPositions.get(player.id);

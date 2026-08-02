@@ -190,6 +190,8 @@ export class GameRoom {
   private tick: number;
   /** Next tick each player may take lava damage on — see applyHazardTile. */
   private readonly lavaTickAt: Map<string, number> = new Map();
+  /** Reused per tick: who is currently being revived. Avoids a per-tick Set. */
+  private readonly _reviveTargets: Set<string> = new Set();
   private gameLoopTimer: ReturnType<typeof setInterval> | null;
 
   private players: Map<string, Player>;
@@ -1621,13 +1623,23 @@ export class GameRoom {
       this.loot.delete(lootId);
     }
 
-    // Co-op revive: alive player near dead player with interact key → revive
+    // Co-op revive.
+    //
+    // This used to fire on a single interact press, which made saving a
+    // teammate free: tap R in passing and carry on. It is now a channel — you
+    // have to stand over them and keep holding, which means committing to a
+    // fixed spot while the fight is still happening. Interact is deliberately
+    // NOT consumed here, so the key can be held down.
     if (!this.isSolo) {
       const REVIVE_RADIUS = 1.8;
+      const beingRevived = this._reviveTargets;
+      beingRevived.clear();
+
       for (const [socketId, player] of this.players) {
         if (!player.state.alive) continue;
         const input = this.playerInputs.get(socketId);
-        if (!input?.interact) continue;
+        // Held, not pressed — the channel only advances while the key is down.
+        if (!(input?.interactHeld ?? input?.interact)) continue;
 
         for (const [deadId, deadPlayer] of this.players) {
           if (deadId === socketId || deadPlayer.state.alive) continue;
@@ -1635,17 +1647,27 @@ export class GameRoom {
 
           const rdx = player.state.position.x - deadPlayer.state.position.x;
           const rdy = player.state.position.y - deadPlayer.state.position.y;
-          if (rdx * rdx + rdy * rdy <= REVIVE_RADIUS * REVIVE_RADIUS) {
+          if (rdx * rdx + rdy * rdy > REVIVE_RADIUS * REVIVE_RADIUS) continue;
+
+          // One reviver per casualty; a second helper does not speed it up.
+          if (beingRevived.has(deadId)) continue;
+          beingRevived.add(deadId);
+
+          if (deadPlayer.tickReviveChannel()) {
             deadPlayer.revive();
-            input.interact = false;
             this.io.to(this.roomCode).emit('chat:message', {
               playerId: socketId,
               name: 'Sistem',
               text: `${player.state.name}, ${deadPlayer.state.name} oyuncusunu canlandırdı!`,
             });
-            break;
           }
+          break;
         }
+      }
+
+      // Anyone nobody is standing over loses progress gradually.
+      for (const [deadId, deadPlayer] of this.players) {
+        if (!beingRevived.has(deadId)) deadPlayer.decayReviveChannel();
       }
     }
 
