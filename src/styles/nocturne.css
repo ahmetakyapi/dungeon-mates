@@ -104,6 +104,10 @@
   color: color-mix(in srgb, var(--color-text) 55%, transparent);
 }
 .nocturne .text-muted { color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+
+/* Headlines break on meaning rather than on the container's right edge, so a
+   four-word line never leaves one orphaned word under it. */
+.nocturne .balance { text-wrap: balance; }
 .nocturne :focus { outline: none; }
 .nocturne :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 .nocturne ::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }

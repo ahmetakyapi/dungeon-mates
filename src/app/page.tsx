@@ -157,6 +157,7 @@ export default function HomePage() {
   const catalogue = useReveal<HTMLElement>();
   const mechanic = useReveal<HTMLElement>();
   const classSec = useReveal<HTMLElement>();
+  const rhythm = useReveal<HTMLElement>();
 
   return (
     <div className="nocturne" style={{ position: 'relative', overflowX: 'clip', minHeight: '100dvh' }}>
@@ -180,12 +181,12 @@ export default function HomePage() {
             animation: 'dmPulse 3.4s ease-in-out infinite',
             boxShadow: '0 0 16px color-mix(in srgb, var(--color-accent) 50%, transparent)',
           }} />
-          <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, letterSpacing: '-0.01em' }}>Dungeon Mates</span>
+          <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>Dungeon Mates</span>
         </a>
 
-        <div className="dm-navlinks" style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
-          <button className="btn btn-ghost" onClick={() => go('katalog')}>Katalog</button>
-          <button className="btn btn-ghost" onClick={() => go('telegraf')}>Telegraf</button>
+        <div className="dm-navlinks">
+          <button className="btn btn-ghost" onClick={() => go('katalog')}>Katlar</button>
+          <button className="btn btn-ghost" onClick={() => go('telegraf')}>Dövüş</button>
           <button className="btn btn-ghost" onClick={() => go('siniflar')}>Sınıflar</button>
           <button className="btn btn-ghost" onClick={() => setMetaOpen(true)}>
             Kalıntılar{meta && meta.shards > 0 ? ` ${meta.shards}` : ''}
@@ -202,12 +203,12 @@ export default function HomePage() {
               Zephara · Yüzeyin Altı
             </p>
 
-            <h1 style={{
-              fontSize: 'clamp(38px, 7.2vw, 82px)', lineHeight: 1.03, marginTop: 18,
+            <h1 className="balance" style={{
+              fontSize: 'clamp(34px, 5.4vw, 62px)', lineHeight: 1.06, marginTop: 18,
               letterSpacing: '-0.03em', fontWeight: 600,
             }}>
-              On Kat Aşağı.<br />
-              <span style={{ color: 'var(--color-accent)' }}>Tek Çıkış En Dipte.</span>
+              On Kat Aşağı<br />
+              <span style={{ color: 'var(--color-accent)' }}>Tek Çıkış En Dipte</span>
             </h1>
 
             <p className="text-muted" style={{ maxWidth: '52ch', fontSize: 16, marginTop: 22, lineHeight: 1.6 }}>
@@ -218,10 +219,10 @@ export default function HomePage() {
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 28 }}>
               <button className="btn btn-primary" style={{ padding: '10px 18px' }}
                       onClick={() => router.push('/game?mode=solo&name=Kahraman')}>
-                Tek Başına İn
+                Tek Oyna
               </button>
               <button className="btn btn-secondary" style={{ padding: '10px 18px' }} onClick={() => go('oyna')}>
-                Oda Kur — 4 Kişiye Kadar
+                Arkadaşlarınla Oyna
               </button>
             </div>
 
@@ -238,7 +239,7 @@ export default function HomePage() {
             }}>
               {/* A still screenshot sat awkwardly in this frame and could never fill
                   it at a fixed aspect. This is the game rendering live instead. */}
-              <LiveScene floor={10} monster="dark_knight" cols={19} rows={15} showLabel={false} />
+              <LiveScene scene="skirmish" floor={10} cols={14} rows={11} showLabel={false} />
               {/* Accent sweep — a line of light, never a flood */}
               <span aria-hidden style={{
                 position: 'absolute', inset: 0, pointerEvents: 'none',
@@ -289,8 +290,10 @@ export default function HomePage() {
 
       {/* ── Catalogue ───────────────────────────────────────── */}
       <section id="katalog" ref={catalogue.ref} style={{ ...catalogue.style, maxWidth: 1240, margin: '0 auto', padding: 'clamp(56px, 10vh, 110px) clamp(16px, 4vw, 40px) 0' }}>
-        <h6 className="text-muted">Katalog</h6>
-        <h2 style={{ fontSize: 'clamp(28px, 4.4vw, 46px)', letterSpacing: '-0.025em', maxWidth: '16ch' }}>On Kat, On Palet.</h2>
+        <h6 className="text-muted">Katlar</h6>
+        <h2 className="balance" style={{ fontSize: 'clamp(28px, 4.4vw, 46px)', letterSpacing: '-0.025em', maxWidth: '20ch' }}>
+          Her Kat Kendi Rengiyle Karşılar
+        </h2>
 
         <div style={{ marginTop: 34, display: 'grid', gap: 30 }}>
           {ACTS.map((act) => (
@@ -333,14 +336,14 @@ export default function HomePage() {
       <section style={{ marginTop: 'clamp(56px, 10vh, 110px)', position: 'relative' }}>
         <figure style={{ position: 'relative' }}>
           <div style={{ width: '100%', height: 'clamp(220px, 34vw, 460px)' }}>
-            <LiveScene floor={8} monster="lava_slime" cols={40} rows={16} showLabel={false} />
+            <LiveScene scene="descend" cols={24} rows={8} showLabel={false} />
           </div>
           <span aria-hidden style={{
             position: 'absolute', inset: 0,
             background: 'linear-gradient(to bottom, var(--color-bg) 0%, transparent 22%, transparent 72%, var(--color-bg) 100%)',
           }} />
           <figcaption style={{ position: 'absolute', left: 'clamp(16px, 4vw, 40px)', bottom: 18, marginTop: 0 }}>
-            Perde III — Karanlığın Kalbi
+            Merdiveni bul, bir alt kata in — palet seninle beraber değişir
           </figcaption>
         </figure>
       </section>
@@ -348,8 +351,8 @@ export default function HomePage() {
       {/* ── Core mechanic ───────────────────────────────────── */}
       <section id="telegraf" ref={mechanic.ref} style={{ ...mechanic.style, maxWidth: 1240, margin: '0 auto', padding: 'clamp(56px, 10vh, 110px) clamp(16px, 4vw, 40px) 0' }}>
         <h6 className="text-muted">Çekirdek Mekanik</h6>
-        <h2 style={{ fontSize: 'clamp(28px, 4.4vw, 46px)', letterSpacing: '-0.025em', maxWidth: '18ch' }}>
-          Zemin Sana Ne Olacağını Söyler.
+        <h2 className="balance" style={{ fontSize: 'clamp(28px, 4.4vw, 46px)', letterSpacing: '-0.025em', maxWidth: '18ch' }}>
+          Zemin Sana Ne Olacağını Söyler
         </h2>
 
         <div className="dm-mech-grid" style={{ display: 'grid', gap: 'clamp(24px, 4vw, 52px)', marginTop: 28, alignItems: 'start' }}>
@@ -396,7 +399,7 @@ export default function HomePage() {
               borderRadius: 'var(--radius-lg)', overflow: 'hidden',
               background: 'var(--color-surface)', aspectRatio: '16 / 10',
             }}>
-              <LiveScene floor={3} monster="dark_knight" cols={21} rows={13} onPhase={setPhase} />
+              <LiveScene scene="telegraph" floor={3} monster="dark_knight" cols={21} rows={13} onPhase={setPhase} />
             </div>
             <figcaption>Yandaki sahne oyunun telegraf zamanlamasıyla, gerçek zamanlı çiziliyor.</figcaption>
           </figure>
@@ -406,8 +409,8 @@ export default function HomePage() {
       {/* ── Classes ─────────────────────────────────────────── */}
       <section id="siniflar" ref={classSec.ref} style={{ ...classSec.style, maxWidth: 1240, margin: '0 auto', padding: 'clamp(56px, 10vh, 110px) clamp(16px, 4vw, 40px) 0' }}>
         <h6 className="text-muted">Sınıflar</h6>
-        <h2 style={{ fontSize: 'clamp(28px, 4.4vw, 46px)', letterSpacing: '-0.025em', maxWidth: '22ch' }}>
-          Dördü De Aynı Zindana İner. Aynı Şekilde Değil.
+        <h2 className="balance" style={{ fontSize: 'clamp(28px, 4.4vw, 46px)', letterSpacing: '-0.025em', maxWidth: '20ch' }}>
+          Dört Sınıf, Dört Ayrı İniş
         </h2>
 
         <div style={{ marginTop: 32, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: 16 }}>
@@ -437,10 +440,51 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ── Run rhythm — the two beats the telegraph section doesn't cover ── */}
+      <section ref={rhythm.ref} style={{ ...rhythm.style, maxWidth: 1240, margin: '0 auto', padding: 'clamp(56px, 10vh, 110px) clamp(16px, 4vw, 40px) 0' }}>
+        <h6 className="text-muted">Zindanın Ritmi</h6>
+        <h2 className="balance" style={{ fontSize: 'clamp(28px, 4.4vw, 46px)', letterSpacing: '-0.025em', maxWidth: '20ch' }}>
+          Vur, Kaç, Topla, Bir Kat Daha İn
+        </h2>
+        <p className="text-muted" style={{ maxWidth: '54ch', marginTop: 12, fontSize: 15, lineHeight: 1.65 }}>
+          Bir run on beş dakika sürer. Aynı üç şeyi yaparsın, her katta biraz daha zoruna gelir.
+        </p>
+
+        <div className="dm-rhythm-grid" style={{ display: 'grid', gap: 'clamp(18px, 3vw, 32px)', marginTop: 30 }}>
+          {([
+            {
+              scene: 'volley' as const, floor: 6, cols: 18, rows: 10,
+              kicker: 'Menzil',
+              title: 'Altıncı Kattan Sonra Düşman da Ateş Eder',
+              body: 'Gargoyle taş fırlatır, fantom ruh oku atar. Siperin arkasına geç, aralarındaki boşlukta ilerle — durduğun yerde kalmak artık bir seçenek değil.',
+            },
+            {
+              scene: 'treasure' as const, floor: 4, cols: 18, rows: 10,
+              kicker: 'Ganimet',
+              title: 'Sandıklar Seyrek, İçindekiler Run’ı Belirler',
+              body: 'İksir, altın, geçici güçlenme. Kat başına bir avuç sandık var; hangisine gideceğin, ne kadar canla ineceğini belirler.',
+            },
+          ]).map((c) => (
+            <article key={c.scene} className="card elev-sm" style={{ padding: 0, overflow: 'hidden', gap: 0 }}>
+              <div style={{ aspectRatio: '18 / 10', flexShrink: 0, width: '100%' }}>
+                <LiveScene scene={c.scene} floor={c.floor} cols={c.cols} rows={c.rows} showLabel={false} />
+              </div>
+              <div style={{ padding: 16, display: 'grid', gap: 8 }}>
+                <span className="card-kicker">{c.kicker}</span>
+                <span className="card-title">{c.title}</span>
+                <p className="card-body">{c.body}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
       {/* ── Play ────────────────────────────────────────────── */}
       <section id="oyna" style={{ maxWidth: 1240, margin: '0 auto', padding: 'clamp(56px, 10vh, 110px) clamp(16px, 4vw, 40px) 0' }}>
         <h6 className="text-muted">Başla</h6>
-        <h2 style={{ fontSize: 'clamp(28px, 4.4vw, 46px)', letterSpacing: '-0.025em', maxWidth: '18ch' }}>Kurulum Yok. İsim Yeter.</h2>
+        <h2 className="balance" style={{ fontSize: 'clamp(28px, 4.4vw, 46px)', letterSpacing: '-0.025em', maxWidth: '18ch' }}>
+          Kurulum Yok, İsim Yeter
+        </h2>
         <p className="text-muted" style={{ maxWidth: '52ch', marginTop: 12 }}>
           Sekmeyi aç, adını yaz, in. Oda kurarsan bağlantıyı paylaşman yeter — arkadaşların aynı zindanda belirir.
         </p>
@@ -451,11 +495,11 @@ export default function HomePage() {
               <>
                 <button className="btn btn-primary btn-block" style={{ padding: '12px 16px' }}
                         onClick={() => router.push('/game?mode=solo&name=Kahraman')}>
-                  Tek Başına İn — 3 Can
+                  Tek Oyna — 3 Can
                 </button>
                 <button className="btn btn-secondary btn-block" style={{ padding: '12px 16px' }}
                         onClick={() => setMode('multiplayer')}>
-                  Arkadaşlarınla İn
+                  Arkadaşlarınla Oyna
                 </button>
                 <p className="text-muted" style={{ fontSize: 12, marginTop: 14 }}>
                   Chrome, Safari, Edge · masaüstü ve tablet
@@ -520,12 +564,13 @@ export default function HomePage() {
           gives the copy the larger share and lets the art sit right. */}
       <style>{`
         .dm-hero-grid { grid-template-columns: 1fr; }
-        .dm-mech-grid, .dm-play-grid { grid-template-columns: 1fr; }
-        .dm-navlinks { display: none; }
+        .dm-mech-grid, .dm-play-grid, .dm-rhythm-grid { grid-template-columns: 1fr; }
+        .dm-navlinks { display: none; align-items: center; gap: 22px; }
         @media (min-width: 900px) {
           .dm-hero-grid { grid-template-columns: 1.08fr 0.92fr; }
           .dm-mech-grid { grid-template-columns: 1.15fr 0.85fr; }
           .dm-play-grid { grid-template-columns: 0.9fr 1.1fr; }
+          .dm-rhythm-grid { grid-template-columns: 1fr 1fr; }
           .dm-navlinks { display: flex; }
         }
       `}</style>
