@@ -16,10 +16,40 @@ const NOTES: Record<string, NoteFrequency> = {
   Eb5: 622.25,
 } as const;
 
+/**
+ * How far each sound pushes the music down, 0..1.
+ *
+ * Anything not listed gets the default. Ambient and footsteps are deliberately
+ * absent — a score that flinches every time you take a step is worse than no
+ * ducking at all.
+ */
+const DUCK_DEPTH: Record<string, number> = {
+  footstep: 0,
+  buttonClick: 0,
+  menuOpen: 0.1,
+  menuClose: 0.1,
+  hit: 0.18,
+  monsterHurt: 0.18,
+  playerHurt: 0.3,
+  criticalHit: 0.28,
+  levelUp: 0.4,
+  bossAppear: 0.55,
+  victory: 0.5,
+  defeat: 0.5,
+  roomCleared: 0.3,
+};
+const DUCK_DEPTH_DEFAULT = 0.14;
+/** Seconds for the score to come back up. */
+const DUCK_RELEASE_S = 0.45;
+
 export class SoundManager {
   private static instance: SoundManager;
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
+  private limiter: DynamicsCompressorNode | null = null;
+  private toneShelf: BiquadFilterNode | null = null;
+  /** Sits between the music gain and the bus so SFX can dip the score. */
+  private musicDuck: GainNode | null = null;
   private sfxGain: GainNode | null = null;
   private musicGain: GainNode | null = null;
   private masterVolume = 0.5;
@@ -33,10 +63,41 @@ export class SoundManager {
 
   private canPlay(id: string, cooldownMs: number): boolean {
     const now = performance.now();
-    const last = this.lastPlayTime.get(id) ?? 0;
+    // Default must be -Infinity, not 0. performance.now() is milliseconds since
+    // navigation start, so with a 0 default the very first play of every
+    // throttled sound was suppressed for as long as its cooldown — a boss
+    // appearing in the first second of a page made no sound at all.
+    const last = this.lastPlayTime.get(id) ?? -Infinity;
     if (now - last < cooldownMs) return false;
     this.lastPlayTime.set(id, now);
+    // Every SFX passes through here, so ducking hangs off it and no individual
+    // sound has to remember to ask for it.
+    this.duckForSfx(id);
     return true;
+  }
+
+  /**
+   * Dip the music under a sound effect, then let it back up.
+   *
+   * Depth is per-sound: a footstep should not move the score at all, a boss
+   * appearing should push it well down. The release is slow enough that a
+   * flurry of hits reads as one sustained dip rather than a stutter.
+   */
+  private duckForSfx(id: string): void {
+    const depth = DUCK_DEPTH[id] ?? DUCK_DEPTH_DEFAULT;
+    if (depth <= 0 || !this.musicDuck) return;
+    const ctx = this.ctx;
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const target = 1 - depth;
+    const g = this.musicDuck.gain;
+    // Only deepen an existing duck; never cut one short.
+    if (g.value <= target) return;
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(g.value, now);
+    g.linearRampToValueAtTime(target, now + 0.02);
+    g.linearRampToValueAtTime(1, now + 0.02 + DUCK_RELEASE_S);
   }
 
   static getInstance(): SoundManager {
@@ -56,20 +117,54 @@ export class SoundManager {
         return null;
       }
 
-      // Master gain
+      // --- Master bus ---
+      //
+      // Everything used to run straight into the destination with no limiter.
+      // In a synth game that means overlapping sounds sum past full scale and
+      // clip, and digital clipping is the harsh, gritty edge that makes a
+      // soundtrack tiring within a few minutes. Signal path is now:
+      //
+      //   sources → sfx/music gain → shelf → limiter → master → out
+
       this.masterGain = this.ctx.createGain();
       this.masterGain.gain.value = this.masterVolume;
       this.masterGain.connect(this.ctx.destination);
 
+      // Brick-wall-ish limiter. A high ratio with a low knee and a fast attack
+      // catches transients (hits, crits) before they clip, without audibly
+      // pumping the way a slow compressor would.
+      this.limiter = this.ctx.createDynamicsCompressor();
+      this.limiter.threshold.value = -8;
+      this.limiter.knee.value = 4;
+      this.limiter.ratio.value = 12;
+      this.limiter.attack.value = 0.002;
+      this.limiter.release.value = 0.14;
+      this.limiter.connect(this.masterGain);
+
+      // Square and sawtooth waves carry a lot of energy above 5kHz. Left alone
+      // that is the "ice pick" quality of cheap chiptune; shelving it down
+      // keeps the sounds bright without them being sharp.
+      this.toneShelf = this.ctx.createBiquadFilter();
+      this.toneShelf.type = 'highshelf';
+      this.toneShelf.frequency.value = 5200;
+      this.toneShelf.gain.value = -7;
+      this.toneShelf.connect(this.limiter);
+
       // SFX gain
       this.sfxGain = this.ctx.createGain();
       this.sfxGain.gain.value = this.sfxVolume;
-      this.sfxGain.connect(this.masterGain);
+      this.sfxGain.connect(this.toneShelf);
 
-      // Music gain
+      // Music gain, via a duck stage so the score can step aside for combat
+      // instead of competing with it. Raising SFX volume to be heard over the
+      // music is what makes a mix loud and tiring; ducking makes it clear.
+      this.musicDuck = this.ctx.createGain();
+      this.musicDuck.gain.value = 1;
+      this.musicDuck.connect(this.toneShelf);
+
       this.musicGain = this.ctx.createGain();
       this.musicGain.gain.value = this.musicVolume;
-      this.musicGain.connect(this.masterGain);
+      this.musicGain.connect(this.musicDuck);
 
       // Pre-generate noise buffer
       this.noiseBuffer = this.createNoiseBuffer();
@@ -602,14 +697,14 @@ export class SoundManager {
   /** Duck the music/ambience briefly — used on boss dialog, phase changes, crits */
   duckMusic(durationMs = 400, depth = 0.4): void {
     const ctx = this.getContext();
-    if (!ctx || !this.musicGain) return;
+    if (!ctx || !this.musicDuck) return;
     const now = ctx.currentTime;
-    const current = this.musicGain.gain.value;
-    const target = current * (1 - depth);
-    this.musicGain.gain.cancelScheduledValues(now);
-    this.musicGain.gain.setValueAtTime(current, now);
-    this.musicGain.gain.linearRampToValueAtTime(target, now + 0.08);
-    this.musicGain.gain.linearRampToValueAtTime(this.musicVolume, now + durationMs / 1000);
+    const g = this.musicDuck.gain;
+    const target = 1 - Math.max(0, Math.min(1, depth));
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(g.value, now);
+    g.linearRampToValueAtTime(target, now + 0.08);
+    g.linearRampToValueAtTime(1, now + durationMs / 1000);
   }
 
   // =====================
