@@ -53,3 +53,12 @@ export const DIFFICULTY_INFO: Record<number, { label: string; color: string }> =
   3: { label: 'Zor', color: '#f97316' },
   4: { label: 'Çok Zor', color: '#ef4444' },
 } as const;
+
+
+// --- Oda nüfusu ---
+// Sürü modifiye edicisinin etkisi tamamen bu tavana bağlı: odalar zaten tavanda
+// oturuyorsa sayıyı çarpmak hiçbir şey değiştirmez ve arayüzde yazan şey yalan
+// olur. Bu yüzden sunucunun içinde değil, doğrulanabilecekleri yerdeler.
+export const ROOM_AREA_PER_MONSTER = 14;
+export const MAX_MONSTERS_PER_ROOM = 14;
+export const MIN_MONSTERS_PER_ROOM = 4;

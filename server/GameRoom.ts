@@ -25,6 +25,10 @@ import {
   rollShopStock,
   rerollCost,
   FLOOR_MODIFIERS,
+  MODIFIER_EFFECTS,
+  ROOM_AREA_PER_MONSTER,
+  MAX_MONSTERS_PER_ROOM,
+  MIN_MONSTERS_PER_ROOM,
   goldValueForFloor,
   SUMMONER_COOLDOWN_TICKS,
   VOLATILE_DEATH_DAMAGE_MULT,
@@ -161,9 +165,8 @@ function pickWeightedMonster(pool: WeightedMonster[]): MonsterType {
 
 // --- Game constants ---
 const RECONNECT_TIMEOUT_MS = 30_000;
-const ROOM_AREA_PER_MONSTER = 14;
-const MAX_MONSTERS_PER_ROOM = 14;
-const MIN_MONSTERS_PER_ROOM = 4;
+// Room population constants live in shared/constants.ts so they can be
+// verified — Swarm's whole effect depends on the per-room cap.
 const AOE_DAMAGE_MULTIPLIER = 0.6;
 const MAX_CHAT_LENGTH = 100;
 
@@ -367,10 +370,10 @@ export class GameRoom {
         y: room.y + 1 + Math.random() * Math.max(1, room.height - 2),
       };
       const monster = new Monster(type, pos, room.id);
-      monster.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
+      monster.scaleForFloor(this.monsterHpMult, this.floorAttackMultiplier);
       if (this.isSolo) monster.scaleForSolo();
       monster.scaleForPlayerCount(clampedPlayers);
-      if (this.hasModifier('haste_monsters')) monster.floorSpeedMultiplier = 1.3;
+      if (this.hasModifier('haste_monsters')) monster.floorSpeedMultiplier = MODIFIER_EFFECTS.hasteSpeedMult;
       this.monsters.set(monster.state.id, monster);
       room.monsterIds.push(monster.state.id);
     }
@@ -805,7 +808,7 @@ export class GameRoom {
   private spawnMonstersInRooms(): void {
     const clampedPlayers = Math.max(1, Math.min(4, this.playerCount));
     const monsterMultiplier = MONSTER_MULTIPLIER_BY_PLAYERS[clampedPlayers] ?? 1.0;
-    const hasteMultiplier = this.hasModifier('haste_monsters') ? 1.3 : 1;
+    const hasteMultiplier = this.hasModifier('haste_monsters') ? MODIFIER_EFFECTS.hasteSpeedMult : 1;
 
     for (const room of this.rooms) {
       if (room.isStartRoom) continue;
@@ -828,7 +831,7 @@ export class GameRoom {
           { x: room.centerX, y: room.centerY },
           room.id,
         );
-        guard.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
+        guard.scaleForFloor(this.monsterHpMult, this.floorAttackMultiplier);
         if (this.isSolo) guard.scaleForSolo();
         guard.scaleForPlayerCount(clampedPlayers);
         guard.makeElite(this.currentFloor);
@@ -850,7 +853,7 @@ export class GameRoom {
           : (bossTypeMap[this.currentFloor] ?? 'boss_spider_queen');
         const boss = new Monster(bossType, { x: room.centerX, y: room.centerY }, room.id);
         // Boss uses its own MONSTER_STATS HP, then scale for floor + players
-        boss.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
+        boss.scaleForFloor(this.monsterHpMult, this.floorAttackMultiplier);
         if (this.isSolo) boss.scaleForSolo();
         boss.scaleForPlayerCount(clampedPlayers);
         this.monsters.set(boss.state.id, boss);
@@ -863,7 +866,7 @@ export class GameRoom {
           const sx = room.centerX + Math.cos(angle) * 2;
           const sy = room.centerY + Math.sin(angle) * 2;
           const skel = new Monster('skeleton', { x: sx, y: sy }, room.id);
-          skel.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
+          skel.scaleForFloor(this.monsterHpMult, this.floorAttackMultiplier);
           if (this.isSolo) skel.scaleForSolo();
           skel.scaleForPlayerCount(clampedPlayers);
           this.monsters.set(skel.state.id, skel);
@@ -877,7 +880,7 @@ export class GameRoom {
             const gx = room.centerX + (i === 0 ? -3 : 3);
             const gy = room.centerY + (i === 0 ? 2 : -2);
             const goblin = new Monster('goblin', { x: gx, y: gy }, room.id);
-            goblin.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
+            goblin.scaleForFloor(this.monsterHpMult, this.floorAttackMultiplier);
             goblin.scaleForPlayerCount(clampedPlayers);
             this.monsters.set(goblin.state.id, goblin);
             room.monsterIds.push(goblin.state.id);
@@ -887,7 +890,11 @@ export class GameRoom {
         // Normal room: base 3-6 monsters scaled by player count multiplier
         const area = room.width * room.height;
         const baseCount = Math.max(MIN_MONSTERS_PER_ROOM, Math.floor(area / ROOM_AREA_PER_MONSTER));
-        const scaledCount = Math.min(MAX_MONSTERS_PER_ROOM, Math.max(1, Math.round(baseCount * monsterMultiplier)));
+        const swarmMult = this.hasModifier('swarm') ? MODIFIER_EFFECTS.swarmCountMult : 1;
+        const scaledCount = Math.min(
+          MAX_MONSTERS_PER_ROOM,
+          Math.max(1, Math.round(baseCount * monsterMultiplier * swarmMult)),
+        );
 
         const pool = MONSTER_POOL_BY_FLOOR[this.currentFloor] ?? MONSTER_POOL_BY_FLOOR[4];
 
@@ -904,7 +911,7 @@ export class GameRoom {
               const rx = mx + (Math.random() - 0.5) * 1.5;
               const ry = my + (Math.random() - 0.5) * 1.5;
               const rat = new Monster('rat', { x: rx + 0.5, y: ry + 0.5 }, room.id);
-              rat.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
+              rat.scaleForFloor(this.monsterHpMult, this.floorAttackMultiplier);
               if (this.isSolo) rat.scaleForSolo();
               rat.scaleForPlayerCount(clampedPlayers);
               this.monsters.set(rat.state.id, rat);
@@ -912,7 +919,7 @@ export class GameRoom {
             }
           } else {
             const monster = new Monster(type, { x: mx + 0.5, y: my + 0.5 }, room.id);
-            monster.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
+            monster.scaleForFloor(this.monsterHpMult, this.floorAttackMultiplier);
             if (this.isSolo) monster.scaleForSolo();
             monster.scaleForPlayerCount(clampedPlayers);
             this.monsters.set(monster.state.id, monster);
@@ -928,7 +935,7 @@ export class GameRoom {
           const ex = room.x + 1 + Math.floor(Math.random() * (room.width - 2));
           const ey = room.y + 1 + Math.floor(Math.random() * (room.height - 2));
           const elite = new Monster(eliteType, { x: ex + 0.5, y: ey + 0.5 }, room.id);
-          elite.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
+          elite.scaleForFloor(this.monsterHpMult, this.floorAttackMultiplier);
           if (this.isSolo) elite.scaleForSolo();
           elite.scaleForPlayerCount(clampedPlayers);
           elite.makeElite(this.currentFloor);
@@ -959,6 +966,41 @@ export class GameRoom {
       clearInterval(this.gameLoopTimer);
       this.gameLoopTimer = null;
     }
+  }
+
+  /**
+   * Everything that scales damage arriving at a player. Fragile and Glass Cannon
+   * both live here so they compound rather than one silently overwriting the
+   * other, which is what separate inline ternaries would have done.
+   */
+  private incomingDamageMult(): number {
+    let m = 1;
+    if (this.hasModifier('fragile')) m *= MODIFIER_EFFECTS.fragileDamageTaken;
+    if (this.hasModifier('glass_cannon')) m *= MODIFIER_EFFECTS.glassCannonDamageTaken;
+    return m;
+  }
+
+  /** Scales damage the players deal. */
+  private outgoingDamageMult(): number {
+    return this.hasModifier('glass_cannon') ? MODIFIER_EFFECTS.glassCannonPlayerDamage : 1;
+  }
+
+  /** Monsters hit harder or softer depending on the floor's trade-offs. */
+  private monsterDamageMult(): number {
+    let m = 1;
+    if (this.hasModifier('frenzy')) m *= MODIFIER_EFFECTS.frenzyDamageMult;
+    if (this.hasModifier('brittle_foes')) m *= MODIFIER_EFFECTS.brittleDamageMult;
+    return m;
+  }
+
+  /**
+   * Floor HP scaling, including Swarm's reduction.
+   *
+   * There are three spawn sites (normal rooms, treasure guards, bosses) and a
+   * multiplier applied inline would sooner or later be applied at two of them.
+   */
+  private get monsterHpMult(): number {
+    return this.floorHpMultiplier * (this.hasModifier('swarm') ? MODIFIER_EFFECTS.swarmHpMult : 1);
   }
 
   private hasModifier(id: string): boolean {
@@ -1305,10 +1347,11 @@ export class GameRoom {
       if (attackResult) {
         const targetPlayer = this.players.get(attackResult.targetId);
         if (targetPlayer) {
-          const fragileMultiplier = this.hasModifier('fragile') ? 1.2 : 1;
+          const fragileMultiplier = this.incomingDamageMult();
           const isBoss = monster.state.type.startsWith('boss_');
           const severity: 'normal' | 'crit' | 'boss' = isBoss ? 'boss' : 'normal';
-          const result = targetPlayer.takeDamage(Math.floor(attackResult.damage * fragileMultiplier), severity);
+          const scaled = attackResult.damage * fragileMultiplier * this.monsterDamageMult();
+          const result = targetPlayer.takeDamage(Math.floor(scaled), severity);
           if (!result.dodged && result.effectiveDamage > 0) {
             // Vampiric elites heal off the damage they land.
             if (monster.state.isElite && monster.state.eliteAffix === 'vampiric') {
@@ -1370,7 +1413,7 @@ export class GameRoom {
       for (const aoeHit of monster.aoeHits) {
         const aoePlayer = this.players.get(aoeHit.playerId);
         if (aoePlayer && aoePlayer.state.alive) {
-          const fragileMultiplier = this.hasModifier('fragile') ? 1.2 : 1;
+          const fragileMultiplier = this.incomingDamageMult();
           const aoeResult = aoePlayer.takeDamage(Math.floor(aoeHit.damage * fragileMultiplier), 'boss');
           if (!aoeResult.dodged && aoeResult.effectiveDamage > 0) {
             const ndx = aoePlayer.state.position.x - monster.state.position.x;
@@ -1402,7 +1445,7 @@ export class GameRoom {
           x: monster.state.position.x + (Math.random() - 0.5) * 2,
           y: monster.state.position.y + (Math.random() - 0.5) * 2,
         }, monster.roomId);
-        helper.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
+        helper.scaleForFloor(this.monsterHpMult, this.floorAttackMultiplier);
         if (this.isSolo) helper.scaleForSolo();
         helper.scaleForPlayerCount(Math.max(1, Math.min(4, this.playerCount)));
         this.monsters.set(helper.state.id, helper);
@@ -1434,7 +1477,7 @@ export class GameRoom {
               x: monster.state.position.x + (Math.random() - 0.5) * 3,
               y: monster.state.position.y + (Math.random() - 0.5) * 3,
             }, monster.roomId);
-            minion.scaleForFloor(this.floorHpMultiplier, this.floorAttackMultiplier);
+            minion.scaleForFloor(this.monsterHpMult, this.floorAttackMultiplier);
             if (this.isSolo) minion.scaleForSolo();
             minion.scaleForPlayerCount(this.playerCount);
             this.monsters.set(minion.state.id, minion);
@@ -1538,7 +1581,9 @@ export class GameRoom {
               projDmg = Math.floor(projDmg * owner.getElementalDamageMult());
             }
             const severity: 'normal' | 'crit' | 'heavy' = isCrit ? 'crit' : 'normal';
-            const actualDamage = monster.takeDamage(projDmg, severity, dmgType, projectile.state.ownerId);
+            const actualDamage = monster.takeDamage(
+              Math.floor(projDmg * this.outgoingDamageMult()), severity, dmgType, projectile.state.ownerId,
+            );
             // Threat drives target selection — without this the tank has no way
             // to pull anything off a teammate.
             monster.addThreat(projectile.state.ownerId, actualDamage);

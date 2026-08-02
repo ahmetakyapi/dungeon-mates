@@ -19,6 +19,10 @@ const MODIFIER_EMOJI: Record<string, string> = {
   fragile: '🩸',
   drought: '🏜️',
   burning_ground: '🔥',
+  glass_cannon: '💥',
+  swarm: '🐝',
+  frenzy: '🌀',
+  brittle_foes: '🥚',
 };
 const MODIFIER_COLOR: Record<string, string> = {
   reduced_healing: '#f87171',
@@ -27,6 +31,13 @@ const MODIFIER_COLOR: Record<string, string> = {
   fragile: '#fb923c',
   drought: '#60a5fa',
   burning_ground: '#ef4444',
+  // Trade-offs read cyan-green rather than red: they are not simply worse, and
+  // the player should be able to tell which kind they are facing before reading
+  // the description.
+  glass_cannon: '#22d3ee',
+  swarm: '#34d399',
+  frenzy: '#2dd4bf',
+  brittle_foes: '#4ade80',
 };
 const MAX_TOASTS = 4;
 const COMBO_WINDOW_MS = 3000;

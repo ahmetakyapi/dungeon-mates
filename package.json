@@ -15,7 +15,8 @@
     "check:decals": "tsx scripts/decal-check.ts",
     "check:hazards": "tsx scripts/hazard-check.ts",
     "check:revive": "tsx scripts/revive-check.ts",
-    "check:shop": "tsx scripts/shop-check.ts"
+    "check:shop": "tsx scripts/shop-check.ts",
+    "check:modifiers": "tsx scripts/modifier-check.ts"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
