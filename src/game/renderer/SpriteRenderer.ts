@@ -92,6 +92,11 @@ const SPRITE_CACHE_MAX = 768;
 // (sword glint %12, slime blink %24, demon eyes %24) aliased into four slots and
 // froze at whatever phase happened to bake first — then visibly popped to a new
 // phase on LRU eviction.
+// LEG_CYCLE[0] / WALK_OFFSETS[0] are the neutral, both-feet-planted pose, so
+// this is the phase a standing character holds. Without it every idle character
+// marched in place, which is the single most obvious "unfinished" tell in a
+// pixel-art game.
+const IDLE_ANIM_IDX = 0;
 const ANIM_PERIOD = 12;      // covers %2 %3 %4 %6 %12 cycles
 const BOSS_ANIM_PERIOD = 24; // covers %8 and %24 as well
 
@@ -308,12 +313,15 @@ export class SpriteRenderer {
     poisoned = false,
     slowed = false,
     stunTicks = 0,
+    moving = true,
   ): void {
     // Elliptical shadow beneath (dynamic if light source set)
     this.drawEntityShadow(ctx, x, y, 16, 16, this.currentLightSource ?? undefined);
 
-    // Idle breathing: subtle Y oscillation every ~30 frames
-    const breatheY = Math.sin(frame * 0.21) * 0.6;
+    // Breathing. Deeper while standing, where it is the only motion; shallower
+    // while walking, where the stride already carries a bob of its own and the
+    // two used to fight each other.
+    const breatheY = Math.sin(frame * 0.21) * (moving ? 0.25 : 0.7);
 
     if (flashWhite) {
       this.drawPlayerWhiteFlash(ctx, x, y + breatheY, playerClass, facing, attacking, frame);
@@ -322,7 +330,10 @@ export class SpriteRenderer {
 
     // Cache player sprite per animation state — avoids 50+ px() calls per frame
     const atkFrame = attacking ? 1 : 0;
-    const animIdx = ((frame % ANIM_PERIOD) + ANIM_PERIOD) % ANIM_PERIOD;
+    // An attack plays its own animation regardless of footing.
+    const animIdx = moving || attacking
+      ? ((frame % ANIM_PERIOD) + ANIM_PERIOD) % ANIM_PERIOD
+      : IDLE_ANIM_IDX;
     const cacheKey = `player_${playerClass}_${facing}_${atkFrame}_${animIdx}`;
     const cached = getCachedSprite(cacheKey, 16, 16, (sprCtx) => {
       switch (playerClass) {
@@ -1268,6 +1279,7 @@ export class SpriteRenderer {
     burnTicks = 0,
     freezeTicks = 0,
     poisonTicks = 0,
+    moving = true,
   ): void {
     const stats = MONSTER_STATS[type];
     const renderSize = Math.floor(TILE_SIZE * stats.size);
@@ -1303,7 +1315,11 @@ export class SpriteRenderer {
     // Cache monster sprites per animation state (including bosses now)
     const atkFrame = attacking ? 1 : 0;
     const period = type.startsWith('boss_') ? BOSS_ANIM_PERIOD : ANIM_PERIOD;
-    const animIdx = ((frame % period) + period) % period;
+    // Bosses keep breathing on the spot — they are meant to loom, and their
+    // sprites carry idle motion the walk cycle does not duplicate.
+    const animIdx = moving || attacking || type.startsWith('boss_')
+      ? ((frame % period) + period) % period
+      : IDLE_ANIM_IDX;
     // Collapse facing for types whose sprites ignore it.
     const facingKey = DIRECTIONAL_MONSTERS.has(type) ? facing : '-';
     const mCacheKey = `mon_${type}_${facingKey}_${atkFrame}_${animIdx}`;

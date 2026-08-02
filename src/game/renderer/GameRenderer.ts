@@ -5,12 +5,13 @@
 // Visual effects: vignette, screen flash, ambient particles
 // ==========================================
 
-import type { GameState, PlayerState, MonsterState, ProjectileState, LootState, TileType, DamageType, Direction, MonsterType } from '../../../shared/types';
+import type { GameState, PlayerState, MonsterState, ProjectileState, LootState, TileType, DamageType, Direction, MonsterType, Vec2 } from '../../../shared/types';
 import { TILE_SIZE, CLASS_STATS, MONSTER_STATS, LOOT_TABLE, ELITE_AFFIXES, floorTheme, TELEGRAPH_NONE, TELEGRAPH_CONE, TELEGRAPH_LINE } from '../../../shared/types';
 import { Camera } from './Camera';
 import { SpriteRenderer, isTorchWall, TORCH_ANCHOR_X, TORCH_ANCHOR_Y } from './SpriteRenderer';
 import { drawPixelText, drawPixelTextOutlined, measurePixelText, PIXEL_FONT_HEIGHT } from './PixelFont';
 import { ParticleSystem } from './ParticleSystem';
+import { DecalSystem, DECAL_BLOOD, DECAL_SCORCH, DECAL_FROST, DECAL_CRATER } from './DecalSystem';
 
 // Logical render resolution
 const LOGICAL_WIDTH_DESKTOP = 480;
@@ -87,6 +88,18 @@ const PERF_CHECK_INTERVAL = 2000; // ms
 // Matches AIM_SNAP_TOLERANCE on the server (~35°) so the highlighted target is
 // exactly the one the shot will resolve against.
 const AIM_SNAP_COS = Math.cos(0.61);
+
+/**
+ * Is this entity actually walking?
+ *
+ * The server zeroes velocity the moment input stops, so this is an exact
+ * answer rather than a guess from position deltas. The threshold only exists to
+ * ignore the residue of a decaying knockback.
+ */
+function isEntityMoving(v: Vec2 | undefined): boolean {
+  if (!v) return false;
+  return Math.abs(v.x) > 0.02 || Math.abs(v.y) > 0.02;
+}
 
 const VISION_RADIUS = 10;
 const VISION_RADIUS_DARKNESS = 6;
@@ -197,9 +210,10 @@ export class GameRenderer {
   private visionFalloffCanvas: HTMLCanvasElement | null = null;
   private visionFalloffRadius = -1;
 
-  // Environmental decorations (bloodSplatters uses circular buffer)
-  private bloodSplatters: Array<{ x: number; y: number }> = [];
-  private bloodSplatterIdx = 0;
+  // Environmental decorations. Blood used to be a separate circular buffer that
+  // drew the same four pixels in the same colour and never faded; DecalSystem
+  // replaces it and covers scorch, frost and craters too.
+  private readonly decals = new DecalSystem();
   private boneFragments: Array<{ x: number; y: number; seed: number }> = [];
   private cobwebPositions: Array<{ x: number; y: number; corner: number }> = [];
   private floorCracks: Array<{ x: number; y: number; seed: number }> = [];
@@ -285,8 +299,12 @@ export class GameRenderer {
     dodging: boolean; alive: boolean; abilityCd: number; stun: number;
     abilityActive: boolean; comboTier: number;
   }> = new Map();
+  /** Throttles elemental ground marks — see queueDamageMeta's consumer. */
+  private elementalHitCount = 0;
+
   private readonly prevMonsterFlags: Map<string, {
     enraged: boolean; shield: boolean; phased: boolean; stun: number; casting: boolean;
+    phase: string;
   }> = new Map();
 
   private readonly prevMonsterSnapshot: Map<string, { x: number; y: number; type: string; isBoss: boolean; facing: Direction; isElite: boolean }> = new Map();
@@ -562,12 +580,16 @@ export class GameRenderer {
     if (!preset.particles) return;
 
     // Elemental particles per type
+    this.elementalHitCount++;
+    const marks = this.elementalHitCount % 3 === 0;
     switch (meta.damageType) {
       case 'fire':
         this.particles.emitFireTrail(targetWx, targetWy);
+        if (marks) this.addScorch(targetWx, targetWy, 0.8);
         break;
       case 'ice':
         this.particles.emitIceStorm(targetWx, targetWy);
+        if (marks) this.addFrost(targetWx, targetWy, 0.9);
         break;
       case 'poison':
         this.particles.emitPoisonCloud(targetWx, targetWy);
@@ -899,7 +921,12 @@ export class GameRenderer {
       this.renderEnvironmentalDecor(ctx, camX, camY, dt);
     }
 
-    // 2b. Render torch light sources on floor (additive glow on top)
+    // 2b. Ground marks left by the fight. Under the torch glow, so a scorch in a
+    // lit corner reads as lit, and under every entity.
+    this.decals.update(dt);
+    this.decals.render(ctx, camX, camY, this.logicalWidth / zoom, this.logicalHeight / zoom);
+
+    // 2c. Render torch light sources on floor (additive glow on top)
     if (preset.effects) {
       this.renderTorchLights(ctx, camX, camY);
     }
@@ -1181,14 +1208,27 @@ export class GameRenderer {
   // ===== ENVIRONMENTAL DECORATIONS =====
 
   /** Public: add blood splatter when a monster dies (call from game logic) */
-  addBloodSplatter(worldX: number, worldY: number): void {
-    if (this.bloodSplatters.length >= 50) {
-      // Overwrite oldest entry instead of shift() — O(1) vs O(n)
-      this.bloodSplatters[this.bloodSplatterIdx] = { x: worldX, y: worldY };
-      this.bloodSplatterIdx = (this.bloodSplatterIdx + 1) % 50;
-    } else {
-      this.bloodSplatters.push({ x: worldX, y: worldY });
-    }
+  /**
+   * Ground mark where something died. `color` is the monster's own colour, so a
+   * slime leaves green and a skeleton leaves bone dust.
+   */
+  addBloodSplatter(worldX: number, worldY: number, color = '#7f1d1d', scale = 1): void {
+    this.decals.spawn(worldX, worldY, DECAL_BLOOD, scale, color);
+  }
+
+  /** Burn mark — fire damage, explosions, lava. */
+  addScorch(worldX: number, worldY: number, scale = 1): void {
+    this.decals.spawn(worldX, worldY, DECAL_SCORCH, scale);
+  }
+
+  /** Frost patch — freeze effects. Thaws faster than the other marks. */
+  addFrost(worldX: number, worldY: number, scale = 1): void {
+    this.decals.spawn(worldX, worldY, DECAL_FROST, scale);
+  }
+
+  /** Impact pit — boss slams and heavy landings. */
+  addCrater(worldX: number, worldY: number, scale = 1): void {
+    this.decals.spawn(worldX, worldY, DECAL_CRATER, scale);
   }
 
   /** Trigger loot pickup screen flash */
@@ -1226,7 +1266,7 @@ export class GameRenderer {
 
   /** Clear all decorations (called on floor change) */
   clearDecorations(): void {
-    this.bloodSplatters = [];
+    this.decals.clear();
     this.boneFragments = [];
     this.cobwebPositions = [];
     this.floorCracks = [];
@@ -1308,25 +1348,6 @@ export class GameRenderer {
 
   /** Render environmental decorations (blood, bones, cobwebs, cracks, water drips) */
   private renderEnvironmentalDecor(ctx: CanvasRenderingContext2D, camX: number, camY: number, dt: number): void {
-    // Blood splatters
-    for (let i = 0; i < this.bloodSplatters.length; i++) {
-      const b = this.bloodSplatters[i];
-      const sx = Math.floor(b.x - camX);
-      const sy = Math.floor(b.y - camY);
-      if (sx < -16 || sx > this.logicalWidth + 16 || sy < -16 || sy > this.logicalHeight + 16) continue;
-
-      ctx.globalAlpha = 0.4;
-      ctx.fillStyle = '#7f1d1d';
-      // Irregular splatter shape (3-4 pixel cluster)
-      ctx.fillRect(sx, sy, 2, 1);
-      ctx.fillRect(sx - 1, sy + 1, 3, 1);
-      ctx.fillRect(sx, sy + 2, 1, 1);
-      ctx.globalAlpha = 0.25;
-      ctx.fillStyle = '#450a0a';
-      ctx.fillRect(sx + 2, sy + 1, 1, 1);
-      ctx.globalAlpha = 1;
-    }
-
     // Bone fragments (tiny white/gray pixels)
     for (let i = 0; i < this.boneFragments.length; i++) {
       const bone = this.boneFragments[i];
@@ -2141,6 +2162,7 @@ export class GameRenderer {
         monster.burnTicks ?? 0,
         monster.freezeTicks ?? 0,
         monster.poisonTicks ?? 0,
+        isEntityMoving(monster.velocity),
       );
       if (applyHitSquash) ctx.restore();
 
@@ -2404,6 +2426,7 @@ export class GameRenderer {
         player.poisoned,
         player.slowed,
         player.stunTicks,
+        isEntityMoving(player.velocity),
       );
       if (applyPSquash) ctx.restore();
 
@@ -3111,6 +3134,11 @@ export class GameRenderer {
         if (m.casting && !prev.casting && (m.type === 'spider' || m.type === 'boss_spider_queen')) {
           this.particles.emitWebShot(wx, wy, wx + 24, wy);
         }
+        // A big slam that has just resolved leaves a pit. Keyed on the attack
+        // leaving its active frame, which is the moment the damage landed.
+        if (prev.phase === 'active' && m.attackPhase !== 'active' && m.telegraphRadius >= 2) {
+          this.addCrater(wx, wy, Math.min(2.6, m.telegraphRadius * 0.6));
+        }
       }
 
       this.prevMonsterFlags.set(m.id, {
@@ -3119,6 +3147,7 @@ export class GameRenderer {
         phased: m.phased,
         stun: m.staggerTicks,
         casting: m.casting,
+        phase: m.attackPhase,
       });
     }
   }
@@ -3259,8 +3288,8 @@ export class GameRenderer {
           this.particles.emitDeath(wx, wy, MONSTER_STATS[m.type].color);
           this.particles.emitDeathSoul(wx, wy, MONSTER_STATS[m.type].color);
         }
-        // Add blood splatter at death location
-        this.addBloodSplatter(wx, wy);
+        // Add blood splatter at death location, in the monster's own colour
+        this.addBloodSplatter(wx, wy, MONSTER_STATS[m.type].color, m.type.startsWith('boss_') ? 2.2 : 1);
         // Boss death = big shake
         if (m.type.startsWith('boss_')) {
           this.camera.shakeBossSlam();
@@ -3298,7 +3327,8 @@ export class GameRenderer {
           this.particles.emitDeath(snap.x, snap.y, color);
           this.particles.emitDeathSoul(snap.x, snap.y, color);
         }
-        this.addBloodSplatter(snap.x, snap.y);
+        this.addBloodSplatter(snap.x, snap.y, color, snap.isBoss ? 2.2 : 1);
+        if (snap.isBoss) this.addCrater(snap.x, snap.y, 2.4);
         // Client-side dying entity for squash+spin
         this.dyingEntities.push({
           x: snap.x, y: snap.y, type: snap.type, color,

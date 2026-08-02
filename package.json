@@ -11,7 +11,8 @@
     "start": "next start",
     "start:server": "node dist/server/index.js",
     "check:combat": "tsx scripts/combat-check.ts",
-    "check:smoke": "node scripts/smoke.mjs"
+    "check:smoke": "node scripts/smoke.mjs",
+    "check:decals": "tsx scripts/decal-check.ts"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
