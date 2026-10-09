@@ -23,7 +23,7 @@ const FLOOR_QUOTES: Record<number, string> = {
   6: 'Bilgi güçtür. Ama buradaki bilgi lanetli.',
   7: 'Taş bahçeler geride kaldı. Sıcaklık artıyor.',
   8: 'Lavların arasından geçtin. Tapınak görünüyor.',
-  9: 'Son engel aşıldı. Mor\'Khan\'la yüzleşme zamanı.',
+  9: 'Son engel aşıldı. Karanmir\'le yüzleşme zamanı.',
 } as const;
 
 type FloorTransitionProps = {

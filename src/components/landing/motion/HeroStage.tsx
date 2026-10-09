@@ -20,7 +20,7 @@ export function HeroStage({ ready, actions }: { ready: boolean; actions: ReactNo
   const [narrow, setNarrow] = useState(false);
 
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 760px)');
+    const mq = window.matchMedia('(max-width: 760px), (orientation: portrait) and (max-width: 1100px)');
     const on = () => setNarrow(mq.matches);
     on();
     mq.addEventListener('change', on);

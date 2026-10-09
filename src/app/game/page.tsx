@@ -668,7 +668,7 @@ function GamePage() {
         gold: p.goldCollected,
       }));
 
-      // Defeat cause — check every boss, not just Mor'Khan. Dying to any of the
+      // Defeat cause — check every boss, not just Karanmir. Dying to any of the
       // other four bosses used to report the generic "dungeon monsters" line.
       let defeatCause: string | undefined;
       if (phase !== 'victory') {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ACTS } from '../../../shared/types';
+import { ACTS, FLOOR_LORE } from '../../../shared/types';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
 import { MaskReveal, SplitReveal } from '@/components/fx/RevealText';
 import { EASE_OUT_EXPO, EASE_IN_OUT, prefersReducedMotion } from '@/lib/motion';
@@ -15,7 +15,7 @@ type LoadingScreenProps = {
 const GAME_TIPS: Record<number, readonly string[]> = {
   0: [
     'Zephara bir zamanlar yerin altındaki en görkemli şehirdi.',
-    'Kral Mor\'Khan halkını korumak istedi. Ama bedeli çok ağır oldu.',
+    'Kral Karanmir halkını korumak istedi. Ama bedeli çok ağır oldu.',
     'Canavarlar bir zamanlar Zephara\'nın vatandaşlarıydı.',
     'Kapılar ancak tüm düşmanlar temizlenince açılır — eski güvenlik sistemi hâlâ çalışıyor.',
     'Takım halinde hareket et — yalnız kalanı Zephara yutar.',
@@ -36,10 +36,10 @@ const GAME_TIPS: Record<number, readonly string[]> = {
     'Yarasalar keşif birliğinin son kalıntıları.',
   ],
   3: [
-    'Derin Tüneller — Madencilerin çekiç sesleri kesileli yüzyıllar oldu.',
+    'Demircinin Ocağı — Çekiç sesleri kesileli çok olmuş, ama ocak hâlâ sıcak.',
     'Goblinler işçi kastının yozlaşmış torunları.',
     'Mantarlar zehir saçıyor — mesafe koru.',
-    'Tünellerin duvarlarında eski yazıtlar var. Kim okuyabilir ki artık?',
+    'Ocak Muhafızı bekliyor — yer sarsıntısı önce zeminde görünür.',
   ],
   4: [
     'Terkedilmiş Pazar — Eski ticaret merkezi. Tezgahlar devrilmiş.',
@@ -48,15 +48,15 @@ const GAME_TIPS: Record<number, readonly string[]> = {
     'Zephara\'nın tüccarları bir zamanlar zenginlik içindeydi.',
   ],
   5: [
-    'Örümcek Kraliçe\'nin İni — MID-BOSS katı!',
-    'Kraliçe ağ fırlatır — hareket etmeyi bırakma.',
-    'Yavru örümcekleri önce temizle, sonra kraliçeye odaklan.',
-    'Örümcek Kraliçe Zephara\'nın eski dokumacılarının lideriydi.',
+    'Dokuyucunun Evi — Selvira\'nın karantina hattı. Boss katı!',
+    'Selvira ağ fırlatır — ağ hattına girersen yavaşlarsın, hareket etmeyi bırakma.',
+    'Yavru örümcekleri önce temizle, sonra Selvira\'ya odaklan.',
+    'Ağlar duvar değil, mühür. Selvira aşağıyı yukarıdan ayırmakla görevliydi.',
   ],
   6: [
     'Yıkık Kütüphane — Zephara\'nın bilgi merkezi. Kitaplar çürümüş ama ruhlar hâlâ okuyor.',
     'Hayaletler duvarlardan geçer — arkana dikkat et.',
-    'Eski yazıtlar Mor\'Khan\'ın ritüelini anlatıyor. Bir zamanlar iyi bir kraldı.',
+    'Eski yazıtlar Karanmir\'in ritüelini anlatıyor. Bir zamanlar iyi bir kraldı.',
     'Kütüphanedeki sandıklar değerli loot içerir.',
   ],
   7: [
@@ -69,7 +69,7 @@ const GAME_TIPS: Record<number, readonly string[]> = {
     'Lav Nehirleri — Magma arasında yürü, lav balçıklarına dikkat.',
     'Lav balçıkları patlayınca alan hasarı verir — mesafe koru.',
     'Karanlık şövalyeler en güçlü düşmanlar — birlikte saldırın.',
-    'Sıcaklık arttıkça Mor\'Khan\'ın gücü de artıyor.',
+    'Sıcaklık arttıkça Karanmir\'in gücü de artıyor.',
   ],
   9: [
     'Ruhlar Tapınağı — Son normal kat. En güçlü düşmanlar burada.',
@@ -78,25 +78,13 @@ const GAME_TIPS: Record<number, readonly string[]> = {
     'Tapınağın altında Taht Salonu var. Dönüşü yok.',
   ],
   10: [
-    'Taht Salonu — Kral Mor\'Khan\'ın son sığınağı.',
-    'Mor\'Khan minyon çağırır — önce onları temizle.',
+    'Taht Salonu — Kral Karanmir\'in son sığınağı.',
+    'Karanmir minyon çağırır — önce onları temizle.',
     'Kralın charge saldırısından kaç — çok hasar verir.',
-    'Mor\'Khan bir zamanlar halkını seven bir kraldı. Şimdi sadece acı var.',
+    'Karanmir bir zamanlar halkını seven bir kraldı. Şimdi sadece acı var.',
   ],
 } as const;
 
-const FLOOR_NAMES: Record<number, string> = {
-  1: 'Yıkık Kapılar',
-  2: 'Sessiz Sokaklar',
-  3: 'Derin Tüneller',
-  4: 'Terkedilmiş Pazar',
-  5: 'Örümcek Kraliçe\'nin İni',
-  6: 'Yıkık Kütüphane',
-  7: 'Taş Bahçeler',
-  8: 'Lav Nehirleri',
-  9: 'Ruhlar Tapınağı',
-  10: 'Taht Salonu',
-} as const;
 
 /** Metres per floor — the depth counter reads like a descent gauge. */
 const METERS_PER_FLOOR = 24;
@@ -193,7 +181,9 @@ export function LoadingScreen({ message, subMessage, floor }: LoadingScreenProps
 
   const dots = '.'.repeat(dotCount);
   const act = actFor(floor);
-  const floorName = floor ? FLOOR_NAMES[floor] : undefined;
+  // Names come from shared/lore.ts — the local table had drifted (floor 3 and
+  // 5 still carried their pre-rewrite names).
+  const floorName = floor ? FLOOR_LORE[floor]?.name : undefined;
   const numeral = floor ? String(floor).padStart(2, '0') : '··';
   const tip = floorTips[tipIndex % floorTips.length];
 

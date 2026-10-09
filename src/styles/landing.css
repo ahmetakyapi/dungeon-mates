@@ -347,10 +347,12 @@ html.dm-has-cursor .dm-landing input { cursor: text; }
 }
 @keyframes dm-cue { from { transform: translateY(-100%); } to { transform: translateY(260%); } }
 
-@media (min-width: 761px) {
+/* "Narrow" for the hero means phones and portrait tablets: a tall screen
+   wants the stacked layout whatever its width. Mirrors HeroStage's query. */
+@media (min-width: 761px) and (orientation: landscape), (min-width: 1101px) {
   .dm-scroll-cue { display: flex; }
 }
-@media (max-width: 760px) {
+@media (max-width: 760px), (orientation: portrait) and (max-width: 1100px) {
   .dm-hero-type { justify-content: flex-start; padding-top: 11vh; }
   .dm-hero-line--top { margin-bottom: 0; }
   .dm-hero-line--bot { position: absolute; right: var(--gutter); top: 62%; }
@@ -449,12 +451,13 @@ html.dm-has-cursor .dm-landing input { cursor: text; }
   will-change: transform;
 }
 .dm-gallery-intro {
-  width: min(86vw, 640px); flex-shrink: 0;
+  width: min(86vw, 720px); flex-shrink: 0;
   display: flex; flex-direction: column; justify-content: center;
 }
+.dm-gallery-intro .dm-display { font-size: clamp(40px, 5vw, 84px) !important; }
 .dm-gallery-acts { display: grid; gap: 12px; margin-top: 30px; }
 .dm-gallery-acts > div {
-  display: grid; grid-template-columns: 82px auto 1fr; gap: 14px; align-items: baseline;
+  display: grid; grid-template-columns: 96px auto 1fr; gap: 14px; align-items: baseline;
   padding-top: 10px; border-top: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
   font-size: 14px;
 }
@@ -488,8 +491,10 @@ html.dm-has-cursor .dm-landing input { cursor: text; }
 .dm-floor-panel-strip { position: relative; height: 38%; min-height: 110px; flex-shrink: 0; }
 .dm-floor-panel-strip-fade { position: absolute; inset: 0; background: linear-gradient(to bottom, transparent 40%, #0d0e15); pointer-events: none; }
 .dm-floor-num {
-  position: absolute; right: 14px; top: 22%;
-  font: 600 clamp(110px, 13vw, 190px)/0.8 var(--font-heading);
+  /* Sits over the tile strip, clear of the title below it. */
+  position: absolute; right: 16px; top: 20px;
+  font: 600 clamp(84px, 9vw, 140px)/0.8 var(--font-heading);
+  filter: drop-shadow(0 4px 18px rgba(0,0,0,.7));
   letter-spacing: -0.07em;
   color: transparent;
   -webkit-text-stroke: 1.5px var(--floor-accent);
