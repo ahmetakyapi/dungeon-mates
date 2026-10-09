@@ -72,7 +72,6 @@ export function FloorGallery() {
         <motion.div ref={track} className="dm-gallery-track" style={{ x }}>
           {/* Intro panel */}
           <div className="dm-gallery-intro">
-            <p className="dm-eyebrow"><span className="dm-eyebrow-num">02</span> Katlar · 01 — 10</p>
             <RevealText as="h2" className="dm-display" text="Her kat kendi rengiyle karşılar." />
             <p className="dm-muted" style={{ maxWidth: '38ch', marginTop: 18 }}>
               Kaydırdıkça bir kat daha in. Taşın rengi, ışığı, büyüyen yosunu — hepsi oyunun

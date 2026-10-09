@@ -38,15 +38,6 @@
   text-transform: uppercase;
   color: color-mix(in srgb, var(--color-text) 62%, transparent);
 }
-.dm-eyebrow-num {
-  display: inline-block;
-  margin-right: 10px;
-  padding: 2px 6px;
-  border: 1px solid color-mix(in srgb, var(--color-text) 22%, transparent);
-  border-radius: 999px;
-  color: var(--color-text);
-  letter-spacing: 0.1em;
-}
 
 .dm-display {
   font-family: var(--font-heading);
@@ -54,7 +45,7 @@
   font-size: clamp(40px, 7.2vw, 112px) !important;
   line-height: 0.95 !important;
   letter-spacing: -0.045em !important;
-  margin: 18px 0 0 !important;
+  margin: 0 !important;
 }
 .dm-section-head { margin-bottom: clamp(36px, 6vh, 72px); }
 
@@ -105,25 +96,152 @@ html.dm-has-cursor .dm-landing input { cursor: text; }
   color: #08090f; font-weight: 600;
 }
 
-/* ── Preloader ─────────────────────────────────────────── */
-
-.dm-preloader {
+/* ── Dungeon gate intro ───────────────────────────────── */
+/*
+ * Pixel-art gate on a 200×125 grid. --u is one grid pixel, sized so the gate
+ * and both torches (x 63–137) fit a phone and the full height fits a laptop.
+ * Timeline (2.1 s): torches catch 0.14/0.30 → light reaches 0.15–0.67 →
+ * portcullis lifts 0.70–1.30 → name drops 0.82–1.12 → walk in 1.40–2.10,
+ * fading from 1.82. Pure CSS so it runs from first paint and always ends.
+ */
+.dm-gate {
+  --u: min(calc(100vw / 74), calc(100vh / 112));
+  --ink: #07080f;
   position: fixed; inset: 0; z-index: 300;
-  display: flex; align-items: flex-end; justify-content: center;
-  padding-bottom: clamp(32px, 10vh, 120px);
-  background: #07080f;
-  color: var(--color-text);
-  /* Failsafe: if JavaScript never runs, the overlay clears itself. */
-  animation: dm-preloader-failsafe 0s linear 6s forwards;
+  overflow: hidden;
+  background: var(--ink);
+  animation: dm-gate-out 280ms cubic-bezier(.4, 0, .6, 1) 1820ms forwards;
 }
-@keyframes dm-preloader-failsafe { to { visibility: hidden; opacity: 0; } }
-.dm-preloader-count {
-  font-family: var(--font-heading);
-  font-weight: 600;
-  font-size: clamp(110px, 24vw, 340px);
-  line-height: 0.8;
-  letter-spacing: -0.06em;
-  font-variant-numeric: tabular-nums;
+@supports (height: 100svh) { .dm-gate { --u: min(calc(100vw / 74), calc(100svh / 112)); } }
+html[data-dm-intro="skip"] .dm-gate,
+html[data-dm-intro="done"] .dm-gate { display: none; }
+@media (prefers-reduced-motion: reduce) { .dm-gate { display: none; } }
+
+.dm-gate-stage {
+  position: absolute;
+  left: calc(50% - 100 * var(--u)); top: calc(50% - 62.5 * var(--u));
+  width: calc(200 * var(--u)); height: calc(125 * var(--u));
+  animation: dm-gate-bob 2100ms linear both;
+}
+.dm-gate-cam {
+  position: absolute; inset: 0;
+  /* Centre of the gate opening (100, 76). */
+  transform-origin: 50% 60.8%;
+  will-change: transform;
+  animation: dm-gate-walk 2100ms linear both;
+}
+.dm-gate-cam > * { position: absolute; }
+.dm-gate-layer { inset: 0; width: 100%; height: 100%; display: block; }
+.dm-gate svg { display: block; overflow: visible; }
+
+.dm-gate-deep {
+  background: radial-gradient(ellipse 70% 55% at 50% 78%, rgba(255, 138, 61, .5), rgba(255, 138, 61, .1) 55%, transparent 75%);
+  opacity: 0;
+  animation: dm-gate-on 640ms steps(6, end) 760ms both;
+}
+.dm-gate-well { overflow: hidden; }
+.dm-gate-bars {
+  width: 100%; height: 100%;
+  animation: dm-gate-lift 600ms steps(12, end) 700ms both;
+}
+
+/* Banded light falloff around the gate, and the black it starts from. */
+.dm-gate-dark,
+.dm-gate-black {
+  left: calc(-300 * var(--u)); top: calc(-330 * var(--u));
+  width: calc(800 * var(--u)); height: calc(800 * var(--u));
+  pointer-events: none;
+}
+.dm-gate-dark {
+  background: radial-gradient(circle at 50% 50%,
+    transparent 0 calc(30 * var(--u)),
+    rgba(7, 8, 15, .36) calc(30 * var(--u)) calc(40 * var(--u)),
+    rgba(7, 8, 15, .62) calc(40 * var(--u)) calc(50 * var(--u)),
+    rgba(7, 8, 15, .85) calc(50 * var(--u)) calc(62 * var(--u)),
+    var(--ink) calc(62 * var(--u)));
+  animation: dm-gate-reach 520ms steps(5, end) 150ms both;
+}
+.dm-gate-black {
+  background: var(--ink);
+  animation: dm-gate-catch 560ms steps(1, end) 120ms both;
+}
+
+.dm-gate-glow { opacity: 0; animation: dm-gate-on 120ms steps(2, end) var(--d) both; pointer-events: none; }
+.dm-gate-glow::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(closest-side, rgba(255, 184, 92, .4), rgba(255, 138, 61, .14) 45%, transparent);
+  animation: dm-gate-flicker 640ms steps(1, end) infinite;
+}
+.dm-gate-flame {
+  overflow: hidden;
+  transform-origin: 50% 100%;
+  animation: dm-gate-ignite 150ms steps(3, end) var(--d) both;
+  filter: drop-shadow(0 0 calc(2 * var(--u)) rgba(255, 138, 61, .7));
+}
+.dm-gate-flame svg { width: 300%; height: 100%; animation: dm-gate-sprite 330ms steps(3, end) infinite; }
+
+.dm-gate-mote { opacity: 0; animation: dm-gate-mote var(--t) steps(8, end) var(--d) both; }
+.dm-gate-mote--ember { animation-iteration-count: 2; box-shadow: 0 0 calc(1 * var(--u)) rgba(255, 138, 61, .8); }
+.dm-gate-mote--dust { animation-timing-function: steps(6, end); }
+
+.dm-gate-logo {
+  margin: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-pixel), monospace;
+  font-size: min(calc(5.4 * var(--u)), 6vw);
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: #f1e7d0;
+  text-shadow: 0.125em 0.125em 0 #3a1a0c;
+  animation: dm-gate-logo-out 160ms steps(3, end) 1400ms forwards;
+}
+.dm-gate-logo-drop { display: flex; gap: 0.6em; animation: dm-gate-drop 300ms steps(6, end) 820ms both; }
+.dm-gate-logo-land { display: flex; gap: 0.6em; transform-origin: 50% 100%; animation: dm-gate-land 140ms steps(2, end) 1120ms forwards; }
+.dm-gate-logo-land > span:last-child { color: var(--color-ember, #ff8a3d); }
+
+@keyframes dm-gate-out { to { opacity: 0; visibility: hidden; } }
+@keyframes dm-gate-on { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dm-gate-catch {
+  0% { opacity: 1; } 18% { opacity: .55; } 30% { opacity: .9; } 45% { opacity: .35; }
+  60% { opacity: .62; } 78% { opacity: .15; } 100% { opacity: 0; }
+}
+@keyframes dm-gate-reach { from { transform: scale(.68); } to { transform: scale(1); } }
+@keyframes dm-gate-flicker { 0% { opacity: .85; } 25% { opacity: 1; } 50% { opacity: .72; } 75% { opacity: .94; } }
+@keyframes dm-gate-ignite { from { transform: scale(.3, 0); } to { transform: scale(1); } }
+@keyframes dm-gate-sprite { to { transform: translateX(-100%); } }
+@keyframes dm-gate-lift { to { transform: translateY(-100%); } }
+@keyframes dm-gate-mote {
+  0% { transform: translate(0, 0); opacity: 0; }
+  12% { opacity: 1; }
+  70% { opacity: .9; }
+  100% { transform: translate(calc(var(--dx) * var(--u)), calc(var(--dy) * var(--u))); opacity: 0; }
+}
+@keyframes dm-gate-drop {
+  0% { transform: translateY(calc(-34 * var(--u))); opacity: 0; }
+  1% { opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+@keyframes dm-gate-land { 0% { transform: scale(1.1, .78); } 100% { transform: scale(1); } }
+@keyframes dm-gate-logo-out { to { opacity: 0; } }
+/* Two thuds (gate catches, gate locks), then the walk through the arch. */
+@keyframes dm-gate-walk {
+  0%, 33.3% { transform: none; }
+  34.5% { transform: translate(calc(.7 * var(--u)), calc(.4 * var(--u))); }
+  35.7% { transform: translate(calc(-.6 * var(--u)), 0); }
+  37%, 61.4% { transform: none; }
+  62.6% { transform: translate(0, calc(.7 * var(--u))); }
+  64% { transform: none; }
+  66.7% { transform: scale(1); animation-timing-function: cubic-bezier(.6, 0, .35, 1); }
+  100% { transform: scale(11); }
+}
+/* Footsteps: the camera dips on each stride as it walks in. */
+@keyframes dm-gate-bob {
+  0%, 66.7% { transform: none; }
+  73% { transform: translateY(calc(-.8 * var(--u))); }
+  79% { transform: none; }
+  85% { transform: translateY(calc(-.8 * var(--u))); }
+  91%, 100% { transform: none; }
 }
 
 /* ── Buttons ───────────────────────────────────────────── */
@@ -262,7 +380,6 @@ html.dm-has-cursor .dm-landing input { cursor: text; }
 }
 .dm-menu nav button:hover { color: var(--color-ember); transform: translateX(12px); }
 .dm-menu-num { font: 500 12px var(--font-mono), monospace; letter-spacing: 0.1em; color: var(--color-ember); }
-.dm-menu-foot { font: 500 11px var(--font-mono), monospace; letter-spacing: 0.24em; text-transform: uppercase; color: color-mix(in srgb, var(--color-text) 45%, transparent); }
 
 @media (min-width: 960px) {
   .dm-navlinks { display: flex; }
@@ -318,7 +435,7 @@ html.dm-has-cursor .dm-landing input { cursor: text; }
   pointer-events: none;
 }
 .dm-hero-late-line {
-  margin: 12px 0 0 !important;
+  margin: 0 !important;
   font: 600 clamp(44px, 8vw, 132px)/0.92 var(--font-heading);
   letter-spacing: -0.05em;
   text-shadow: 0 6px 40px rgba(0,0,0,.6);

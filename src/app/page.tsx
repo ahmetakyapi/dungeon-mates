@@ -6,8 +6,8 @@
  * The page is built as one continuous drop into Zephara, and every set piece is
  * driven by the reader's own scroll:
  *
- *   preloader   a depth counter runs surface → floor ten, then the screen breaks
- *               into pixel blocks and the page comes through
+ *   gate        a torch catches in the dark, a pixel portcullis lifts and the
+ *               camera walks through the arch into the page (once a session)
  *   hero        a pinned stage where a small window onto the live game opens
  *               until it fills the screen and swallows the headline
  *   marquee     floor names that speed up and lean with scroll velocity
@@ -36,7 +36,7 @@ import { loadMeta, type MetaState } from '@/lib/meta-progression';
 import { useTransitionRouter } from '@/components/fx/PageTransition';
 import { EASE_OUT_EXPO, EASE_IN_OUT } from '@/lib/motion';
 import { SmoothScroll, scrollToTarget, setScrollLocked } from '@/components/landing/motion/SmoothScroll';
-import { Preloader } from '@/components/landing/motion/Preloader';
+import { DungeonGate } from '@/components/landing/motion/DungeonGate';
 import { Cursor } from '@/components/landing/motion/Cursor';
 import { RevealText } from '@/components/landing/motion/RevealText';
 import { Magnetic } from '@/components/landing/motion/Magnetic';
@@ -118,19 +118,10 @@ function StatCell({ stat, run, index }: { stat: (typeof STATS)[number]; run: boo
   );
 }
 
-/** Section header: a numbered eyebrow and a masked headline. */
-function SectionHead({ num, kicker, title, maxCh }: { num: string; kicker: string; title: string; maxCh?: number }) {
+/** Section header: a masked headline. */
+function SectionHead({ title, maxCh }: { title: string; maxCh?: number }) {
   return (
     <header className="dm-section-head">
-      <motion.p
-        className="dm-eyebrow"
-        initial={{ opacity: 0, x: -14 }}
-        whileInView={{ opacity: 1, x: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.8, ease: EASE_OUT_EXPO }}
-      >
-        <span className="dm-eyebrow-num">{num}</span> {kicker}
-      </motion.p>
       <RevealText as="h2" className="dm-display" text={title} style={{ maxWidth: maxCh ? `${maxCh}ch` : undefined }} />
     </header>
   );
@@ -230,7 +221,7 @@ export default function HomePage() {
   return (
     <MotionConfig reducedMotion="user">
     <div className="nocturne dm-landing">
-      <Preloader onDone={onReady} />
+      <DungeonGate onDone={onReady} />
       <SmoothScroll />
       <Cursor />
       <div aria-hidden className="dm-grain" />
@@ -323,14 +314,6 @@ export default function HomePage() {
                 </motion.button>
               </div>
             </nav>
-            <motion.p
-              className="dm-menu-foot"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1, transition: { delay: 0.6 } }}
-              exit={{ opacity: 0 }}
-            >
-              Zephara · On kat aşağı · Tek çıkış en dipte
-            </motion.p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -378,12 +361,11 @@ export default function HomePage() {
 
         {/* ── Story ─────────────────────────────────────────── */}
         <section id="hikaye" className="dm-section dm-wrap">
-          <SectionHead num="01" kicker="Hikâye" title="Sana bir canavarı öldürmen söylendi." maxCh={18} />
+          <SectionHead title="Sana bir canavarı öldürmen söylendi." maxCh={18} />
           <div className="dm-story-grid">
             <ScrollWords lines={PROLOGUE} className="dm-story-words" />
             <aside className="dm-story-aside">
               <TiltCard className="dm-calling" glow="rgba(255,138,61,0.16)">
-                <span className="dm-eyebrow" style={{ color: 'var(--color-ember)' }}>Neden sen</span>
                 {CALLING.map((line) => <p key={line}>{line}</p>)}
                 <hr className="hr" />
                 <p className="dm-calling-turn">
@@ -414,7 +396,7 @@ export default function HomePage() {
 
         {/* ── Core mechanic ─────────────────────────────────── */}
         <section id="telegraf" className="dm-section dm-wrap">
-          <SectionHead num="03" kicker="Çekirdek mekanik" title="Zemin sana ne olacağını söyler." maxCh={16} />
+          <SectionHead title="Zemin sana ne olacağını söyler." maxCh={16} />
           <div className="dm-mech-grid">
             <div style={{ minWidth: 0 }}>
               <motion.p
@@ -479,24 +461,22 @@ export default function HomePage() {
 
         {/* ── Classes ───────────────────────────────────────── */}
         <section id="siniflar" className="dm-section dm-wrap">
-          <SectionHead num="04" kicker="Sınıflar" title="Dört sınıf, dört ayrı iniş." maxCh={16} />
+          <SectionHead title="Dört sınıf, dört ayrı iniş." maxCh={16} />
           <ClassAccordion />
         </section>
 
         {/* ── Rhythm ────────────────────────────────────────── */}
         <section className="dm-section dm-wrap">
-          <SectionHead num="05" kicker="Zindanın ritmi" title="Vur, kaç, topla, bir kat daha in." maxCh={18} />
+          <SectionHead title="Vur, kaç, topla, bir kat daha in." maxCh={18} />
           <div className="dm-rhythm-grid">
             {([
               {
                 scene: 'volley' as const, floor: 6,
-                kicker: 'Menzil',
                 title: 'Altıncı kattan sonra düşman da ateş eder',
                 body: 'Gargoyle taş fırlatır, fantom ruh oku atar. Siperin arkasına geç, aralarındaki boşlukta ilerle.',
               },
               {
                 scene: 'treasure' as const, floor: 4,
-                kicker: 'Ganimet',
                 title: 'Sandıklar seyrek, içindekiler run’ı belirler',
                 body: 'İksir, altın, geçici güçlenme. Hangisine gideceğin, ne kadar canla ineceğini belirler.',
               },
@@ -513,7 +493,6 @@ export default function HomePage() {
                     <LiveScene scene={c.scene} floor={c.floor} cols={18} rows={10} showLabel={false} />
                   </div>
                   <div className="dm-rhythm-copy">
-                    <span className="dm-eyebrow" style={{ color: 'var(--color-ember)' }}>{c.kicker}</span>
                     <h3>{c.title}</h3>
                     <p>{c.body}</p>
                   </div>
@@ -527,7 +506,6 @@ export default function HomePage() {
         <section id="oyna" className="dm-play">
           <div className="dm-play-glow" aria-hidden />
           <div className="dm-wrap">
-            <p className="dm-eyebrow"><span className="dm-eyebrow-num">06</span> Başla</p>
             <RevealText as="h2" by="char" className="dm-play-title" text="İn." stagger={0.08} />
             <div className="dm-play-grid">
               <div>

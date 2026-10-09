@@ -83,11 +83,10 @@ export function HeroStage({ ready, actions }: { ready: boolean; actions: ReactNo
         </motion.div>
 
         <motion.div className="dm-hero-late" style={{ opacity: lateOpacity, y: lateY }}>
-          <p className="dm-eyebrow">Kat 10 · Taht Salonu · gerçek zamanlı render</p>
           <p className="dm-hero-late-line">Tek çıkış en dipte.</p>
         </motion.div>
 
-        {/* Chrome: kicker, blurb, actions, scroll cue. Leaves first. */}
+        {/* Chrome: blurb, actions, scroll cue. Leaves first. */}
         <motion.div className="dm-hero-chrome" style={{ opacity: chromeOpacity, y: chromeY }}>
           <motion.div
             className="dm-hero-blurb"
