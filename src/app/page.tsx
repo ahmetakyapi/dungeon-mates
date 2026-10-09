@@ -164,7 +164,15 @@ export default function HomePage() {
   const onReady = useCallback(() => setReady(true), []);
 
   useEffect(() => { setMeta(loadMeta()); }, [metaOpen]);
-  useEffect(() => { setScrollLocked(menuOpen); }, [menuOpen]);
+  // Lock only while the menu is open, and release on unmount — an unconditional
+  // setScrollLocked(menuOpen) would undo the preloader's lock on mount (parent
+  // effects run after children) and leave <html> overflow:hidden if the page is
+  // left with the menu open.
+  useEffect(() => {
+    if (!menuOpen) return;
+    setScrollLocked(true);
+    return () => setScrollLocked(false);
+  }, [menuOpen]);
 
   // Page-wide scroll: progress rail, depth readout, and a nav that steps aside
   // on the way down and comes back the moment the reader scrolls up.

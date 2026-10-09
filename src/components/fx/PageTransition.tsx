@@ -20,6 +20,16 @@ type TransitionApi = {
   busy: boolean;
 };
 
+/**
+ * True once any in-app transition has run. Pages that stage their own intro
+ * (the landing preloader) skip it when they were reached through the shutter,
+ * which has already done the arriving.
+ */
+let arrivedViaTransition = false;
+export function cameThroughTransition(): boolean {
+  return arrivedViaTransition;
+}
+
 const TransitionContext = createContext<TransitionApi | null>(null);
 
 type Stage = 'idle' | 'cover' | 'hold' | 'reveal';
@@ -47,7 +57,9 @@ export function PageTransitionProvider({ children }: { children: React.ReactNode
   const heldAt = useRef(0);
 
   const navigate = useCallback((href: string, o: NavigateOptions = {}) => {
-    if (stage !== 'idle') return;
+    // A reveal blocks nothing, so a click while it lifts starts a new cover.
+    if (stage === 'cover' || stage === 'hold') return;
+    arrivedViaTransition = true;
     if (prefersReducedMotion()) { router.push(href); return; }
     router.prefetch(href);
     target.current = href;

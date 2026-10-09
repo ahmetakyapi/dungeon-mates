@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { PixelShutter } from '@/components/fx/PixelShutter';
+import { cameThroughTransition } from '@/components/fx/PageTransition';
 import { EASE_OUT_EXPO, EASE_IN_OUT, prefersReducedMotion } from '@/lib/motion';
 import { floorTheme } from '../../../../shared/types';
 import { setScrollLocked } from './SmoothScroll';
@@ -30,6 +31,12 @@ export function Preloader({ onDone }: { onDone: () => void }) {
   useEffect(() => {
     let seen = false;
     try { seen = sessionStorage.getItem(SEEN_KEY) === '1'; } catch { /* private mode */ }
+    if (cameThroughTransition()) {
+      // The route shutter is already lifting over this page.
+      setStage('done');
+      onDone();
+      return;
+    }
     if (seen || prefersReducedMotion()) {
       setStage('reveal');
       onDone();

@@ -16,6 +16,8 @@ import { prefersReducedMotion } from '@/lib/motion';
  * Mounted only on the landing page, never under /game.
  */
 let instance: Lenis | null = null;
+/** Last requested lock state, so a Lenis created after the lock still honours it. */
+let locked = false;
 
 export function SmoothScroll() {
   useEffect(() => {
@@ -26,6 +28,7 @@ export function SmoothScroll() {
       smoothWheel: true,
     });
     instance = lenis;
+    if (locked) lenis.stop();
     let raf = 0;
     const loop = (time: number) => {
       lenis.raf(time);
@@ -52,7 +55,8 @@ export function scrollToTarget(target: string | 0) {
 }
 
 /** Pause/resume scrolling — used while the preloader or a modal is up. */
-export function setScrollLocked(locked: boolean) {
-  if (instance) { if (locked) instance.stop(); else instance.start(); }
-  document.documentElement.style.overflow = locked ? 'hidden' : '';
+export function setScrollLocked(next: boolean) {
+  locked = next;
+  if (instance) { if (next) instance.stop(); else instance.start(); }
+  document.documentElement.style.overflow = next ? 'hidden' : '';
 }

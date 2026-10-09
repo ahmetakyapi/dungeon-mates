@@ -695,13 +695,20 @@ html.dm-has-cursor .dm-landing input { cursor: text; }
   pointer-events: none;
 }
 .dm-play-title {
-  margin: 0 !important;
-  font: 600 clamp(140px, 30vw, 460px)/0.8 var(--font-heading) !important;
+  margin: 0.14em 0 0 !important;
+  font: 600 clamp(140px, 30vw, 460px)/1.02 var(--font-heading) !important;
   letter-spacing: -0.08em !important;
+}
+.dm-play-title > span { padding-right: 0.06em; }
+/* The gradient sits on each letter, not the heading: the letters are
+   transformed for the reveal, and a parent's background-clip: text does not
+   paint into transformed children — the word rendered invisible. */
+.dm-play-title > span > span {
+  /* Extend the painted box above the cap height so the dot of İ is inside it. */
+  padding: 0.25em 0.08em 0; margin: -0.25em -0.08em 0;
   background: linear-gradient(180deg, #fff 30%, var(--color-ember) 120%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
-.dm-play-title > span { padding-right: 0.06em; }
 .dm-play-grid { position: relative; display: grid; gap: clamp(40px, 6vw, 96px); margin-top: clamp(28px, 4vh, 48px); }
 .dm-play-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 22px 28px; margin-top: 30px; }
 .dm-orb {

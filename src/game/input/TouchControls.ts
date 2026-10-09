@@ -44,6 +44,7 @@ const COLOR_RED = 'rgba(239,68,68,';
 const COLOR_BLUE = 'rgba(59,130,246,';
 const COLOR_GREEN = 'rgba(16,185,129,';
 const COLOR_GOLD = 'rgba(245,158,11,';
+const COLOR_CYAN = 'rgba(34,211,238,';
 
 // HP bar colors
 const HP_GREEN = '#4ade80';
@@ -713,7 +714,7 @@ export class TouchControls {
     const y = this.dodgeBtnY;
     const r = DODGE_BTN_RADIUS;
     const ready = this._dodgeCooldown === 0;
-    this.drawGlassButton(ctx, x, y, r, this.dodgePressAnim, '#22d3ee', ready ? 1 : 0.55);
+    this.drawGlassButton(ctx, x, y, r, this.dodgePressAnim, COLOR_CYAN, ready ? 1 : 0.55);
 
     if (!ready) {
       ctx.save();
@@ -739,7 +740,7 @@ export class TouchControls {
     const y = this.ultimateBtnY;
     const r = ULTIMATE_BTN_RADIUS;
     const pulse = Math.sin(this.readyPulseTimer * 1.4) * 0.25 + 0.85;
-    this.drawGlassButton(ctx, x, y, r, this.ultimatePressAnim, '#f59e0b', pulse);
+    this.drawGlassButton(ctx, x, y, r, this.ultimatePressAnim, COLOR_GOLD, pulse);
 
     ctx.save();
     ctx.fillStyle = '#fffbeb';

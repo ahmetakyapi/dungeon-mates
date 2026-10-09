@@ -50,7 +50,7 @@ export function RevealText({
           display: 'inline-block', overflow: 'hidden', verticalAlign: 'top',
           // Room for descenders and Turkish diacritics (Ş, Ğ) inside the mask.
           paddingBottom: '0.2em', marginBottom: '-0.2em',
-          paddingTop: '0.06em', marginTop: '-0.06em',
+          paddingTop: '0.16em', marginTop: '-0.16em',
           whiteSpace: 'nowrap',
           ...wordStyle?.(w, wi),
         }}
