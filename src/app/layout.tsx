@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Space_Grotesk, IBM_Plex_Mono, Press_Start_2P, Inter } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/next';
+import { PageTransitionProvider } from '@/components/fx/PageTransition';
 import './globals.css';
 
 // Body face. Space Grotesk has a slightly mechanical, drawn quality that sits
@@ -103,7 +104,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="font-body antialiased safe-area-padding">
-        {children}
+        <PageTransitionProvider>{children}</PageTransitionProvider>
         <Analytics />
       </body>
     </html>
