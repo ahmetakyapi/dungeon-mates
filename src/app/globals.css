@@ -460,3 +460,161 @@ textarea:focus-visible {
   75% { transform: translateX(1px); }
 }
 .combo-shake { animation: combo-shake 0.12s ease-in-out infinite; }
+
+/* ================================
+   Motion system — page transitions & loaders
+   (src/components/fx/*)
+   ================================ */
+
+/* Pixel shutter blocks. They land glowing in the wavefront colour and cool to
+   the base colour, so the moving edge reads as a line of fire. */
+.dm-shutter-in,
+.dm-shutter-out {
+  display: block;
+  /* A hair of overlap so no seams show between blocks at fractional sizes. */
+  margin: -0.5px;
+  background: var(--shutter-base);
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: both;
+  will-change: transform;
+}
+.dm-shutter-in { animation-name: dm-shutter-in; }
+.dm-shutter-out { animation-name: dm-shutter-out; }
+
+@keyframes dm-shutter-in {
+  0% { transform: scale(0); background: var(--shutter-edge); }
+  55% { background: var(--shutter-edge); }
+  100% { transform: scale(1); background: var(--shutter-base); }
+}
+@keyframes dm-shutter-out {
+  0% { transform: scale(1); background: var(--shutter-base); }
+  45% { background: var(--shutter-edge); }
+  100% { transform: scale(0); background: var(--shutter-edge); }
+}
+
+/* Indeterminate block loader — a pulse travelling along a row of pixels. */
+.dm-loader-block { animation: dm-loader-block 0.84s ease-in-out infinite both; opacity: 0.2; }
+@keyframes dm-loader-block {
+  0%, 100% { opacity: 0.18; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-3px); }
+}
+
+/* Film grain. A single tiled SVG noise, shifted in steps so it shimmers like
+   celluloid without any JS. */
+.dm-grain {
+  position: fixed;
+  inset: -50%;
+  pointer-events: none;
+  z-index: 90;
+  opacity: 0.055;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  animation: dm-grain 0.9s steps(6) infinite;
+}
+@keyframes dm-grain {
+  0% { transform: translate(0, 0); }
+  20% { transform: translate(-4%, 3%); }
+  40% { transform: translate(3%, -5%); }
+  60% { transform: translate(-6%, -2%); }
+  80% { transform: translate(5%, 4%); }
+  100% { transform: translate(0, 0); }
+}
+
+/* Lenis smooth scroll — required companion rules. */
+html.lenis, html.lenis body { height: auto; }
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+.lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
+.lenis.lenis-stopped { overflow: hidden; }
+
+/* ================================
+   In-game screens — motion polish
+   (CinematicWipe, LoadingScreen, WaitingScreen, lobby, ClassSelect,
+    FloorTransition, GameOverScreen, PauseMenu)
+   ================================ */
+
+/* Faint CRT scanlines + vignette shared by the full-screen in-game cards. */
+.dm-scanlines {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.025) 0px,
+    rgba(255, 255, 255, 0.025) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  mix-blend-mode: overlay;
+}
+.dm-vignette {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.75) 100%);
+}
+
+/* Pixel corner brackets — frame a panel the way the HUD frames the world. */
+.dm-corners { position: relative; }
+.dm-corners::before,
+.dm-corners::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  border-color: var(--dm-corner, rgba(139, 92, 246, 0.7));
+  border-style: solid;
+}
+.dm-corners::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+.dm-corners::after { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+
+/* Loader block that lights once and stays lit — the loading bar fills with
+   these on staggered delays, no JS per frame. */
+.dm-fill-block {
+  background: var(--dm-fill-off, rgba(255, 255, 255, 0.06));
+  animation: dm-fill-block 0.35s steps(2, end) both;
+}
+@keyframes dm-fill-block {
+  0% { background: var(--dm-fill-off, rgba(255, 255, 255, 0.06)); box-shadow: none; transform: translateY(0); }
+  50% { background: #fff; box-shadow: 0 0 12px var(--dm-fill-on); transform: translateY(-2px); }
+  100% { background: var(--dm-fill-on); box-shadow: 0 0 5px var(--dm-fill-on); transform: translateY(0); }
+}
+
+/* Connection rune — a 4×4 grid whose cells pulse along a snake path. */
+.dm-rune-cell {
+  background: var(--dm-rune, #8b5cf6);
+  opacity: 0.12;
+  animation: dm-rune-cell 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite both;
+}
+@keyframes dm-rune-cell {
+  0%, 100% { opacity: 0.12; transform: scale(0.7); box-shadow: none; }
+  12% { opacity: 1; transform: scale(1); box-shadow: 0 0 14px var(--dm-rune, #8b5cf6); }
+  40% { opacity: 0.35; transform: scale(0.85); box-shadow: none; }
+}
+
+/* Descent streaks — thin lines rising past the camera while you go down. */
+.dm-streak {
+  position: absolute;
+  bottom: -30%;
+  width: 1px;
+  height: 30%;
+  background: linear-gradient(to top, transparent, var(--dm-streak, rgba(139, 92, 246, 0.5)), transparent);
+  animation: dm-streak linear infinite;
+  will-change: transform;
+}
+@keyframes dm-streak {
+  from { transform: translateY(0); }
+  to { transform: translateY(-460%); }
+}
+
+/* Soft ember pulse for status dots. */
+.dm-pulse-dot { animation: dm-pulse-dot 1.4s ease-in-out infinite; }
+@keyframes dm-pulse-dot {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+/* Outline numeral used behind the big floor number. */
+.dm-outline-text {
+  color: transparent;
+  -webkit-text-stroke: 1px var(--dm-outline, rgba(139, 92, 246, 0.35));
+}

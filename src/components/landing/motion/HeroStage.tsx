@@ -32,11 +32,15 @@ export function HeroStage({ ready, actions }: { ready: boolean; actions: ReactNo
 
   // The window: insets shrink from a framed card to nothing.
   const startX = narrow ? 7 : 31;
-  const startY = narrow ? 31 : 26;
+  // On a phone the window sits high so the second line of type has room
+  // beneath it, above the blurb and buttons.
+  const startTop = narrow ? 25 : 26;
+  const startBot = narrow ? 39 : 26;
   const ix = useTransform(p, [0, 0.55], [startX, 0]);
-  const iy = useTransform(p, [0, 0.55], [startY, 0]);
+  const iyTop = useTransform(p, [0, 0.55], [startTop, 0]);
+  const iyBot = useTransform(p, [0, 0.55], [startBot, 0]);
   const rad = useTransform(p, [0, 0.55], [14, 0]);
-  const clip = useMotionTemplate`inset(${iy}% ${ix}% ${iy}% ${ix}% round ${rad}px)`;
+  const clip = useMotionTemplate`inset(${iyTop}% ${ix}% ${iyBot}% ${ix}% round ${rad}px)`;
   const sceneScale = useTransform(p, [0, 0.6], [1.12, 1]);
 
   // The two lines of type part and fade as the window opens.

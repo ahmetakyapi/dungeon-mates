@@ -351,8 +351,9 @@ html.dm-has-cursor .dm-landing input { cursor: text; }
   .dm-scroll-cue { display: flex; }
 }
 @media (max-width: 760px) {
-  .dm-hero-type { justify-content: flex-start; padding-top: 15vh; }
-  .dm-hero-line--top { margin-bottom: 40vh; }
+  .dm-hero-type { justify-content: flex-start; padding-top: 11vh; }
+  .dm-hero-line--top { margin-bottom: 0; }
+  .dm-hero-line--bot { position: absolute; right: var(--gutter); top: 62%; }
   .dm-hero-chrome { flex-direction: column; align-items: stretch; }
   .dm-hero-blurb p { font-size: 14px; }
 }

@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
+import { motion, AnimatePresence, MotionConfig, type Variants } from 'framer-motion';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useGameLoop } from '@/hooks/useGameLoop';
 import { useSound } from '@/hooks/useSound';
@@ -26,6 +26,9 @@ import { BuildSheet } from '@/components/game/BuildSheet';
 import { PixelButton } from '@/components/ui/PixelButton';
 import { PixelHero } from '@/components/game/PixelHero';
 import { GameErrorBoundary } from '@/components/game/ErrorBoundary';
+import { useTransitionRouter } from '@/components/fx/PageTransition';
+import { SplitReveal } from '@/components/fx/RevealText';
+import { EASE_OUT_EXPO } from '@/lib/motion';
 import type { PlayerInput, GamePhase, PlayerState } from '../../../shared/types';
 import { CLASS_STATS, DIFFICULTY_INFO, ABILITY_MAX_COOLDOWNS, TICK_RATE, monsterDisplay } from '../../../shared/types';
 import type { PlayerClass } from '../../../shared/types';
@@ -37,6 +40,19 @@ import { loadSettings, saveSettings, DEFAULT_SETTINGS, type GameSettings } from 
 const DODGE_COOLDOWN_TICKS = 30;
 
 const EASE = [0.22, 1, 0.36, 1] as const;
+
+/** Lobby choreography — children arrive one after another, lifting out of blur. */
+const LOBBY_STAGGER: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.09, delayChildren: 0.05 } },
+};
+const LOBBY_ITEM: Variants = {
+  hidden: { opacity: 0, y: 24, filter: 'blur(6px)' },
+  show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.8, ease: EASE_OUT_EXPO } },
+};
+
+/** User-initiated exits climb back out through the pixel shutter. */
+const EXIT_TO_MENU = { label: 'Yüzeye çıkılıyor', direction: 'up' } as const;
 
 // DIFFICULTY_INFO imported from shared/types
 
@@ -85,6 +101,7 @@ export default function GamePageWrapper() {
 function GamePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { navigate } = useTransitionRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const roomParam = searchParams.get('room');
   const nameParam = searchParams.get('name');
@@ -709,13 +726,13 @@ function GamePage() {
       // Restart solo
       window.location.href = '/game?mode=solo&name=Kahraman';
     } else {
-      router.push('/');
+      navigate('/', EXIT_TO_MENU);
     }
-  }, [router, isSolo]);
+  }, [navigate, isSolo]);
 
   const handleMainMenu = useCallback(() => {
-    router.push('/');
-  }, [router]);
+    navigate('/', EXIT_TO_MENU);
+  }, [navigate]);
 
   const handleCopyCode = useCallback(async () => {
     if (!roomCode) return;
@@ -906,8 +923,8 @@ function GamePage() {
   }, []);
 
   const handlePauseLeave = useCallback(() => {
-    router.push('/');
-  }, [router]);
+    navigate('/', EXIT_TO_MENU);
+  }, [navigate]);
 
   const playerList = useMemo(() => Object.values(players), [players]);
 
@@ -922,13 +939,15 @@ function GamePage() {
     || phase === 'defeat' || phase === 'shopping' || phase === 'game_over';
   if ((connectionState === 'connecting' || connectionState === 'disconnected') && !hasActiveGameView) {
     return (
-      <WaitingScreen
-        connectionState={connectionState}
-        reconnectAttempt={reconnectAttempt}
-        error={error}
-        onRetry={retryConnection}
-        onBack={() => router.push('/')}
-      />
+      <MotionConfig reducedMotion={settings.reducedMotion ? 'always' : 'user'}>
+        <WaitingScreen
+          connectionState={connectionState}
+          reconnectAttempt={reconnectAttempt}
+          error={error}
+          onRetry={retryConnection}
+          onBack={handleMainMenu}
+        />
+      </MotionConfig>
     );
   }
 
@@ -937,75 +956,119 @@ function GamePage() {
     const difficultyInfo = DIFFICULTY_INFO[Math.min(playerList.length, 4)] ?? DIFFICULTY_INFO[1];
 
     return (
-      <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-dm-bg px-4">
-        {/* Background effects */}
-        <div className="pointer-events-none absolute left-1/2 top-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-dm-accent/5 blur-3xl" />
+      <MotionConfig reducedMotion={settings.reducedMotion ? 'always' : 'user'}>
+      <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-dm-bg px-4 py-10">
+        {/* Background — breathing glow, floor grid, drifting motes, scanlines */}
+        <motion.div
+          className="pointer-events-none absolute left-1/2 top-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-dm-accent/[0.07] blur-3xl"
+          animate={{ scale: [1, 1.12, 1], opacity: [0.7, 1, 0.7] }}
+          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.06]"
+          aria-hidden
+          style={{
+            backgroundImage:
+              'linear-gradient(rgba(255,255,255,0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.6) 1px, transparent 1px)',
+            backgroundSize: '40px 40px',
+            maskImage: 'radial-gradient(ellipse at center, black 5%, transparent 70%)',
+            WebkitMaskImage: 'radial-gradient(ellipse at center, black 5%, transparent 70%)',
+          }}
+        />
         <LobbyParticles />
+        <div className="dm-scanlines" aria-hidden />
+        <div className="dm-vignette" aria-hidden />
 
         <motion.div
           className="z-10 flex w-full max-w-lg flex-col items-center gap-6 lg:max-w-xl lg:gap-8 2xl:max-w-2xl 2xl:gap-10"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: EASE }}
+          variants={LOBBY_STAGGER}
+          initial="hidden"
+          animate="show"
         >
           {/* Title */}
-          <motion.h1
-            className="glow-purple font-pixel text-lg text-dm-accent sm:text-2xl lg:text-3xl 2xl:text-4xl"
-            initial={{ y: -20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.5, ease: EASE }}
-          >
-            {isSolo ? 'Hazırlanıyor...' : 'Bekleme Odası'}
-          </motion.h1>
+          <motion.div className="flex flex-col items-center gap-3" variants={LOBBY_ITEM}>
+            <span className="flex items-center gap-3 font-mono text-[9px] uppercase tracking-[0.45em] text-zinc-500 sm:text-[10px]">
+              <span className="block h-px w-6 bg-dm-accent/50" aria-hidden />
+              {isSolo ? 'Tek Kişilik Sefer' : 'Zephara · Kapı Önü'}
+              <span className="block h-px w-6 bg-dm-accent/50" aria-hidden />
+            </span>
+            <h1
+              className="font-pixel text-lg text-dm-accent sm:text-2xl lg:text-3xl 2xl:text-4xl"
+              style={{ textShadow: '0 0 24px rgba(139,92,246,0.45)' }}
+            >
+              <SplitReveal text={isSolo ? 'Hazırlanıyor...' : 'Bekleme Odası'} delay={0.15} stagger={0.035} />
+            </h1>
+          </motion.div>
 
           {/* Error */}
-          {error && (
-            <motion.p
-              className="pixel-border rounded bg-red-900/40 px-4 py-2 font-pixel text-[10px] text-dm-health lg:text-sm xl:text-sm 2xl:text-base"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-            >
-              {error}
-            </motion.p>
-          )}
+          <AnimatePresence>
+            {error && (
+              <motion.p
+                className="pixel-border rounded bg-red-900/40 px-4 py-2 font-pixel text-[10px] text-dm-health lg:text-sm xl:text-sm 2xl:text-base"
+                initial={{ scale: 0.9, opacity: 0, y: -6 }}
+                animate={{ scale: 1, opacity: 1, y: 0, x: [0, -4, 4, -2, 2, 0] }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.45, ease: EASE_OUT_EXPO }}
+              >
+                {error}
+              </motion.p>
+            )}
+          </AnimatePresence>
 
           {/* Room code (multiplayer only) */}
           {roomCode && !isSolo && (
-            <motion.div
-              className="flex flex-col items-center gap-3"
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.2, ease: EASE }}
-            >
-              <p className="font-pixel text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">Oda Kodu</p>
+            <motion.div className="flex flex-col items-center gap-3" variants={LOBBY_ITEM}>
+              <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-zinc-400 lg:text-xs">Oda Kodu</p>
               <motion.button
-                className="pixel-border cursor-pointer rounded bg-dm-surface px-10 py-5 font-pixel text-4xl tracking-[0.3em] text-dm-gold sm:text-5xl lg:text-6xl 2xl:text-7xl"
+                className="dm-corners group relative flex cursor-pointer gap-1.5 rounded-sm border border-dm-gold/20 bg-dm-surface/80 px-4 py-4 sm:gap-2 sm:px-6 sm:py-5"
+                style={{ perspective: 600, ['--dm-corner' as string]: 'rgba(245,158,11,0.8)' }}
                 onClick={handleCopyCode}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+                whileHover={{ y: -3, boxShadow: '0 12px 40px -10px rgba(245,158,11,0.45)' }}
+                whileTap={{ scale: 0.97, y: 0 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 24 }}
+                aria-label={`Oda kodu ${roomCode}, kopyalamak için tıkla`}
               >
-                {roomCode}
+                {/* Sheen that sweeps across on hover */}
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full"
+                />
+                {Array.from(roomCode).map((ch, i) => (
+                  <motion.span
+                    key={`${ch}-${i}`}
+                    className="grid h-12 w-9 place-items-center border border-dm-gold/25 bg-dm-bg/70 font-pixel text-2xl text-dm-gold sm:h-16 sm:w-12 sm:text-4xl lg:h-20 lg:w-14 lg:text-5xl"
+                    style={{ textShadow: '0 0 14px rgba(245,158,11,0.55)', transformOrigin: '50% 100%' }}
+                    initial={{ rotateX: -90, opacity: 0 }}
+                    animate={{ rotateX: 0, opacity: 1 }}
+                    transition={{ delay: 0.45 + i * 0.07, type: 'spring', stiffness: 260, damping: 18 }}
+                  >
+                    {ch}
+                  </motion.span>
+                ))}
               </motion.button>
-              <AnimatePresence mode="wait">
-                <motion.p
-                  key={copied ? 'copied' : 'default'}
-                  className="font-pixel text-[10px] lg:text-sm xl:text-sm 2xl:text-base"
-                  style={{ color: copied ? '#10b981' : '#8b5cf6' }}
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -5 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  {copied ? 'Kopyalandı!' : 'Kodu paylaş! (Tıkla kopyala)'}
-                </motion.p>
-              </AnimatePresence>
+              <div className="relative h-4 overflow-hidden">
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.p
+                    key={copied ? 'copied' : 'default'}
+                    className="font-pixel text-[10px] lg:text-sm xl:text-sm 2xl:text-base"
+                    style={{ color: copied ? '#10b981' : '#8b5cf6' }}
+                    initial={{ y: '100%' }}
+                    animate={{ y: '0%' }}
+                    exit={{ y: '-100%' }}
+                    transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
+                  >
+                    {copied ? 'Kopyalandı!' : 'Kodu paylaş! (Tıkla kopyala)'}
+                  </motion.p>
+                </AnimatePresence>
+              </div>
 
               {/* Share link */}
               <motion.button
                 className="flex items-center gap-2 rounded border border-dm-border bg-dm-surface/60 px-4 py-2 font-pixel text-[9px] text-zinc-400 transition-colors hover:border-dm-accent/40 hover:text-dm-accent lg:text-[11px] xl:text-[12px] 2xl:text-[14px]"
                 onClick={handleShareLink}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={{ scale: 1.03, y: -1 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 22 }}
               >
                 <span>🔗</span> Link Paylaş
               </motion.button>
@@ -1014,127 +1077,164 @@ function GamePage() {
 
           {/* Player slots */}
           {!isSolo && (
-            <div className="mt-2 w-full">
+            <motion.div className="mt-2 w-full" variants={LOBBY_ITEM}>
               <div className="mb-3 flex items-center justify-between">
-                <p className="font-pixel text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">
-                  Oyuncular ({playerList.length}/4)
+                <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-zinc-400 lg:text-xs">
+                  Oyuncular <span className="text-dm-accent">{playerList.length}</span>/4
                 </p>
-                {playerList.length >= 2 && (
-                  <motion.span
-                    className="rounded border px-2 py-0.5 font-pixel text-[8px] lg:text-[10px] xl:text-[11px] 2xl:text-[13px]"
-                    style={{
-                      color: difficultyInfo.color,
-                      borderColor: `${difficultyInfo.color}40`,
-                      backgroundColor: `${difficultyInfo.color}10`,
-                    }}
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ ease: EASE }}
-                  >
-                    {playerList.length} Oyuncu — {difficultyInfo.label}
-                  </motion.span>
-                )}
+                <AnimatePresence>
+                  {playerList.length >= 2 && (
+                    <motion.span
+                      className="rounded border px-2 py-0.5 font-pixel text-[8px] lg:text-[10px] xl:text-[11px] 2xl:text-[13px]"
+                      style={{
+                        color: difficultyInfo.color,
+                        borderColor: `${difficultyInfo.color}40`,
+                        backgroundColor: `${difficultyInfo.color}10`,
+                      }}
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0, opacity: 0 }}
+                      transition={{ type: 'spring', stiffness: 420, damping: 20 }}
+                    >
+                      {playerList.length} Oyuncu — {difficultyInfo.label}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {/* Filled slots */}
-                {playerList.map((player, i) => (
-                  <motion.div
-                    key={player.id}
-                    className="pixel-border flex flex-col items-center gap-2 rounded-lg bg-dm-surface p-4"
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ delay: i * 0.1, ease: EASE }}
-                  >
-                    <PixelHero
-                      playerClass={player.class ?? 'warrior'}
-                      size="sm"
-                      animate
-                      glow={player.id === playerId}
-                    />
-                    <div className="flex items-center gap-1">
-                      {player.class && (
-                        <span className="text-[10px] lg:text-xs 2xl:text-sm">{CLASS_STATS[player.class].emoji}</span>
-                      )}
-                      <span className="max-w-full truncate font-pixel text-[9px] text-white lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">
-                        {player.name}
-                      </span>
-                    </div>
-                    {player.id === playerId && (
-                      <span className="font-pixel text-[7px] text-dm-accent lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
-                        (Sen)
-                      </span>
-                    )}
-                  </motion.div>
-                ))}
+                <AnimatePresence mode="popLayout">
+                  {/* Filled slots */}
+                  {playerList.map((player, i) => {
+                    const isMe = player.id === playerId;
+                    return (
+                      <motion.div
+                        key={player.id}
+                        layout
+                        className={`pixel-border relative flex flex-col items-center gap-2 overflow-hidden rounded-lg bg-dm-surface p-4 ${
+                          isMe ? 'ring-1 ring-dm-accent/50' : ''
+                        }`}
+                        initial={{ scale: 0.7, opacity: 0, y: 16, rotate: -3 }}
+                        animate={{
+                          scale: 1, opacity: 1, y: 0, rotate: 0,
+                          transition: { type: 'spring', stiffness: 300, damping: 20, delay: 0.25 + i * 0.06 },
+                        }}
+                        exit={{ scale: 0.8, opacity: 0, filter: 'blur(4px)' }}
+                        whileHover={{ y: -4, rotate: i % 2 === 0 ? -1.2 : 1.2 }}
+                        transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+                      >
+                        {/* Arrival flash */}
+                        <motion.span
+                          aria-hidden
+                          className="pointer-events-none absolute inset-0 bg-dm-accent/30"
+                          initial={{ opacity: 1 }}
+                          animate={{ opacity: 0 }}
+                          transition={{ duration: 0.8, delay: 0.3 + i * 0.06 }}
+                        />
+                        <PixelHero
+                          playerClass={player.class ?? 'warrior'}
+                          size="sm"
+                          animate
+                          glow={isMe}
+                        />
+                        <div className="flex max-w-full items-center gap-1">
+                          {player.class && (
+                            <span className="text-[10px] lg:text-xs 2xl:text-sm">{CLASS_STATS[player.class].emoji}</span>
+                          )}
+                          <span className="max-w-full truncate font-pixel text-[9px] text-white lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">
+                            {player.name}
+                          </span>
+                        </div>
+                        {isMe && (
+                          <span className="font-pixel text-[7px] text-dm-accent lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
+                            (Sen)
+                          </span>
+                        )}
+                      </motion.div>
+                    );
+                  })}
 
-                {/* Empty slots */}
-                {Array.from({ length: 4 - playerList.length }).map((_, i) => (
-                  <motion.div
-                    key={`empty-${i}`}
-                    className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-dm-border p-4"
-                    animate={{
-                      opacity: [0.3, 0.5, 0.3],
-                      borderColor: [
-                        'rgba(31, 41, 55, 0.5)',
-                        'rgba(139, 92, 246, 0.2)',
-                        'rgba(31, 41, 55, 0.5)',
-                      ],
-                    }}
-                    transition={{ duration: 2, repeat: Infinity, delay: i * 0.4 }}
-                  >
-                    <div className="h-8 w-8 rounded-full bg-zinc-800" />
-                    <span className="font-pixel text-[8px] text-zinc-600 lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">
-                      Boş
-                    </span>
-                  </motion.div>
-                ))}
+                  {/* Empty slots */}
+                  {Array.from({ length: Math.max(0, 4 - playerList.length) }).map((_, i) => (
+                    <motion.div
+                      key={`empty-${playerList.length + i}`}
+                      layout
+                      className="relative flex flex-col items-center justify-center gap-2 overflow-hidden rounded-lg border-2 border-dashed border-dm-border/70 p-4"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
+                    >
+                      {/* Scanning beam */}
+                      <motion.span
+                        aria-hidden
+                        className="pointer-events-none absolute inset-x-0 h-1/3 bg-gradient-to-b from-transparent via-dm-accent/10 to-transparent"
+                        animate={{ top: ['-35%', '110%'] }}
+                        transition={{ duration: 2.4, repeat: Infinity, ease: 'linear', delay: i * 0.5 }}
+                      />
+                      <div className="grid grid-cols-3 gap-[2px] opacity-40" aria-hidden>
+                        {Array.from({ length: 9 }).map((__, k) => (
+                          <span
+                            key={k}
+                            className="dm-loader-block block h-1.5 w-1.5 bg-zinc-500"
+                            style={{ animationDelay: `${(k * 90 + i * 200) % 840}ms` }}
+                          />
+                        ))}
+                      </div>
+                      <span className="font-pixel text-[8px] text-zinc-600 lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">
+                        Boş
+                      </span>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
               </div>
-            </div>
+            </motion.div>
           )}
 
           {/* Waiting message */}
           {!isSolo && playerList.length < 2 && (
-            <motion.p
-              className="mt-2 text-center font-pixel text-[10px] text-zinc-500 lg:text-sm xl:text-sm 2xl:text-base"
-              animate={{ opacity: [0.5, 1, 0.5] }}
-              transition={{ duration: 2, repeat: Infinity }}
-            >
-              Oyuncu bekleniyor
-              <motion.span
-                animate={{ opacity: [0, 1, 0] }}
-                transition={{ duration: 1.5, repeat: Infinity }}
-              >
-                ...
-              </motion.span>
-            </motion.p>
+            <motion.div className="mt-2 flex flex-col items-center gap-2" variants={LOBBY_ITEM}>
+              <div className="flex gap-[3px]" aria-hidden>
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <span key={i} className="dm-loader-block block h-[5px] w-[5px] bg-dm-accent" style={{ animationDelay: `${i * 80}ms` }} />
+                ))}
+              </div>
+              <p className="text-center font-pixel text-[10px] text-zinc-500 lg:text-sm xl:text-sm 2xl:text-base">
+                Oyuncu bekleniyor...
+              </p>
+            </motion.div>
           )}
 
           {/* Back button */}
-          <PixelButton variant="secondary" onClick={() => router.push('/')}>
-            Ana Menü
-          </PixelButton>
+          <motion.div variants={LOBBY_ITEM}>
+            <PixelButton variant="secondary" onClick={handleMainMenu}>
+              Ana Menü
+            </PixelButton>
+          </motion.div>
         </motion.div>
       </main>
+      </MotionConfig>
     );
   }
 
   // ====== CLASS SELECT PHASE ======
   if (phase === 'class_select') {
     return (
-      <motion.div
-        className="relative"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.4, ease: EASE }}
-      >
-        <ClassSelect
-          players={players}
-          localPlayerId={playerId}
-          onSelectClass={handleSelectClass}
-          onReady={ready}
-          isSolo={isSolo}
-        />
-      </motion.div>
+      <MotionConfig reducedMotion={settings.reducedMotion ? 'always' : 'user'}>
+        <motion.div
+          className="relative"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.4, ease: EASE }}
+        >
+          <ClassSelect
+            players={players}
+            localPlayerId={playerId}
+            onSelectClass={handleSelectClass}
+            onReady={ready}
+            isSolo={isSolo}
+          />
+        </motion.div>
+      </MotionConfig>
     );
   }
 

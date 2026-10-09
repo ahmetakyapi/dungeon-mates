@@ -1,12 +1,26 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { PixelButton } from '@/components/ui/PixelButton';
 import { useSound } from '@/hooks/useSound';
+import { SplitReveal } from '@/components/fx/RevealText';
+import { EASE_OUT_EXPO, EASE_IN_OUT } from '@/lib/motion';
 import type { GameSettings } from '@/lib/settings';
 
-const EASE = [0.22, 1, 0.36, 1] as const;
+const EASE = EASE_OUT_EXPO;
+
+/** Menu rows arrive top-down and leave bottom-up, like a deck being cut. */
+const LIST: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.045, delayChildren: 0.18 } },
+  exit: { transition: { staggerChildren: 0.03, staggerDirection: -1 } },
+};
+const ROW: Variants = {
+  hidden: { x: -24, opacity: 0, filter: 'blur(4px)' },
+  show: { x: 0, opacity: 1, filter: 'blur(0px)', transition: { type: 'spring', stiffness: 420, damping: 30 } },
+  exit: { x: 16, opacity: 0, transition: { duration: 0.18, ease: EASE_IN_OUT } },
+};
 
 type QualityLevel = 'low' | 'medium' | 'high';
 
@@ -404,30 +418,49 @@ export function PauseMenu({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-          />
+          >
+            <div className="dm-scanlines" aria-hidden />
+            <div className="dm-vignette" aria-hidden />
+          </motion.div>
 
           {/* Menu card */}
           <motion.div
-            className="glass-strong relative z-10 mx-4 w-full max-w-sm overflow-hidden rounded-2xl p-6 sm:p-8 lg:max-w-md lg:p-10 2xl:max-w-lg 2xl:p-12"
-            initial={{ scale: 0.85, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.85, opacity: 0, y: 20 }}
-            transition={{ duration: 0.35, ease: EASE }}
+            className="glass-strong dm-corners relative z-10 mx-4 max-h-[92dvh] w-full max-w-sm overflow-y-auto overflow-x-hidden rounded-2xl p-6 sm:p-8 lg:max-w-md lg:p-10 2xl:max-w-lg 2xl:p-12"
+            style={{ ['--dm-corner' as string]: 'rgba(139,92,246,0.9)' }}
+            initial={{ opacity: 0, scale: 0.96, y: 14, clipPath: 'inset(48% 0% 48% 0% round 16px)' }}
+            animate={{ opacity: 1, scale: 1, y: 0, clipPath: 'inset(0% 0% 0% 0% round 16px)' }}
+            exit={{ opacity: 0, scale: 0.97, y: 8, clipPath: 'inset(48% 0% 48% 0% round 16px)', transition: { duration: 0.3, ease: EASE_IN_OUT } }}
+            transition={{ duration: 0.55, ease: EASE }}
           >
             {/* Title */}
-            <h2 className="glow-purple mb-6 text-center font-pixel text-base text-dm-accent sm:text-lg lg:text-xl xl:text-2xl 2xl:text-3xl">
-              Duraklatıldı
-            </h2>
+            <div className="mb-6 flex flex-col items-center gap-2">
+              <span className="font-mono text-[9px] uppercase tracking-[0.45em] text-zinc-500 lg:text-[10px]">
+                Zephara · Mola
+              </span>
+              <h2
+                className="text-center font-pixel text-base text-dm-accent sm:text-lg lg:text-xl xl:text-2xl 2xl:text-3xl"
+                style={{ textShadow: '0 0 20px rgba(139,92,246,0.5)' }}
+              >
+                <SplitReveal text="Duraklatıldı" delay={0.12} stagger={0.03} duration={0.6} />
+              </h2>
+              <motion.div
+                className="h-px w-24"
+                style={{ background: 'linear-gradient(90deg, transparent, rgba(139,92,246,0.8), transparent)' }}
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ delay: 0.25, duration: 0.7, ease: EASE }}
+              />
+            </div>
 
             {/* Menu items */}
-            <div className="flex flex-col gap-3">
-              {menuItems.map((item, i) => (
-                <motion.div
-                  key={item.key}
-                  initial={{ x: -20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  transition={{ delay: 0.05 * i, duration: 0.3, ease: EASE }}
-                >
+            <motion.div className="flex flex-col gap-3" variants={LIST} initial="hidden" animate="show" exit="exit">
+              {menuItems.map((item) => (
+                <motion.div key={item.key} variants={ROW} className="group relative" whileHover={{ x: 4 }}>
+                  {/* Pixel marker that slides in on hover / focus */}
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute -left-3 top-1/2 h-2 w-2 -translate-y-1/2 scale-0 bg-dm-accent opacity-0 shadow-[0_0_8px_#8b5cf6] transition-all duration-200 group-focus-within:scale-100 group-focus-within:opacity-100 group-hover:scale-100 group-hover:opacity-100"
+                  />
                   <PixelButton
                     variant={item.variant}
                     fullWidth
@@ -438,7 +471,7 @@ export function PauseMenu({
                   </PixelButton>
                 </motion.div>
               ))}
-            </div>
+            </motion.div>
 
             {/* Controls panel */}
             <AnimatePresence>

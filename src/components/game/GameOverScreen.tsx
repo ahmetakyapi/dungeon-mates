@@ -1,10 +1,24 @@
 'use client';
 
-import { useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { useEffect, useMemo } from 'react';
+import { motion, animate, useMotionValue, useTransform } from 'framer-motion';
 import { PixelButton } from '@/components/ui/PixelButton';
+import { SplitReveal } from '@/components/fx/RevealText';
+import { EASE_OUT_EXPO, prefersReducedMotion } from '@/lib/motion';
 
-const EASE = [0.22, 1, 0.36, 1] as const;
+const EASE = EASE_OUT_EXPO;
+
+/** Counts a stat up from zero once its row has landed. */
+function CountUp({ value, delay, prefix = '' }: { value: number; delay: number; prefix?: string }) {
+  const mv = useMotionValue(0);
+  const text = useTransform(mv, (v) => `${prefix}${Math.round(v).toLocaleString('tr-TR')}`);
+  useEffect(() => {
+    if (prefersReducedMotion()) { mv.set(value); return; }
+    const c = animate(mv, value, { delay, duration: 1.2, ease: EASE_OUT_EXPO });
+    return () => c.stop();
+  }, [mv, value, delay]);
+  return <motion.span className="tabular-nums">{text}</motion.span>;
+}
 
 type PartyMemberStat = {
   name: string;
@@ -192,7 +206,7 @@ export function GameOverScreen({
   }, [stats.deaths, stats.timePlayed, stats.monstersKilled]);
 
   const statRows = useMemo(() => {
-    const rows: Array<{ label: string; value: string | number; icon: string }> = [
+    const rows: Array<{ label: string; value: string | number; icon: string; prefix?: string }> = [
       { label: 'Canavarlar Öldürüldü', value: stats.monstersKilled, icon: '💀' },
       { label: 'Toplam Hasar', value: Math.round(stats.damageDealt), icon: '⚔️' },
       { label: 'Altın Toplandı', value: stats.goldCollected, icon: '🪙' },
@@ -203,7 +217,7 @@ export function GameOverScreen({
     ];
     // Meta currency earned this run — the reason to start another one.
     if (earnedShards > 0) {
-      rows.push({ label: 'Kadim Şard', value: `+${earnedShards}`, icon: '🔷' });
+      rows.push({ label: 'Kadim Şard', value: earnedShards, prefix: '+', icon: '🔷' });
     }
     if (bestFloor > 0) {
       rows.push({ label: 'En İyi Kat', value: `${Math.max(bestFloor, stats.floorsCleared)}/10`, icon: '🏆' });
@@ -218,11 +232,25 @@ export function GameOverScreen({
 
   return (
     <motion.div
-      className="absolute inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/80 backdrop-blur-md"
+      className="absolute inset-0 z-50 overflow-y-auto overflow-x-hidden bg-black/80 backdrop-blur-md"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
+      exit={{ opacity: 0, transition: { duration: 0.4 } }}
       transition={{ duration: 0.5 }}
     >
+      <div className="pointer-events-none fixed inset-0" aria-hidden>
+        <div
+          className="absolute inset-0"
+          style={{
+            background: isVictory
+              ? 'radial-gradient(ellipse at 50% 25%, rgba(245,158,11,0.16), transparent 60%)'
+              : 'radial-gradient(ellipse at 50% 25%, rgba(127,29,29,0.35), transparent 60%)',
+          }}
+        />
+        <div className="dm-scanlines" />
+        <div className="dm-vignette" />
+      </div>
+      <div className="relative flex min-h-full items-center justify-center py-10">
       {/* Sound wave rings */}
       {ringDelays.map((d) => (
         <SoundRing key={d} delay={d} isVictory={isVictory} />
@@ -235,29 +263,49 @@ export function GameOverScreen({
 
       <motion.div
         className="relative z-10 flex w-full max-w-md flex-col items-center gap-5 px-4 lg:max-w-lg lg:gap-6 2xl:max-w-xl 2xl:gap-8"
-        initial={{ scale: 0.5, opacity: 0, y: 30 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        transition={{ duration: 0.7, ease: EASE, delay: 0.15 }}
+        initial={{ opacity: 0, y: 40, filter: 'blur(10px)' }}
+        animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+        transition={{ duration: 0.9, ease: EASE, delay: 0.1 }}
       >
         {/* Title */}
-        <motion.h1
-          className={`font-pixel text-4xl sm:text-6xl lg:text-7xl 2xl:text-8xl ${
-            isVictory ? 'glow-gold text-dm-gold' : 'text-dm-health'
-          }`}
-          initial={{ scale: 0.3, opacity: 0 }}
-          animate={
-            isVictory
-              ? { scale: [0.3, 1.15, 1], opacity: 1 }
-              : { scale: [0.3, 1], opacity: 1, x: [0, -4, 4, -3, 3, -1, 1, 0] }
-          }
-          transition={
-            isVictory
-              ? { duration: 0.8, ease: EASE }
-              : { duration: 0.7, ease: EASE }
-          }
-        >
-          {isVictory ? 'ZAFER!' : 'YENILDIN!'}
-        </motion.h1>
+        <div className="flex flex-col items-center gap-3">
+          <span className="flex items-center gap-3 font-mono text-[9px] uppercase tracking-[0.45em] text-zinc-500 sm:text-[10px]">
+            <motion.span
+              className={`block h-px w-8 origin-right ${isVictory ? 'bg-dm-gold/60' : 'bg-red-500/50'}`}
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              transition={{ delay: 0.3, duration: 0.9, ease: EASE }}
+            />
+            {isVictory ? 'Sefer Sonu' : 'Sefer Bitti'}
+            <motion.span
+              className={`block h-px w-8 origin-left ${isVictory ? 'bg-dm-gold/60' : 'bg-red-500/50'}`}
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              transition={{ delay: 0.3, duration: 0.9, ease: EASE }}
+            />
+          </span>
+          <motion.h1
+            className={`font-pixel text-4xl sm:text-6xl lg:text-7xl 2xl:text-8xl ${
+              isVictory ? 'text-dm-gold' : 'text-dm-health'
+            }`}
+            style={{
+              textShadow: isVictory
+                ? '0 0 36px rgba(245,158,11,0.55), 0 0 2px rgba(255,255,255,0.6)'
+                : '0 0 30px rgba(239,68,68,0.45)',
+            }}
+            // Defeat lands with a heavy jolt once the letters have fallen in.
+            animate={isVictory ? undefined : { x: [0, 0, -5, 5, -3, 3, -1, 1, 0] }}
+            transition={isVictory ? undefined : { duration: 0.9, delay: 0.25, times: [0, 0.45, 0.52, 0.6, 0.68, 0.76, 0.84, 0.92, 1] }}
+          >
+            <SplitReveal
+              text={isVictory ? 'ZAFER!' : 'YENILDIN!'}
+              variant={isVictory ? 'rise' : 'drop'}
+              delay={0.15}
+              stagger={isVictory ? 0.06 : 0.045}
+              duration={0.9}
+            />
+          </motion.h1>
+        </div>
 
         {/* Victory: pulse glow, Defeat: skull */}
         {isVictory ? (
@@ -341,11 +389,12 @@ export function GameOverScreen({
             {statRows.map((row, i) => (
               <motion.div
                 key={row.label}
-                className="flex items-center justify-between"
-                initial={{ x: -15, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
+                className="relative flex items-center justify-between"
+                initial={{ x: -15, opacity: 0, clipPath: 'inset(0 100% 0 0)' }}
+                animate={{ x: 0, opacity: 1, clipPath: 'inset(0 0% 0 0)' }}
                 transition={{
-                  delay: (isVictory ? 1.6 : 1.4) + i * 0.1,
+                  delay: (isVictory ? 1.6 : 1.4) + i * 0.08,
+                  duration: 0.7,
                   ease: EASE,
                 }}
               >
@@ -364,7 +413,11 @@ export function GameOverScreen({
                     isVictory ? 'text-dm-gold' : 'text-zinc-400'
                   }`}
                 >
-                  {row.value}
+                  {typeof row.value === 'number' ? (
+                    <CountUp value={row.value} prefix={row.prefix} delay={(isVictory ? 1.75 : 1.55) + i * 0.08} />
+                  ) : (
+                    row.value
+                  )}
                 </span>
               </motion.div>
             ))}
@@ -399,15 +452,18 @@ export function GameOverScreen({
             <div className="flex flex-col gap-1">
               {(() => {
                 const slowest = Math.max(...stats.floorHistory.map((f) => f.seconds), 1);
-                return stats.floorHistory.map((f) => (
+                return stats.floorHistory.map((f, fi) => (
                   <div key={f.floor} className="flex items-center gap-2">
                     <span className="w-8 shrink-0 font-pixel text-[8px] text-dm-gold lg:text-[10px]">
                       {String(f.floor).padStart(2, '0')}
                     </span>
                     <div className="h-2 flex-1 overflow-hidden rounded-sm bg-black/40">
-                      <div
+                      <motion.div
                         className="h-full rounded-sm bg-dm-accent/70"
-                        style={{ width: `${Math.max(4, (f.seconds / slowest) * 100)}%` }}
+                        style={{ boxShadow: '0 0 6px rgba(139,92,246,0.5)' }}
+                        initial={{ width: '0%' }}
+                        animate={{ width: `${Math.max(4, (f.seconds / slowest) * 100)}%` }}
+                        transition={{ delay: (isVictory ? 2.0 : 1.8) + fi * 0.06, duration: 0.9, ease: EASE }}
                       />
                     </div>
                     <span className="w-14 shrink-0 text-right font-pixel text-[8px] text-dm-text-dim lg:text-[10px]">
@@ -494,9 +550,9 @@ export function GameOverScreen({
         {/* Buttons */}
         <motion.div
           className="flex w-full gap-3"
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: isVictory ? 2.2 : 2 }}
+          transition={{ delay: isVictory ? 2.2 : 2, duration: 0.7, ease: EASE }}
         >
           <PixelButton
             variant={isVictory ? 'gold' : 'primary'}
@@ -510,6 +566,7 @@ export function GameOverScreen({
           </PixelButton>
         </motion.div>
       </motion.div>
+      </div>
     </motion.div>
   );
 }
