@@ -79,7 +79,7 @@ Playing (Canvas + HUD aktif, kat 1-10)
   |---> FloorTransition (her kat gecisinde, floorCompleteEvent veya dungeon.currentFloor degisimi)
   |     +-- playFloorMusic(floor) + startAmbience(floor)
   |
-  |---> BossIntro (kat 5: Orumcek Kralice, kat 10: Mor'Khan)
+  |---> BossIntro (kat 3/5/7/8/10 bossları — `bossTypeMap`, GameRoom.ts)
   |     +-- phase === 'boss' && prevPhase === 'playing'
   |
   +---> GameOverScreen (victory veya defeat)

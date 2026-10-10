@@ -141,7 +141,7 @@ export class DungeonGenerator {
     // Connect rooms with corridors
     this.connectRooms();
 
-    // Designate start and boss rooms (boss only on floor 5)
+    // Designate start and boss rooms (floors with config.hasBoss: 3, 5, 7, 8, 10)
     this.designateSpecialRooms(config.hasBoss);
 
     // Place walls around floors

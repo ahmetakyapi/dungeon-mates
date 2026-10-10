@@ -13,14 +13,14 @@ Tüm sprite'lar prosedürel Canvas API ile çizilir — sprite sheet yok.
 | Dosya | Satır | Sorumluluk |
 |---|---|---|
 | `src/game/renderer/GameRenderer.ts` | ~2200 | Ana canvas render pipeline, freeze frame, movement interpolation |
-| `src/game/renderer/SpriteRenderer.ts` | ~2600 | 14 canavar + 3 sınıf prosedürel sprite çizimi |
+| `src/game/renderer/SpriteRenderer.ts` | ~2600 | 12 canavar + 5 boss + 4 sınıf prosedürel sprite çizimi |
 | `src/game/renderer/ParticleSystem.ts` | ~1100 | Pool-based particle engine (768 havuz) |
 | `src/game/renderer/Camera.ts` | ~290 | Kamera: shake, zoom, look-ahead, directional punch |
 | `src/game/audio/SoundManager.ts` | ~780 | Web Audio synthesizer, per-floor müzik, ambient katmanları |
 | `src/game/input/InputManager.ts` | ~300 | Keyboard + gamepad input |
 | `src/game/input/TouchControls.ts` | ~590 | Mobil joystick + butonlar |
 | `server/GameRoom.ts` | ~1120 | Oyun döngüsü, 20 tick/sn, oda yönetimi |
-| `server/entities/Monster.ts` | ~740 | 14 canavar AI (skeleton, slime, bat, goblin, rat, spider, wraith, mushroom, gargoyle, dark_knight, phantom, lava_slime, boss_spider_queen, boss_demon) |
+| `server/entities/Monster.ts` | ~740 | 12 canavar + 5 boss AI (skeleton, slime, bat, goblin, rat, spider, wraith, mushroom, gargoyle, dark_knight, phantom, lava_slime, boss_spider_queen, boss_demon) |
 | `server/dungeon/DungeonGenerator.ts` | ~525 | BSP tree zindan üretimi, 10 kat config |
 | `shared/types.ts` | ~260 | Server-client köprü dosyası |
 
@@ -70,7 +70,7 @@ GameRenderer'da freeze frame + Camera'da directional punch:
 | phantom | wraith AI, hızlı | v2 |
 | lava_slime | slime AI, ateş temalı | v2 |
 | boss_spider_queen | boss AI, kat 5 mid-boss | v2 |
-| boss_demon (Mor'Khan) | boss AI, kat 10 final boss | v1 |
+| boss_demon (Karanmir) | boss AI, kat 10 final boss | v1 |
 
 Yeni canavar ekleme sırası:
 1. `shared/types.ts` → `MonsterType` union + `MONSTER_STATS`

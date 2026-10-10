@@ -18,7 +18,7 @@ description: Activate when context window is getting large, when working across 
 | `ParticleSystem.ts` | ~1100 | Pool-based — allocation kurallarına dikkat |
 | `game/page.tsx` | ~925 | Ana orkestratör — tüm state burada |
 | `SoundManager.ts` | ~780 | Per-floor müzik + ambient katmanları |
-| `Monster.ts` | ~740 | 14 canavar AI |
+| `Monster.ts` | ~740 | 12 canavar + 5 boss AI |
 
 **ASLA aynı anda açma:**
 - `GameRenderer.ts` + `SpriteRenderer.ts` = ~4800 satır → context patlar

@@ -22,7 +22,7 @@ description: Activate when working on Monster.ts, monster AI behaviors, boss enc
 | phantom | wraith AI, hizli | 40 | 20 | 2.5 | 1.0 | 7-9 |
 | lava_slime | slime AI, ates | 50 | 15 | 1.0 | 1.0 | 8-9 |
 | boss_spider_queen | Boss AI, mid-boss | 350 | 28 | 1.3 | 2.2 | 5 |
-| boss_demon (Mor'Khan) | Boss AI, final | 500 | 35 | 1.5 | 2.5 | 10 |
+| boss_demon (Karanmir) | Boss AI, final | 500 | 35 | 1.5 | 2.5 | 10 |
 
 ## AI State Machine
 
@@ -86,7 +86,7 @@ Kat 6+: gargoyle, dark_knight, phantom, lava_slime eklenir.
 - Yenildiginde otomatik sonraki kata gecis (merdiven yok)
 - BossIntro: "Aglarama hos geldiniz..."
 
-**Kat 10 — Mor'Khan (final boss):**
+**Kat 10 — Karanmir (final boss):**
 - `boss_demon` spawn
 - Yenildiginde zafer fazina gecis
 - BossIntro: "Ben... onlari koruyacaktim."

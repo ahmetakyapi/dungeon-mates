@@ -114,8 +114,8 @@ Yeni icerik eklerken mevcut lore'a uygunluk kontrol et:
 | Terim | Aciklama | Kullanim |
 |---|---|---|
 | Zephara | Dusmüs sehir | Tum hikaye bunun etrafinda |
-| Mor'Khan | Yozlasmis kral, final boss | Kat 10, trajik karakter |
-| Ilk Ates | Guc kaynagi, Mor'Khan'i yozlastiran | Hikayenin cekirdegi |
+| Karanmir | Yozlasmis kral, final boss | Kat 10, trajik karakter |
+| Ateş-i Kadim | Guc kaynagi, Karanmir'i yozlaştıran | Hikayenin cekirdegi |
 | Orumcek Kralice | Mid-boss | Kat 5, "Zephara'nin Dokumacisi" |
 
 ### 3 Perde Yapisi
