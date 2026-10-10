@@ -3,50 +3,41 @@
 import { useRef } from 'react';
 import { motion, useScroll, useTransform, type MotionValue } from 'framer-motion';
 
-function Word({ word, progress, range, accent }: {
-  word: string; progress: MotionValue<number>; range: [number, number]; accent: boolean;
+function Line({ text, progress, range, accent }: {
+  text: string; progress: MotionValue<number>; range: [number, number]; accent: boolean;
 }) {
-  const opacity = useTransform(progress, range, [0.13, 1]);
-  const y = useTransform(progress, range, [6, 0]);
+  const opacity = useTransform(progress, range, [0.28, 1]);
   return (
-    <motion.span
-      style={{ opacity, y, display: 'inline-block', marginRight: '0.26em', color: accent ? 'var(--color-ember)' : undefined }}
-    >
-      {word}
-    </motion.span>
+    <motion.p style={{ opacity, margin: 0, color: accent ? 'var(--color-ember)' : undefined }}>
+      {text}
+    </motion.p>
   );
 }
 
 /**
- * Prose that lights up word by word as it is scrolled through — the reader's
- * own scroll is the narrator's pace. Each line is a separate paragraph; the
- * last line is set in the accent, the way the story lands on its turn.
+ * Prose that lights up line by line as it is scrolled through.
+ *
+ * It used to light word by word from 13% opacity: ~80 motion values on one
+ * section, and most of the prologue sat unreadably dim at any moment. A line
+ * is the unit the story is written in (one sentence each), dimmed text stays
+ * legible at 28%, and the opacity is the only thing that changes.
  */
 export function ScrollWords({ lines, className }: { lines: readonly string[]; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({ target: ref, offset: ['start 0.82', 'end 0.42'] });
-
-  const total = lines.reduce((n, l) => n + l.split(' ').length, 0);
-  let i = 0;
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start 0.8', 'end 0.5'] });
+  const step = 1 / lines.length;
 
   return (
     <div ref={ref} className={className}>
-      {lines.map((line, li) => {
-        const accent = li === lines.length - 1;
-        return (
-          <p key={li} aria-label={line} style={{ margin: 0 }}>
-            <span aria-hidden>
-              {line.split(' ').map((w, wi) => {
-                const start = i / total;
-                i++;
-                return (
-                  <Word key={wi} word={w} progress={scrollYProgress} range={[start, Math.min(1, start + 3 / total)]} accent={accent} />
-                );
-              })}
-            </span>
-          </p>
-        );
-      })}
+      {lines.map((line, i) => (
+        <Line
+          key={i}
+          text={line}
+          progress={scrollYProgress}
+          range={[i * step, Math.min(1, (i + 1.4) * step)]}
+          accent={i === lines.length - 1}
+        />
+      ))}
     </div>
   );
 }

@@ -12,7 +12,8 @@
  *               until it fills the screen and swallows the headline
  *   marquee     floor names that speed up and lean with scroll velocity
  *   story       the prologue lights up word by word as it is read
- *   floors      a pinned horizontal gallery — scroll down, walk the shaft
+ *   floors      a vertical shaft: floors stack the way they are played, a
+ *               sticky gauge on the left reads out the depth
  *   mechanic    the real windup → active → recovery cycle, read out live
  *   classes     four slabs that open under the pointer
  *   play        a single giant call to go down, with magnetic controls
@@ -37,13 +38,12 @@ import { useTransitionRouter } from '@/components/fx/PageTransition';
 import { EASE_OUT_EXPO, EASE_IN_OUT } from '@/lib/motion';
 import { SmoothScroll, scrollToTarget, setScrollLocked } from '@/components/landing/motion/SmoothScroll';
 import { DungeonGate } from '@/components/landing/motion/DungeonGate';
-import { Cursor } from '@/components/landing/motion/Cursor';
 import { RevealText } from '@/components/landing/motion/RevealText';
 import { Magnetic } from '@/components/landing/motion/Magnetic';
 import { VelocityMarquee } from '@/components/landing/motion/VelocityMarquee';
 import { ScrollWords } from '@/components/landing/motion/ScrollWords';
 import { HeroStage } from '@/components/landing/motion/HeroStage';
-import { FloorGallery } from '@/components/landing/motion/FloorGallery';
+import { FloorShaft } from '@/components/landing/motion/FloorShaft';
 import { ClassAccordion } from '@/components/landing/motion/ClassAccordion';
 import { TiltCard } from '@/components/landing/motion/TiltCard';
 import '../styles/nocturne.css';
@@ -67,9 +67,9 @@ const STATS: ReadonlyArray<{ label: string; to?: number; text?: string }> = [
 const TELEGRAPH_SLOWDOWN = 4;
 
 const PHASE_ROWS: ReadonlyArray<{ key: ScenePhase; num: string; label: string; time: string; note: string }> = [
-  { key: 'windup', num: '01', label: 'Hazırlık', time: '0.25 – 0.65 sn', note: 'alan dolar' },
-  { key: 'active', num: '02', label: 'Vuruş', time: '0.1 – 0.2 sn', note: 'hasar çözülür' },
-  { key: 'recovery', num: '03', label: 'Toparlanma', time: '0.2 – 0.7 sn', note: 'karşılık ver' },
+  { key: 'windup', num: '01', label: 'Hazırlık', time: '0,25 – 0,65 sn', note: 'Tehlike alanı zeminde dolar' },
+  { key: 'active', num: '02', label: 'Vuruş', time: '0,1 – 0,2 sn', note: 'Hasar o an hesaplanır' },
+  { key: 'recovery', num: '03', label: 'Toparlanma', time: '0,2 – 0,7 sn', note: 'Saldırma sırası sende' },
 ];
 
 const CONTROLS: ReadonlyArray<readonly [string, string]> = [
@@ -139,7 +139,6 @@ export default function HomePage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [navHidden, setNavHidden] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [depth, setDepth] = useState(0);
   const [statsRun, setStatsRun] = useState(false);
   const statsRef = useRef<HTMLElement>(null);
 
@@ -174,7 +173,9 @@ export default function HomePage() {
     setScrolled(y > 24);
     setNavHidden((h) => (y > 240 && y > prev + 2 ? true : y < prev - 2 ? false : h));
   });
-  useMotionValueEvent(scrollYProgress, 'change', (v) => setDepth(Math.round(v * 240)));
+  // Written straight into the DOM by Framer: a state here re-rendered the
+  // whole page on every scroll tick.
+  const depth = useTransform(scrollYProgress, (v) => `−${String(Math.round(v * 240)).padStart(3, '0')}m`);
 
   useEffect(() => {
     const el = statsRef.current;
@@ -209,8 +210,9 @@ export default function HomePage() {
   const descendRef = useRef<HTMLElement>(null);
   const { scrollYProgress: dp } = useScroll({ target: descendRef, offset: ['start end', 'end start'] });
   const dScale = useTransform(dp, [0, 0.55], [1.3, 1]);
-  const dInset = useTransform(dp, [0, 0.4], [12, 0]);
-  const dClip = useTransform(dInset, (v) => `inset(${v}% ${v * 0.6}% ${v}% ${v * 0.6}%)`);
+  // Transform only: this was an animated clip-path inset, repainted every frame
+  // on top of a live canvas.
+  const dFrame = useTransform(dp, [0, 0.45], [0.86, 1]);
   const dTextX = useTransform(dp, [0, 1], ['18%', '-28%']);
 
   // Footer wordmark rises as the page bottoms out.
@@ -223,7 +225,6 @@ export default function HomePage() {
     <div className="nocturne dm-landing">
       <DungeonGate onDone={onReady} />
       <SmoothScroll />
-      <Cursor />
       <div aria-hidden className="dm-grain" />
 
       {/* Scroll rail — the whole page as one shaft */}
@@ -240,7 +241,7 @@ export default function HomePage() {
           href="#top"
           className="dm-logo"
           onClick={(e) => { e.preventDefault(); setMenuOpen(false); scrollToTarget(0); }}
-          data-cursor="Yukarı"
+         
         >
           <span aria-hidden className="dm-logo-mark" />
           <span>Dungeon Mates</span>
@@ -259,10 +260,10 @@ export default function HomePage() {
           </button>
         </div>
 
-        <span className="dm-nav-depth" aria-hidden>−{String(depth).padStart(3, '0')}m</span>
+        <motion.span className="dm-nav-depth" aria-hidden>{depth}</motion.span>
 
         <Magnetic strength={0.25}>
-          <button className="dm-btn dm-btn--solid dm-btn--sm" onClick={playSolo} data-cursor="İn">
+          <button className="dm-btn dm-btn--solid dm-btn--sm" onClick={playSolo}>
             <span className="dm-btn-label" data-text="Oyna">Oyna</span>
           </button>
         </Magnetic>
@@ -325,7 +326,7 @@ export default function HomePage() {
           actions={(
             <>
               <Magnetic>
-                <button className="dm-btn dm-btn--solid" onClick={playSolo} data-cursor="İn">
+                <button className="dm-btn dm-btn--solid" onClick={playSolo}>
                   <span className="dm-btn-label" data-text="Tek Oyna">Tek Oyna</span>
                   <span aria-hidden className="dm-btn-arrow">↓</span>
                 </button>
@@ -361,7 +362,7 @@ export default function HomePage() {
 
         {/* ── Story ─────────────────────────────────────────── */}
         <section id="hikaye" className="dm-section dm-wrap">
-          <SectionHead title="Sana bir canavarı öldürmen söylendi." maxCh={18} />
+          <SectionHead title="Zephara Neden Karanlıkta?" maxCh={14} />
           <div className="dm-story-grid">
             <ScrollWords lines={PROLOGUE} className="dm-story-words" />
             <aside className="dm-story-aside">
@@ -379,24 +380,24 @@ export default function HomePage() {
         </section>
 
         {/* ── Floors (pinned horizontal) ─────────────────────── */}
-        <FloorGallery />
+        <FloorShaft />
 
         {/* ── Full-bleed descend scene ───────────────────────── */}
         <section ref={descendRef} className="dm-descend" aria-label="Bir alt kata in">
-          <motion.div className="dm-descend-frame" style={{ clipPath: dClip, WebkitClipPath: dClip }}>
+          <motion.div className="dm-descend-frame" style={{ scale: dFrame }}>
             <motion.div style={{ scale: dScale, width: '100%', height: '100%' }}>
               <LiveScene scene="descend" cols={24} rows={8} showLabel={false} />
             </motion.div>
             <span aria-hidden className="dm-descend-fade" />
           </motion.div>
           <motion.p aria-hidden className="dm-descend-type" style={{ x: dTextX }}>
-            Merdiveni bul · Bir alt kata in · Palet seninle değişir ·
+            Merdiveni Bul · Bir Alt Kata İn · Her Katta Yeni Düşmanlar ·
           </motion.p>
         </section>
 
         {/* ── Core mechanic ─────────────────────────────────── */}
         <section id="telegraf" className="dm-section dm-wrap">
-          <SectionHead title="Zemin sana ne olacağını söyler." maxCh={16} />
+          <SectionHead title="Saldırıyı Gör, Zamanında Kaç" maxCh={14} />
           <div className="dm-mech-grid">
             <div style={{ minWidth: 0 }}>
               <motion.p
@@ -406,9 +407,9 @@ export default function HomePage() {
                 viewport={{ once: true }}
                 transition={{ duration: 1, ease: EASE_OUT_EXPO }}
               >
-                Her saldırı üç parçadır: hazırlık, vuruş, toparlanma. Hazırlık boyunca tehlike alanı
-                zeminde dolar. Hasar vuruş anında, o anki konumuna göre hesaplanır — alandan çıkarsan
-                gerçekten kurtulursun.
+                Her düşman saldırısı üç aşamadan oluşur: hazırlık, vuruş ve toparlanma. Hazırlık
+                boyunca vuracağı alan zeminde kırmızıyla dolar. Hasar vuruş anında nerede durduğuna
+                göre hesaplanır; alandan zamanında çıkarsan hiç hasar almazsın.
               </motion.p>
 
               {/* Each row plays the thing its label describes, on the same clock
@@ -437,7 +438,7 @@ export default function HomePage() {
                 })}
               </div>
               <p className="dm-muted" style={{ fontSize: 12, marginTop: 18 }}>
-                Hazırlık sırasında yeterli hasar alan düşman saldırısını iptal eder ve sersemler.
+                Hazırlık sırasında yeterince hasar alan düşmanın saldırısı bozulur ve düşman kısa süre sersemler.
               </p>
             </div>
 
@@ -452,8 +453,8 @@ export default function HomePage() {
                 <span aria-hidden className="dm-corner dm-corner--br" />
               </TiltCard>
               <figcaption>
-                Oyunun kendi telegraf zamanlaması, okunabilsin diye {TELEGRAPH_SLOWDOWN} kat yavaş.
-                Üç fazın birbirine oranı gerçek.
+                Oyunun kendi zamanlaması; rahat izlenebilsin diye {TELEGRAPH_SLOWDOWN} kat yavaşlatıldı.
+                Üç aşamanın birbirine oranı oyundakiyle aynı.
               </figcaption>
             </figure>
           </div>
@@ -461,24 +462,24 @@ export default function HomePage() {
 
         {/* ── Classes ───────────────────────────────────────── */}
         <section id="siniflar" className="dm-section dm-wrap">
-          <SectionHead title="Dört sınıf, dört ayrı iniş." maxCh={16} />
+          <SectionHead title="Dört Sınıf, Dört Oyun Tarzı" maxCh={14} />
           <ClassAccordion />
         </section>
 
         {/* ── Rhythm ────────────────────────────────────────── */}
         <section className="dm-section dm-wrap">
-          <SectionHead title="Vur, kaç, topla, bir kat daha in." maxCh={18} />
+          <SectionHead title="Her Kat Biraz Daha Zor" maxCh={14} />
           <div className="dm-rhythm-grid">
             {([
               {
                 scene: 'volley' as const, floor: 6,
-                title: 'Altıncı kattan sonra düşman da ateş eder',
+                title: 'Altıncı Kattan Sonra Düşmanlar da Ateş Eder',
                 body: 'Gargoyle taş fırlatır, fantom ruh oku atar. Siperin arkasına geç, aralarındaki boşlukta ilerle.',
               },
               {
                 scene: 'treasure' as const, floor: 4,
-                title: 'Sandıklar seyrek, içindekiler run’ı belirler',
-                body: 'İksir, altın, geçici güçlenme. Hangisine gideceğin, ne kadar canla ineceğini belirler.',
+                title: 'Sandıklar Az, İçindekiler Değerli',
+                body: 'İksir, altın ya da geçici güçlenme. Hangisini alacağın, bir sonraki kata ne kadar canla ineceğini belirler.',
               },
             ]).map((c, i) => (
               <motion.div
@@ -506,11 +507,11 @@ export default function HomePage() {
         <section id="oyna" className="dm-play">
           <div className="dm-play-glow" aria-hidden />
           <div className="dm-wrap">
-            <RevealText as="h2" by="char" className="dm-play-title" text="İn." stagger={0.08} />
+            <RevealText as="h2" by="char" className="dm-play-title" text="Zindana İn" stagger={0.05} />
             <div className="dm-play-grid">
               <div>
                 <p className="dm-lead" style={{ maxWidth: '40ch' }}>
-                  Kurulum yok, isim yeter. Oda kurarsan kodu paylaş — arkadaşların aynı zindanda belirir.
+                  Kurulum yok, hesap yok. Tek başına başla ya da bir oda kurup dört haneli kodu arkadaşlarına gönder; aynı zindanda buluşursunuz.
                 </p>
 
                 <AnimatePresence mode="wait" initial={false}>
@@ -524,14 +525,14 @@ export default function HomePage() {
                       transition={{ duration: 0.45, ease: EASE_OUT_EXPO }}
                     >
                       <Magnetic strength={0.4}>
-                        <button className="dm-orb" onClick={playSolo} data-cursor="İn">
+                        <button className="dm-orb" onClick={playSolo}>
                           <span className="dm-orb-ring" aria-hidden />
                           <span className="dm-orb-label">Tek Oyna<small>3 can</small></span>
                         </button>
                       </Magnetic>
                       <Magnetic>
                         <button className="dm-btn dm-btn--ghost" onClick={() => setMode('multiplayer')}>
-                          <span className="dm-btn-label" data-text="Arkadaşlarınla oyna">Arkadaşlarınla oyna</span>
+                          <span className="dm-btn-label" data-text="Arkadaşlarınla Oyna">Arkadaşlarınla Oyna</span>
                           <span aria-hidden className="dm-btn-arrow">→</span>
                         </button>
                       </Magnetic>
@@ -552,7 +553,7 @@ export default function HomePage() {
                         <span>İsmin</span>
                       </label>
                       <button className="dm-btn dm-btn--solid dm-btn--block" onClick={createRoom}>
-                        <span className="dm-btn-label" data-text="Oda kur">Oda kur</span>
+                        <span className="dm-btn-label" data-text="Oda Kur">Oda Kur</span>
                       </button>
 
                       <div className="dm-play-or" aria-hidden><span>ya da</span></div>
@@ -562,7 +563,7 @@ export default function HomePage() {
                                style={{ letterSpacing: '0.35em', textTransform: 'uppercase' }}
                                onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 4))}
                                onKeyDown={(e) => { if (e.key === 'Enter') joinRoom(); }} />
-                        <span>Oda kodu</span>
+                        <span>Oda Kodu</span>
                       </label>
                       <button className="dm-btn dm-btn--ghost dm-btn--block" onClick={joinRoom}>
                         <span className="dm-btn-label" data-text="Katıl">Katıl</span>
@@ -621,7 +622,7 @@ export default function HomePage() {
         <div className="dm-wrap dm-footer-row">
           <span>© Dungeon Mates</span>
           <span className="dm-muted">Tüm sprite&apos;lar Canvas ile prosedürel çizilir — sprite sheet yok.</span>
-          <button className="dm-back" onClick={() => scrollToTarget(0)} data-cursor="Yukarı">Yüzeye dön ↑</button>
+          <button className="dm-back" onClick={() => scrollToTarget(0)}>Başa Dön ↑</button>
         </div>
         <div className="dm-footer-mark" aria-hidden>
           <motion.span style={{ y: footY }}>Dungeon Mates</motion.span>

@@ -31,11 +31,15 @@ export function HeroStage({ ready, actions }: { ready: boolean; actions: ReactNo
   const p = useSpring(raw, { stiffness: 140, damping: 30, mass: 0.3 });
 
   // The window: insets shrink from a framed card to nothing.
-  const startX = narrow ? 7 : 31;
+  // At rest the window sits BETWEEN the two lines of type, never over them:
+  // with 31/26 insets "On Kat" lost its last letters behind the window on
+  // every desktop size (1440×900: 305×99 px of overlap, measured). The lines
+  // are pinned to bands above 31% and below 70% (landing.css, hero).
+  const startX = narrow ? 7 : 33;
   // On a phone the window sits high so the second line of type has room
   // beneath it, above the blurb and buttons.
-  const startTop = narrow ? 25 : 26;
-  const startBot = narrow ? 39 : 26;
+  const startTop = narrow ? 25 : 31;
+  const startBot = narrow ? 39 : 31;
   const ix = useTransform(p, [0, 0.55], [startX, 0]);
   const iyTop = useTransform(p, [0, 0.55], [startTop, 0]);
   const iyBot = useTransform(p, [0, 0.55], [startBot, 0]);
@@ -64,7 +68,7 @@ export function HeroStage({ ready, actions }: { ready: boolean; actions: ReactNo
             <RevealText as="h1" by="char" text="On Kat" play={ready} delay={0.05} />
           </motion.div>
           <motion.div style={{ x: botX }} className="dm-hero-line dm-hero-line--bot">
-            <RevealText as="span" by="char" text="Aşağı." play={ready} delay={0.28} wordStyle={() => ({ color: 'var(--color-ember)' })} />
+            <RevealText as="span" by="char" text="Bir Kral" play={ready} delay={0.28} wordStyle={() => ({ color: 'var(--color-ember)' })} />
           </motion.div>
         </motion.div>
 
@@ -83,7 +87,7 @@ export function HeroStage({ ready, actions }: { ready: boolean; actions: ReactNo
         </motion.div>
 
         <motion.div className="dm-hero-late" style={{ opacity: lateOpacity, y: lateY }}>
-          <p className="dm-hero-late-line">Tek çıkış en dipte.</p>
+          <p className="dm-hero-late-line">Tek Çıkış En Dipte</p>
         </motion.div>
 
         {/* Chrome: blurb, actions, scroll cue. Leaves first. */}
@@ -95,8 +99,9 @@ export function HeroStage({ ready, actions }: { ready: boolean; actions: ReactNo
             transition={{ duration: 1, ease: EASE_OUT_EXPO, delay: 0.75 }}
           >
             <p>
-              Tarayıcıda açılan co-op zindan. Düşmanlar vuracakları yeri önce zeminde gösterir —
-              okuyabilirsen kaçabilirsin.
+              Tarayıcıda, kurulum olmadan oynanan co-op zindan oyunu. Tek başına ya da dört
+              kişiye kadar arkadaşlarınla on kat aşağı in; düşmanlar vuracakları yeri önce
+              zeminde gösterir.
             </p>
             <div className="dm-hero-actions">{actions}</div>
           </motion.div>
@@ -106,7 +111,7 @@ export function HeroStage({ ready, actions }: { ready: boolean; actions: ReactNo
             animate={ready ? { opacity: 1 } : undefined}
             transition={{ duration: 1, delay: 1.1 }}
           >
-            <span>Aşağı in</span>
+            <span>Kaydır</span>
             <span className="dm-scroll-cue-track"><span /></span>
           </motion.div>
         </motion.div>

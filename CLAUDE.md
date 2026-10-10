@@ -97,6 +97,12 @@ Canvas mantıksal çözünürlüğü masaüstünde 480×270, mobilde 360×240 (`
   keyframe, oturumda bir kez (sessionStorage), reduced-motion'da hiç oynamaz.
 - Bölüm başlıklarının üstüne eyebrow/kicker satırı konmaz; `.dm-eyebrow` yalnız işlevsel
   etiketlerde (perde numarası, sınıf rolü, "Kontroller").
+- Başlıklar Title Case, sonda nokta yok (soru işareti kalır), tek kelimelik başlık yok
+  ("İn." kaldırıldı). Küçük etiketler sans, normal harf, ≥12px.
+- Katlar dikey kuyu (`FloorShaft.tsx`: yapışkan derinlik göstergesi + alt alta katlar).
+  Yatay kayan sabit galeri başka projelerde var, buraya geri getirme. Özel imleç yok.
+- Kaydırmaya bağlı efektler yalnız transform/opacity; her karede `clip-path` (hero penceresi
+  tek istisna) ve kaydırmada sayfa state'i güncellemek yok — sayılar `useTransform` ile DOM'a.
 
 ## Commit Formatı
 

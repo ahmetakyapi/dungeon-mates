@@ -44,7 +44,6 @@ export function ClassAccordion() {
             tabIndex={0}
             className="dm-acc-item"
             data-on={on ? 'true' : undefined}
-            data-cursor={on ? undefined : 'Seç'}
             style={{ ['--cls' as string]: s.color }}
             onPointerEnter={(e) => { if (e.pointerType === 'mouse') setOpen(key); }}
             onFocus={() => setOpen(key)}
