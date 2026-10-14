@@ -228,16 +228,16 @@ export function LoadingScreen({ message, subMessage, floor }: LoadingScreenProps
       {floor ? <DepthRuler floor={floor} tint={act.tint} /> : null}
 
       {/* Top bar — act + depth */}
-      <div className="absolute inset-x-4 top-4 flex items-center justify-between font-mono text-[9px] uppercase tracking-[0.3em] text-zinc-500 sm:inset-x-8 sm:top-6 sm:text-[10px] lg:text-[11px]">
+      <div className="dm-label absolute inset-x-4 top-4 flex items-center justify-between text-zinc-400 sm:inset-x-8 sm:top-6">
         <MaskReveal delay={0.1} duration={0.7}>
           <span>
-            Perde {act.numeral} <span className="text-zinc-700">/</span>{' '}
+            Perde {act.numeral} <span className="text-zinc-600">·</span>{' '}
             <span style={{ color: act.tint }}>{act.name}</span>
           </span>
         </MaskReveal>
         {floor ? (
           <MaskReveal delay={0.18} duration={0.7}>
-            <span className="text-zinc-600">Derinlik </span>
+            <span className="text-zinc-400">Derinlik </span>
             <DepthCounter floor={floor} tint={act.tint} />
           </MaskReveal>
         ) : null}
@@ -247,7 +247,7 @@ export function LoadingScreen({ message, subMessage, floor }: LoadingScreenProps
       <div className="relative z-10 flex w-full max-w-3xl flex-col items-center px-4 text-center">
         {floor ? (
           <MaskReveal delay={0.05} duration={0.6}>
-            <span className="font-mono text-[10px] uppercase tracking-[0.5em] text-zinc-400 sm:text-[11px] lg:text-xs">
+            <span className="dm-label text-zinc-400">
               Kat
             </span>
           </MaskReveal>
@@ -315,7 +315,7 @@ export function LoadingScreen({ message, subMessage, floor }: LoadingScreenProps
               );
             })}
           </div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-zinc-300 sm:text-[11px] lg:text-xs">
+          <p className="dm-label text-zinc-300">
             {message}
             <span className="inline-block w-5 text-left">{dots}</span>
           </p>
@@ -332,7 +332,7 @@ export function LoadingScreen({ message, subMessage, floor }: LoadingScreenProps
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6, duration: 0.7, ease: EASE_OUT_EXPO }}
       >
-        <span className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.4em] text-dm-gold/80 lg:text-[10px]">
+        <span className="dm-label flex items-center gap-2 text-dm-gold">
           <span className="block h-[5px] w-[5px] bg-dm-gold" aria-hidden />
           İpucu
         </span>
@@ -340,7 +340,7 @@ export function LoadingScreen({ message, subMessage, floor }: LoadingScreenProps
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.p
               key={tip}
-              className="col-start-1 row-start-1 font-body text-[11px] leading-relaxed text-zinc-400 sm:text-xs lg:text-sm"
+              className="col-start-1 row-start-1 font-body text-[13px] leading-relaxed text-zinc-300 [text-wrap:pretty] lg:text-sm"
               initial={{ opacity: 0, y: 8, filter: 'blur(6px)' }}
               animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
               exit={{ opacity: 0, y: -8, filter: 'blur(6px)' }}

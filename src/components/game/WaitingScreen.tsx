@@ -18,13 +18,13 @@ type WaitingScreenProps = {
 const GAME_TIPS = [
   'Savaşçı yakın dövüşte en güçlü sınıftır — kalkan yeteneği ile takımını koru',
   'Büyücü güçlü ama kırılgan — her zaman mesafe koru',
-  'Okçu en hızlı sınıf — keşif görevleri için idealdir',
+  'Okçu en hızlı sınıf — mesafeni koru, kritik vuruşlarla bitir',
   'Sandıkları açmak için R tuşuna bas — içinden iksir ve güçlendirme düşer',
   'Her katta canavarlar daha güçlü olur — hazırlıklı ol',
   'Boss\'un saldırı kalıplarını öğren, sonra saldır',
-  'Takım arkadaşlarınla iletişim kur — T tuşu ile sohbet aç',
+  'Takım arkadaşlarınla konuş — sohbet kutusu oyun ekranında',
   'Merdivenleri kullanmak için tüm canavarları temizlemen gerek',
-  'Altın toplamak skorunu artırır — gözden kaçırma',
+  'Altını biriktir — kat aralarındaki dükkânda iksir ve yükseltme alırsın',
   'Can iksirini doğru zamanda topla — israf etme',
   'E tuşu ile özel yeteneğini kullan — mana ve bekleme süresi var',
   'Solo modda 3 canın var — dikkatli oyna',
@@ -35,14 +35,18 @@ const GAME_TIPS = [
 ] as const;
 
 const FUN_FACTS = [
-  '3 farklı sınıf, her biri benzersiz yetenek ve saldırı stiline sahip',
+  '4 farklı sınıf, her birinin kendi yeteneği ve saldırı biçimi var',
   'Zindanlar her oyunda rastgele üretilir — hiçbir oyun bir diğerine benzemez',
   '2-4 kişi ile co-op oynayabilir veya solo meydan okumayı deneyebilirsin',
 ] as const;
 
 // ─── PROGRESS BAR ─────────────────────────────────────────
+// The bar is a patience meter, not a measurement: a connection has no
+// percentage. It used to print "%NN" under the bar as if it did; the readout is
+// now the honest number — how long we have been waiting.
 function useProgress() {
   const [progress, setProgress] = useState(0);
+  const [seconds, setSeconds] = useState(0);
 
   useEffect(() => {
     const startTime = Date.now();
@@ -54,13 +58,14 @@ function useProgress() {
       // Ease-out cubic: fast start, slows down near end; caps at 95%
       const eased = 1 - Math.pow(1 - t, 3);
       setProgress(Math.min(eased * 95, 95));
+      setSeconds(Math.floor(elapsed / 1000));
     };
 
     const interval = setInterval(tick, 200);
     return () => clearInterval(interval);
   }, []);
 
-  return progress;
+  return { progress, seconds };
 }
 
 // ─── CONNECTION RUNE ──────────────────────────────────────
@@ -128,7 +133,7 @@ export function WaitingScreen({ connectionState, reconnectAttempt, error, onRetr
   useEffect(() => { setTipIndex(Math.floor(Math.random() * GAME_TIPS.length)); }, []);
   const [factIndex, setFactIndex] = useState(0);
   const [dotCount, setDotCount] = useState(0);
-  const progress = useProgress();
+  const { progress, seconds } = useProgress();
 
   useEffect(() => {
     const interval = setInterval(() => setTipIndex((prev) => (prev + 1) % GAME_TIPS.length), 5_000);
@@ -151,7 +156,7 @@ export function WaitingScreen({ connectionState, reconnectAttempt, error, onRetr
   const showActions = isDisconnected || stalled;
 
   const tone = isDisconnected ? '#ef4444' : stalled ? '#f59e0b' : '#8b5cf6';
-  const chip = isDisconnected ? 'Bağlantı koptu' : stalled ? 'Uzun sürüyor' : 'Bağlanıyor';
+  const chip = isDisconnected ? 'Bağlantı Koptu' : stalled ? 'Uzun Sürüyor' : 'Bağlanıyor';
   const statusText = connectionState === 'connecting' ? 'Sunucu uyanıyor' : 'Yeniden bağlanılıyor';
 
   return (
@@ -197,7 +202,7 @@ export function WaitingScreen({ connectionState, reconnectAttempt, error, onRetr
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={chip}
-            className="mb-3 flex items-center gap-2 border px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.35em] sm:text-[10px]"
+            className="dm-label mb-3 flex items-center gap-2 border px-2.5 py-1"
             style={{ borderColor: `${tone}55`, color: tone, background: `${tone}12` }}
             initial={{ opacity: 0, y: 6, clipPath: 'inset(0 100% 0 0)' }}
             animate={{ opacity: 1, y: 0, clipPath: 'inset(0 0% 0 0)' }}
@@ -242,7 +247,7 @@ export function WaitingScreen({ connectionState, reconnectAttempt, error, onRetr
         <AnimatePresence>
           {error && (
             <motion.p
-              className={`mt-3 max-w-sm text-center font-body text-[11px] sm:text-xs lg:text-sm ${
+              className={`mt-3 max-w-sm text-center font-body text-[13px] lg:text-sm ${
                 isDisconnected ? 'text-red-300' : 'text-amber-300/80'
               }`}
               initial={{ opacity: 0, y: 6 }}
@@ -263,8 +268,8 @@ export function WaitingScreen({ connectionState, reconnectAttempt, error, onRetr
           transition={{ delay: 0.3, duration: 0.6, ease: EASE_OUT_EXPO }}
         >
           <BlockBar value={progress / 100} blocks={24} color={tone} size={7} gap={3} />
-          <p className="font-mono text-[9px] tabular-nums tracking-[0.3em] text-zinc-500 sm:text-[10px]">
-            %{Math.round(progress).toString().padStart(2, '0')}
+          <p className="dm-label tabular-nums text-zinc-400">
+            {seconds} sn
           </p>
         </motion.div>
 
@@ -300,7 +305,7 @@ export function WaitingScreen({ connectionState, reconnectAttempt, error, onRetr
           transition={{ delay: 0.6, duration: 0.6 }}
         >
           <div>
-            <p className="mb-1.5 flex items-center justify-center gap-2 font-mono text-[9px] uppercase tracking-[0.4em] text-dm-gold/80 lg:text-[10px]">
+            <p className="dm-label mb-1.5 flex items-center justify-center gap-2 text-dm-gold">
               <span className="block h-[5px] w-[5px] bg-dm-gold" aria-hidden />
               İpucu
             </p>
@@ -308,7 +313,7 @@ export function WaitingScreen({ connectionState, reconnectAttempt, error, onRetr
               <AnimatePresence mode="popLayout" initial={false}>
                 <motion.p
                   key={tipIndex}
-                  className="col-start-1 row-start-1 font-body text-[11px] leading-relaxed text-zinc-400 sm:text-xs lg:text-sm"
+                  className="col-start-1 row-start-1 font-body text-[13px] leading-relaxed text-zinc-300 [text-wrap:pretty] lg:text-sm"
                   initial={{ opacity: 0, y: 8, filter: 'blur(6px)' }}
                   animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                   exit={{ opacity: 0, y: -8, filter: 'blur(6px)' }}
@@ -320,14 +325,14 @@ export function WaitingScreen({ connectionState, reconnectAttempt, error, onRetr
             </div>
           </div>
           <div>
-            <p className="mb-1.5 font-mono text-[9px] uppercase tracking-[0.4em] text-dm-accent/70 lg:text-[10px]">
+            <p className="dm-label mb-1.5 text-violet-300">
               Biliyor muydun?
             </p>
             <div className="grid min-h-[2.6em] place-items-center">
               <AnimatePresence mode="popLayout" initial={false}>
                 <motion.p
                   key={factIndex}
-                  className="col-start-1 row-start-1 font-body text-[10px] leading-relaxed text-zinc-500 sm:text-[11px] lg:text-xs"
+                  className="col-start-1 row-start-1 font-body text-[13px] leading-relaxed text-zinc-400 [text-wrap:pretty] lg:text-sm"
                   initial={{ opacity: 0, y: 8, filter: 'blur(6px)' }}
                   animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                   exit={{ opacity: 0, y: -8, filter: 'blur(6px)' }}

@@ -698,6 +698,14 @@ html[data-dm-intro="done"] .dm-gate { display: none; }
 @media (max-width: 959px) {
   .dm-acc-bar span { transform: scaleX(1) !important; opacity: .8; }
 }
+/* Phones: three stat columns beside a 120px portrait left ~65px per stat, and
+   "Saldırı 12" / "Menzil 6" were cut off at the card edge (390px). */
+@media (max-width: 559px) {
+  .dm-acc-body { grid-template-columns: 96px minmax(0, 1fr); gap: 14px; padding: 12px 16px 20px; }
+  .dm-acc-portrait { width: 96px; }
+  .dm-acc-portrait canvas { height: 124px !important; }
+  .dm-acc-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; }
+}
 
 @media (min-width: 960px) {
   .dm-acc { flex-direction: row; height: 560px; }
@@ -857,7 +865,9 @@ html[data-dm-intro="done"] .dm-gate { display: none; }
 .dm-footer-mark { overflow: hidden; padding: 0 var(--gutter); }
 .dm-footer-mark span {
   display: block; white-space: nowrap;
-  font: 600 clamp(56px, 13.4vw, 250px)/0.85 var(--font-heading);
+  /* No 56px floor: at 390px it pushed "Mates" past the edge. 13.4vw alone
+     fits the gutter at every width. */
+  font: 600 clamp(36px, 13.4vw, 250px)/0.85 var(--font-heading);
   letter-spacing: -0.07em;
   padding: 0.06em 0 0.1em;
   background: linear-gradient(180deg, color-mix(in srgb, var(--color-text) 90%, transparent), color-mix(in srgb, var(--color-accent) 30%, transparent) 90%);

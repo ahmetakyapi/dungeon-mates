@@ -116,7 +116,7 @@ export function MetaProgression({ open, onClose }: { open: boolean; onClose: () 
                           ))}
                         </span>
                       </div>
-                      <p className="mt-1 truncate font-body text-[11px] text-zinc-500">{def.description}</p>
+                      <p className="mt-1 truncate font-body text-xs text-zinc-400">{def.description}</p>
                     </div>
 
                     <button
@@ -138,7 +138,7 @@ export function MetaProgression({ open, onClose }: { open: boolean; onClose: () 
             </div>
 
             {meta.totalRuns === 0 && (
-              <p className="mt-4 text-center font-body text-[11px] text-zinc-500">
+              <p className="mt-4 text-center font-body text-xs text-zinc-400">
                 Henüz run tamamlamadın. İlk inişini yap, şardlar burada birikmeye başlasın.
               </p>
             )}
@@ -152,7 +152,7 @@ export function MetaProgression({ open, onClose }: { open: boolean; onClose: () 
 function StatChip({ label, value, accent = false }: { label: string; value: string | number; accent?: boolean }) {
   return (
     <div className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2">
-      <div className="font-pixel text-[8px] uppercase tracking-wide text-zinc-500">{label}</div>
+      <div className="dm-label text-zinc-400">{label}</div>
       <div className={`mt-1 font-pixel text-xs ${accent ? 'text-dm-accent' : 'text-zinc-200'}`}>{value}</div>
     </div>
   );

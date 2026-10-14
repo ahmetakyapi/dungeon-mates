@@ -72,7 +72,7 @@ export function PixelButton({
   return (
     <motion.button
       className={`
-        relative overflow-hidden cursor-pointer border-2 px-5 py-3 font-pixel text-[10px] uppercase tracking-wider
+        relative overflow-hidden cursor-pointer border-2 px-5 py-3 font-pixel text-[10px] tracking-wide
         transition-colors
         sm:text-xs lg:text-sm lg:px-6 lg:py-3.5
         2xl:text-base 2xl:px-7 2xl:py-4

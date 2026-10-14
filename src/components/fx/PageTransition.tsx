@@ -119,7 +119,7 @@ export function PageTransitionProvider({ children }: { children: React.ReactNode
           >
             <div className="overflow-hidden">
               <motion.p
-                className="font-mono text-[11px] uppercase tracking-[0.42em] text-zinc-300"
+                className="dm-label text-zinc-200"
                 initial={{ y: '110%' }}
                 animate={{ y: 0, transition: { delay: 0.4, duration: 0.6, ease: EASE_OUT_EXPO } }}
               >

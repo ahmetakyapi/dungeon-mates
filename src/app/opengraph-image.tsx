@@ -154,7 +154,7 @@ export default async function Image() {
           <div style={{ display: 'flex', gap: 40 }}>
             {[
               { v: '10', l: 'KAT', c: '#c4b5fd' },
-              { v: '14', l: 'CANAVAR', c: '#fcd34d' },
+              { v: '17', l: 'CANAVAR', c: '#fcd34d' },
               { v: '4', l: 'SINIF', c: '#86efac' },
               { v: '∞', l: 'RASTGELE', c: '#7dd3fc' },
             ].map((s) => (

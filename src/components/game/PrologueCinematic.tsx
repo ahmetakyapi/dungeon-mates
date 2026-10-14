@@ -962,9 +962,9 @@ export function PrologueCinematic({ onComplete }: PrologueCinematicProps) {
           {/* Scene label */}
           {SCENE_LABELS[scene] && (
             <motion.p
-              className="font-pixel text-[8px] uppercase tracking-[0.3em] text-dm-gold/50 lg:text-[10px] 2xl:text-xs"
+              className="dm-label text-dm-gold/90"
               initial={{ opacity: 0 }}
-              animate={{ opacity: 0.6 }}
+              animate={{ opacity: 1 }}
               transition={{ duration: 0.8, delay: 0.2 }}
             >
               {SCENE_LABELS[scene]}

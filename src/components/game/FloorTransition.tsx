@@ -122,7 +122,7 @@ function StatTile({
         {icon}
       </motion.span>
       <span className="font-pixel text-xs text-white lg:text-base 2xl:text-lg">{children}</span>
-      <span className="font-mono text-[8px] uppercase tracking-[0.3em] text-zinc-500 lg:text-[10px]">{label}</span>
+      <span className="dm-label text-zinc-400">{label}</span>
     </motion.div>
   );
 }
@@ -231,22 +231,6 @@ export function FloorTransition({
           >
             {/* Completed floor */}
             <div className="flex flex-col items-center gap-2">
-              <span className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.45em] text-dm-xp lg:text-xs">
-                <motion.span
-                  className="block h-px w-8 origin-right bg-dm-xp/60"
-                  initial={{ scaleX: 0 }}
-                  animate={{ scaleX: 1 }}
-                  transition={{ delay: 0.15, duration: 0.8, ease: EASE_OUT_EXPO }}
-                />
-                <SplitReveal text="Kat Tamamlandı!" delay={0.1} stagger={0.025} duration={0.6} />
-                <motion.span
-                  className="block h-px w-8 origin-left bg-dm-xp/60"
-                  initial={{ scaleX: 0 }}
-                  animate={{ scaleX: 1 }}
-                  transition={{ delay: 0.15, duration: 0.8, ease: EASE_OUT_EXPO }}
-                />
-              </span>
-
               <h1
                 className="relative font-pixel text-4xl text-dm-gold sm:text-5xl lg:text-6xl xl:text-7xl 2xl:text-8xl"
                 style={{ textShadow: '0 0 32px rgba(245,158,11,0.5)' }}
@@ -262,6 +246,10 @@ export function FloorTransition({
                   transition={{ delay: 0.85, duration: 0.5, ease: EASE_IN_OUT }}
                 />
               </h1>
+              {/* Said under the heading — it used to be a tracked-out kicker above it. */}
+              <MaskReveal delay={0.9} duration={0.6} className="dm-label text-dm-xp">
+                ✓ Tamamlandı
+              </MaskReveal>
 
               {/* Completed floor name & lore */}
               {completedLore && (
@@ -270,7 +258,7 @@ export function FloorTransition({
                     {completedLore.icon} {completedLore.name}
                   </MaskReveal>
                   <motion.span
-                    className="max-w-sm font-body text-[10px] italic text-zinc-500 lg:text-xs xl:text-sm 2xl:text-base"
+                    className="max-w-sm font-body text-xs italic text-zinc-400 lg:text-sm 2xl:text-base"
                     initial={{ opacity: 0, filter: 'blur(4px)' }}
                     animate={{ opacity: 1, filter: 'blur(0px)' }}
                     transition={{ delay: 0.6, duration: 0.8, ease: EASE_OUT_EXPO }}
@@ -299,7 +287,7 @@ export function FloorTransition({
 
             {/* Motivational quote — words surface one by one */}
             {quote && (
-              <p className="max-w-xs font-body text-[10px] italic text-dm-gold/70 sm:max-w-sm lg:text-xs xl:text-sm 2xl:text-base">
+              <p className="max-w-xs font-body text-xs italic text-dm-gold/80 sm:max-w-sm lg:text-sm 2xl:text-base">
                 {quote.split(' ').map((w, i) => (
                   <motion.span
                     key={`${w}-${i}`}
@@ -333,19 +321,19 @@ export function FloorTransition({
                     animate={{ opacity: 1 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <span className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.4em] text-zinc-500 lg:text-[11px]">
-                      <MaskReveal duration={0.6}>Sonraki Kat</MaskReveal>
-                      <span className="text-zinc-700">·</span>
-                      <MaskReveal delay={0.08} duration={0.6}>
-                        <span className="tabular-nums text-dm-accent">−{String(nextFloor * METERS_PER_FLOOR).padStart(3, '0')}m</span>
-                      </MaskReveal>
-                    </span>
                     <h2
                       className="font-pixel text-2xl text-dm-accent sm:text-3xl lg:text-4xl xl:text-5xl 2xl:text-6xl"
                       style={{ textShadow: '0 0 28px rgba(139,92,246,0.55)' }}
                     >
                       <MaskReveal delay={0.1} duration={0.9}>Kat {nextFloor}</MaskReveal>
                     </h2>
+                    <span className="dm-label flex items-center gap-2 text-zinc-400">
+                      <MaskReveal duration={0.6}>Sonraki Kat</MaskReveal>
+                      <span aria-hidden className="text-zinc-600">·</span>
+                      <MaskReveal delay={0.08} duration={0.6}>
+                        <span className="font-mono tabular-nums text-dm-accent">−{String(nextFloor * METERS_PER_FLOOR).padStart(3, '0')} m</span>
+                      </MaskReveal>
+                    </span>
 
                     {/* Next floor name & lore */}
                     {nextLore && (
@@ -354,7 +342,7 @@ export function FloorTransition({
                           <SplitReveal text={`${nextLore.icon} ${nextLore.name}`} delay={0.3} stagger={0.022} />
                         </span>
                         <motion.span
-                          className="max-w-xs font-body text-[10px] italic text-zinc-500 sm:max-w-sm lg:text-xs xl:text-sm 2xl:text-base"
+                          className="max-w-xs font-body text-xs italic text-zinc-400 sm:max-w-sm lg:text-sm 2xl:text-base"
                           initial={{ opacity: 0, y: 6 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: 0.55, duration: 0.7, ease: EASE_OUT_EXPO }}

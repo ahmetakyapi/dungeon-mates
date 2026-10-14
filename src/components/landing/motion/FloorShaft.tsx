@@ -5,6 +5,14 @@ import { ACTS, FLOOR_LORE, floorTheme } from '../../../../shared/types';
 import { FloorStrip } from '../FloorStrip';
 import { RevealText } from './RevealText';
 
+/**
+ * The lore keeps plain ASCII quotes. Printed inside the card's own “…” they
+ * doubled up at the end ("ödeyeceğim.""); nested quotes take ‘…’, as in print.
+ */
+function curlyQuotes(text: string, open = '“', close = '”'): string {
+  return text.replace(/"([^"]*)"/g, `${open}$1${close}`);
+}
+
 const BOSS_FLOORS: Record<number, string> = { 3: 'Boss', 5: 'Boss', 7: 'Boss', 8: 'Boss', 10: 'Final' };
 const FLOORS = Array.from({ length: 10 }, (_, i) => i + 1);
 /** Landing'in derinlik dili: her kat 24 metre. Nav göstergesiyle aynı ölçek. */
@@ -112,8 +120,8 @@ export function FloorShaft() {
                       {boss && <span className="dm-floor-tag">{boss}</span>}
                       <span className="dm-shaft-m">−{f * METERS_PER_FLOOR} m</span>
                     </div>
-                    <p className="dm-shaft-lore">{lore.lore}</p>
-                    <p className="dm-shaft-reveal">“{lore.reveal}”</p>
+                    <p className="dm-shaft-lore">{curlyQuotes(lore.lore)}</p>
+                    <p className="dm-shaft-reveal">“{curlyQuotes(lore.reveal, '‘', '’')}”</p>
                   </div>
                 </article>
               </li>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, animate, useMotionValue, useTransform } from 'framer-motion';
 import { PixelButton } from '@/components/ui/PixelButton';
 import { SplitReveal } from '@/components/fx/RevealText';
@@ -10,13 +10,17 @@ const EASE = EASE_OUT_EXPO;
 
 /** Counts a stat up from zero once its row has landed. */
 function CountUp({ value, delay, prefix = '' }: { value: number; delay: number; prefix?: string }) {
-  const mv = useMotionValue(0);
+  // Reduced motion starts at the final number. It used to start at 0 and set
+  // the value from an effect, which never reached the DOM here: every stat on
+  // the summary read 0 for anyone with reduced motion on.
+  const [reduced] = useState(prefersReducedMotion);
+  const mv = useMotionValue(reduced ? value : 0);
   const text = useTransform(mv, (v) => `${prefix}${Math.round(v).toLocaleString('tr-TR')}`);
   useEffect(() => {
-    if (prefersReducedMotion()) { mv.set(value); return; }
+    if (reduced) { mv.set(value); return; }
     const c = animate(mv, value, { delay, duration: 1.2, ease: EASE_OUT_EXPO });
     return () => c.stop();
-  }, [mv, value, delay]);
+  }, [mv, value, delay, reduced]);
   return <motion.span className="tabular-nums">{text}</motion.span>;
 }
 
@@ -269,21 +273,6 @@ export function GameOverScreen({
       >
         {/* Title */}
         <div className="flex flex-col items-center gap-3">
-          <span className="flex items-center gap-3 font-mono text-[9px] uppercase tracking-[0.45em] text-zinc-500 sm:text-[10px]">
-            <motion.span
-              className={`block h-px w-8 origin-right ${isVictory ? 'bg-dm-gold/60' : 'bg-red-500/50'}`}
-              initial={{ scaleX: 0 }}
-              animate={{ scaleX: 1 }}
-              transition={{ delay: 0.3, duration: 0.9, ease: EASE }}
-            />
-            {isVictory ? 'Sefer Sonu' : 'Sefer Bitti'}
-            <motion.span
-              className={`block h-px w-8 origin-left ${isVictory ? 'bg-dm-gold/60' : 'bg-red-500/50'}`}
-              initial={{ scaleX: 0 }}
-              animate={{ scaleX: 1 }}
-              transition={{ delay: 0.3, duration: 0.9, ease: EASE }}
-            />
-          </span>
           <motion.h1
             className={`font-pixel text-4xl sm:text-6xl lg:text-7xl 2xl:text-8xl ${
               isVictory ? 'text-dm-gold' : 'text-dm-health'
@@ -298,7 +287,7 @@ export function GameOverScreen({
             transition={isVictory ? undefined : { duration: 0.9, delay: 0.25, times: [0, 0.45, 0.52, 0.6, 0.68, 0.76, 0.84, 0.92, 1] }}
           >
             <SplitReveal
-              text={isVictory ? 'ZAFER!' : 'YENILDIN!'}
+              text={isVictory ? 'Zafer!' : 'Yenildin!'}
               variant={isVictory ? 'rise' : 'drop'}
               delay={0.15}
               stagger={isVictory ? 0.06 : 0.045}
@@ -319,7 +308,7 @@ export function GameOverScreen({
               Karanmir&apos;in laneti kırıldı. Ateş-i Kadim yeniden ılık parladı.
             </motion.div>
             <motion.p
-              className="font-body text-[10px] text-zinc-400 text-center max-w-xs lg:text-xs"
+              className="max-w-xs text-center font-body text-[13px] text-zinc-400 lg:text-sm"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.8 }}
@@ -339,7 +328,7 @@ export function GameOverScreen({
               Zephara seni yuttu... Bu sefer. Ama hikaye bitmedi.
             </motion.p>
             <motion.p
-              className="font-body text-[9px] lg:text-xs text-zinc-500/80 text-center max-w-xs italic"
+              className="max-w-xs text-center font-body text-xs italic text-zinc-400 lg:text-sm"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 1.2 }}
@@ -448,7 +437,7 @@ export function GameOverScreen({
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: isVictory ? 1.8 : 1.6, ease: EASE }}
           >
-            <div className="mb-2 font-pixel text-[8px] text-dm-text-dim lg:text-[10px]">KAT KAT</div>
+            <div className="dm-label mb-2 text-zinc-400">Kat Kat</div>
             <div className="flex flex-col gap-1">
               {(() => {
                 const slowest = Math.max(...stats.floorHistory.map((f) => f.seconds), 1);

@@ -102,7 +102,7 @@ export function ShopScreen({ items, playerGold, playerLevel, floor, rerollCost, 
         {/* Tüketimlikler */}
         {consumables.length > 0 && (
           <div className="mb-4">
-            <h3 className="text-zinc-500 text-xs font-medium uppercase tracking-wider mb-2 px-2">Tüketimlik</h3>
+            <h3 className="dm-label mb-2 px-2 text-zinc-400">Tüketimlik</h3>
             <div className="grid grid-cols-2 gap-2">
               {consumables.map(item => (
                 <ShopItemCard
@@ -122,7 +122,7 @@ export function ShopScreen({ items, playerGold, playerLevel, floor, rerollCost, 
         {/* Yükseltmeler */}
         {upgrades.length > 0 && (
           <div className="mb-4">
-            <h3 className="text-zinc-500 text-xs font-medium uppercase tracking-wider mb-2 px-2">Kalıcı Yükseltme</h3>
+            <h3 className="dm-label mb-2 px-2 text-zinc-400">Kalıcı Yükseltme</h3>
             <div className="grid grid-cols-2 gap-2">
               {upgrades.map(item => (
                 <ShopItemCard

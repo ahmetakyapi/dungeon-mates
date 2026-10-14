@@ -1555,10 +1555,8 @@ export function HUD({ player, gameState, fps, showFps = false, attackCooldownPct
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                 >
-                  <motion.div
-                    className="flex items-center gap-1.5 rounded border px-2 py-0.5 font-pixel text-[9px] sm:text-[10px] lg:text-[11px] 2xl:text-[13px]"
-                    animate={ready ? { boxShadow: ['0 0 6px rgba(251,191,36,0.25)', '0 0 12px rgba(251,191,36,0.5)', '0 0 6px rgba(251,191,36,0.25)'] } : undefined}
-                    transition={ready ? { duration: 2.0, repeat: Infinity, ease: 'easeInOut' } : undefined}
+                  <div
+                    className="relative flex items-center gap-1.5 rounded border px-2 py-0.5 font-pixel text-[9px] sm:text-[10px] lg:text-[11px] 2xl:text-[13px]"
                     style={{
                       borderColor: ready ? '#fbbf24' : '#4b5563',
                       background: ready ? 'rgba(251,191,36,0.08)' : 'rgba(0,0,0,0.4)',
@@ -1566,9 +1564,19 @@ export function HUD({ player, gameState, fps, showFps = false, attackCooldownPct
                       textShadow: ready ? '0 0 5px rgba(251,191,36,0.5)' : 'none',
                     }}
                   >
+                    {/* Ready pulse: opacity on a glow layer. This animated
+                        box-shadow, a repaint on every frame of the run. */}
+                    {ready && (
+                      <motion.span
+                        aria-hidden
+                        className="pointer-events-none absolute -inset-px rounded shadow-[0_0_12px_rgba(251,191,36,0.5)]"
+                        animate={{ opacity: [0.3, 1, 0.3] }}
+                        transition={{ duration: 2.0, repeat: Infinity, ease: 'easeInOut' }}
+                      />
+                    )}
                     <span className="font-bold">[F]</span>
-                    <span>{ready ? 'ULTIMATE HAZIR' : `Ultimate ${cdSecs}s`}</span>
-                  </motion.div>
+                    <span>{ready ? 'Ultimate Hazır' : `Ultimate ${cdSecs} sn`}</span>
+                  </div>
                 </motion.div>
               );
             })()}

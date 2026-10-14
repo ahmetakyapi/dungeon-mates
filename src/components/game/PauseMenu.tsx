@@ -102,7 +102,7 @@ function GraphicsSettings({
             </button>
           ))}
         </div>
-        <p className="font-pixel text-[7px] text-zinc-600 lg:text-[8px] xl:text-[9px] 2xl:text-[11px]">
+        <p className="dm-label text-zinc-400">
           {quality === 'low' && 'Partiküller kapalı, basit sis, 15 FPS cap'}
           {quality === 'medium' && 'Azaltılmış partiküller, 45 FPS cap'}
           {quality === 'high' && 'Tüm efektler aktif, 60 FPS cap'}
@@ -434,9 +434,6 @@ export function PauseMenu({
           >
             {/* Title */}
             <div className="mb-6 flex flex-col items-center gap-2">
-              <span className="font-mono text-[9px] uppercase tracking-[0.45em] text-zinc-500 lg:text-[10px]">
-                Zephara · Mola
-              </span>
               <h2
                 className="text-center font-pixel text-base text-dm-accent sm:text-lg lg:text-xl xl:text-2xl 2xl:text-3xl"
                 style={{ textShadow: '0 0 20px rgba(139,92,246,0.5)' }}

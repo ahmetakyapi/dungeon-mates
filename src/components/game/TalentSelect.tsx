@@ -145,7 +145,7 @@ export function TalentSelect({ isOpen, talents, playerClass, level, currentBranc
 
                   {/* Dal adı (sadece dal seçiminde) */}
                   {isBranchSelect && (
-                    <div className="text-xs text-zinc-400 mb-1 font-medium tracking-wide uppercase">
+                    <div className="dm-label mb-1 text-zinc-400">
                       {branchInfo.name}
                     </div>
                   )}

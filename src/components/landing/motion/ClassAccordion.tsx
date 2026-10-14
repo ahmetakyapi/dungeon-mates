@@ -2,15 +2,16 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { CLASS_STATS, type PlayerClass } from '../../../../shared/types';
+import { CLASS_ROLES, CLASS_STATS, type PlayerClass } from '../../../../shared/types';
 import { ClassPortrait } from '../ClassPortrait';
 import { EASE_OUT_EXPO } from '@/lib/motion';
+import { formatStat } from '@/lib/format';
 
-const CLASSES: ReadonlyArray<{ key: PlayerClass; role: string; line: string }> = [
-  { key: 'warrior', role: 'Ön Saf', line: 'Kalkan duvarı hasarı yutar. Ağır düşmanı hazırlık anında sersemletir.' },
-  { key: 'mage', role: 'Alan Hasarı', line: 'Buz fırtınası yavaşlatır. Yanan hedefe buz vurulursa dondurur.' },
-  { key: 'archer', role: 'Menzil', line: 'En hızlı sınıf. Kritik yığar; ok yağmuru koridoru kapatır.' },
-  { key: 'healer', role: 'Destek', line: 'Takımı ayakta tutar. Ultimate ekibe üç saniye dokunulmazlık verir.' },
+const CLASSES: ReadonlyArray<{ key: PlayerClass; line: string }> = [
+  { key: 'warrior', line: 'Kalkan duvarı hasarı yutar. Ağır düşmanı hazırlık anında sersemletir.' },
+  { key: 'mage', line: 'Buz fırtınası yavaşlatır. Yanan hedefe buz vurulursa dondurur.' },
+  { key: 'archer', line: 'En hızlı sınıf. Kritik yığar; ok yağmuru koridoru kapatır.' },
+  { key: 'healer', line: 'Takımı ayakta tutar. Ultimate ekibe üç saniye dokunulmazlık verir.' },
 ];
 
 const STAT_KEYS = [
@@ -34,7 +35,7 @@ export function ClassAccordion() {
 
   return (
     <div className="dm-acc" role="list">
-      {CLASSES.map(({ key, role, line }, i) => {
+      {CLASSES.map(({ key, line }, i) => {
         const s = CLASS_STATS[key];
         const on = open === key;
         return (
@@ -63,14 +64,14 @@ export function ClassAccordion() {
                 <ClassPortrait cls={key} height={200} />
               </div>
               <div className="dm-acc-copy">
-                <span className="dm-eyebrow" style={{ color: s.color }}>{role}</span>
+                <span className="dm-eyebrow" style={{ color: s.color }}>{CLASS_ROLES[key]}</span>
                 <h3 style={{ color: s.color }}>{s.label}</h3>
                 <p>{line}</p>
                 <dl className="dm-acc-stats">
                   {STAT_KEYS.map(([label, k], si) => (
                     <div key={k}>
                       <dt>{label}</dt>
-                      <dd>{s[k]}</dd>
+                      <dd>{formatStat(s[k])}</dd>
                       <span className="dm-acc-bar">
                         <span
                           style={{

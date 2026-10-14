@@ -46,7 +46,7 @@ export const metadata: Metadata = {
     template: '%s · Dungeon Mates',
   },
   description:
-    'Zephara\'nın yozlaşmış katlarını arkadaşlarınla dolaş, 14 canavar türüyle savaş, sınıfını seç — kurulum yok, tarayıcıda anında başla.',
+    'Zephara\'nın yozlaşmış katlarını arkadaşlarınla dolaş, 17 canavar türüyle savaş, sınıfını seç — kurulum yok, tarayıcıda anında başla.',
   keywords: [
     'co-op dungeon crawler',
     'browser game',
@@ -56,7 +56,6 @@ export const metadata: Metadata = {
     'web game',
     'tarayıcı oyunu',
     'türkçe oyun',
-    'ücretsiz online oyun',
   ],
   authors: [{ name: 'Ahmet Akyapı' }],
   creator: 'Ahmet Akyapı',
@@ -67,14 +66,14 @@ export const metadata: Metadata = {
     siteName: 'Dungeon Mates',
     title: 'Dungeon Mates — Arkadaşlarınla Zindan Derinliklerine Dal',
     description:
-      'Zephara\'nın 10 katı, 14 canavar, 4 sınıf. Kurulum yok, tarayıcıda anında başla. Solo ya da 2-4 kişi co-op.',
+      'Zephara\'nın 10 katı, 17 canavar, 4 sınıf. Kurulum yok, tarayıcıda anında başla. Solo ya da 2-4 kişi co-op.',
     // Image auto-discovered from src/app/opengraph-image.tsx (1200×630, edge-generated)
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Dungeon Mates — Co-op Zindan Macerası',
     description:
-      'Zephara\'nın derinliklerine dal. 10 kat, 14 canavar, 4 sınıf. Tarayıcıda anında başla.',
+      'Zephara\'nın derinliklerine dal. 10 kat, 17 canavar, 4 sınıf. Tarayıcıda anında başla.',
     // Image auto-discovered from src/app/twitter-image.tsx
   },
   robots: {
@@ -83,11 +82,11 @@ export const metadata: Metadata = {
   },
 };
 
+// Pinch-zoom stays on for the landing (WCAG 1.4.4); the game segment locks it
+// in src/app/game/layout.tsx, where a pinch would fight the touch controls.
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: 'cover',
   themeColor: '#0a0e17',
 };

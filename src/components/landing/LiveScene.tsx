@@ -760,11 +760,12 @@ export function LiveScene({
           aria-hidden
           style={{
             position: 'absolute', left: 12, bottom: 10,
-            fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase',
-            color: 'color-mix(in srgb, var(--color-text) 55%, transparent)',
+            fontSize: 12, fontWeight: 500,
+            color: 'color-mix(in srgb, var(--color-text) 72%, transparent)',
+            textShadow: '0 1px 2px rgba(0,0,0,0.8)',
           }}
         >
-          {label ?? 'Gerçek zamanlı · oyunun kendi render’ı'}
+          {label ?? 'Oyunun kendi çizimi, gerçek zamanlı'}
         </span>
       )}
     </div>

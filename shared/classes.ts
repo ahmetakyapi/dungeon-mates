@@ -67,6 +67,16 @@ export const CLASS_STATS: Record<PlayerClass, {
   },
 } as const;
 
+// --- Sınıf Rolleri ---
+// One wording for the landing's class slabs and the in-game class picker; they
+// had drifted apart ("Ön Saf" on the landing, lowercase "tank" in the game).
+export const CLASS_ROLES: Record<PlayerClass, string> = {
+  warrior: 'Ön Saf',
+  mage: 'Alan Hasarı',
+  archer: 'Menzil',
+  healer: 'Destek',
+} as const;
+
 // --- Yetenek Cooldown Süreleri (tick cinsinden) ---
 export const ABILITY_MAX_COOLDOWNS: Record<PlayerClass, number> = {
   warrior: 240,

@@ -15,7 +15,9 @@ import { PixelButton } from '@/components/ui/PixelButton';
 import { MaskReveal, SplitReveal } from '@/components/fx/RevealText';
 import { EASE_OUT_EXPO } from '@/lib/motion';
 import { ClassPortrait } from '@/components/landing/ClassPortrait';
+import { formatStat } from '@/lib/format';
 import {
+  CLASS_ROLES,
   CLASS_STATS,
   type PlayerClass,
   type PlayerState,
@@ -40,14 +42,23 @@ const CLASS_ABILITIES: Record<PlayerClass, string> = {
   healer: 'Şifa Dalgası: Yakındaki tüm takım arkadaşlarını iyileştirir (E tuşu)',
 } as const;
 
-const POPULAR_CLASS: PlayerClass = 'warrior';
+/**
+ * The most forgiving class for a first run (highest health and defence). This
+ * badge said "Popüler", a claim with no play data behind it.
+ */
+const BEGINNER_CLASS: PlayerClass = 'warrior';
 
-const CLASS_ROLES: Record<PlayerClass, string> = {
-  warrior: 'tank',
-  mage: 'hasar',
-  archer: 'hasar',
-  healer: 'destek',
-} as const;
+/** Stat rows, in the landing's wording. Bars compare against the best class. */
+const STAT_ROWS = [
+  { label: 'Can', key: 'maxHp', color: '#ef4444' },
+  { label: 'Saldırı', key: 'attack', color: '#f59e0b' },
+  { label: 'Savunma', key: 'defense', color: '#3b82f6' },
+  { label: 'Hız', key: 'speed', color: '#10b981' },
+  { label: 'Menzil', key: 'attackRange', color: '#8b5cf6' },
+] as const;
+const STAT_MAX = Object.fromEntries(
+  STAT_ROWS.map(({ key }) => [key, Math.max(...Object.values(CLASS_STATS).map((c) => c[key]))]),
+) as Record<(typeof STAT_ROWS)[number]['key'], number>;
 
 type StatBarProps = {
   label: string;
@@ -58,20 +69,24 @@ type StatBarProps = {
 
 function StatBar({ label, value, max, color }: StatBarProps) {
   const percentage = Math.min((value / max) * 100, 100);
+  // One row on phones, where the card is full width; from sm up the cards sit
+  // four abreast at ~130px inside, so the bar moves under its label or it
+  // would shrink to a few pixels.
   return (
-    <div className="flex items-center gap-2">
-      <span className="w-12 font-pixel text-[7px] text-zinc-400 sm:text-[8px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
+    <div className="grid grid-cols-[4.25rem_minmax(0,1fr)_2rem] items-center gap-x-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-y-1">
+      <span className="dm-label text-zinc-400 sm:col-start-1 sm:row-start-1">
         {label}
       </span>
-      <div className="relative h-2 flex-1 overflow-hidden rounded-sm bg-zinc-800">
+      <div className="relative h-2 overflow-hidden rounded-sm bg-zinc-800 sm:col-span-2 sm:row-start-2 sm:h-1.5">
+        {/* Fills with scaleX — it animated `width`, a layout property. */}
         <motion.div
-          className="h-full rounded-sm"
+          className="h-full origin-left rounded-sm"
           style={{
             backgroundColor: color,
             boxShadow: `0 0 8px ${color}80`,
           }}
-          initial={{ width: 0 }}
-          animate={{ width: `${percentage}%` }}
+          initial={{ scaleX: 0 }}
+          animate={{ scaleX: percentage / 100 }}
           transition={{ type: 'spring', stiffness: 80, damping: 16, mass: 0.8 }}
         />
         {/* Shimmer overlay */}
@@ -85,8 +100,8 @@ function StatBar({ label, value, max, color }: StatBarProps) {
           transition={{ type: 'spring', stiffness: 60, damping: 20, delay: 0.15 }}
         />
       </div>
-      <span className="w-6 text-right font-pixel text-[7px] text-zinc-300 lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
-        {value}
+      <span className="text-right font-pixel text-[9px] text-zinc-200 sm:col-start-2 sm:row-start-1 lg:text-[10px] 2xl:text-[12px]">
+        {formatStat(value)}
       </span>
     </div>
   );
@@ -126,7 +141,7 @@ function ClassCard({
   onToggleTooltip,
 }: ClassCardProps) {
   const stats = CLASS_STATS[cls];
-  const isPopular = cls === POPULAR_CLASS;
+  const isBeginner = cls === BEGINNER_CLASS;
   const reduce = useReducedMotion();
 
   const mx = useMotionValue(0.5);
@@ -207,17 +222,15 @@ function ClassCard({
         />
       )}
 
-      {/* Popular badge */}
-      {isPopular && (
+      {/* Beginner badge */}
+      {isBeginner && (
         <motion.div
-          className="absolute -right-1 -top-1 z-20 rounded border border-dm-gold/40 bg-dm-gold/20 px-2 py-0.5"
+          className="absolute -right-1 -top-1 z-20 rounded border border-dm-gold/40 bg-dm-bg/90 px-2 py-0.5"
           initial={{ scale: 0, rotate: -12 }}
           animate={{ scale: 1, rotate: 0 }}
           transition={{ delay: 0.9 + index * 0.09, type: 'spring', stiffness: 420, damping: 16 }}
         >
-          <span className="font-pixel text-[6px] text-dm-gold lg:text-[8px] xl:text-[9px] 2xl:text-[10px]">
-            Popüler
-          </span>
+          <span className="dm-label text-dm-gold">Yeni Başlayana</span>
         </motion.div>
       )}
 
@@ -225,7 +238,7 @@ function ClassCard({
       <AnimatePresence>
         {isSelected && (
           <motion.div
-            className="absolute left-3 top-3 z-20 flex items-center gap-1 rounded-sm px-1.5 py-0.5 font-pixel text-[7px] text-dm-bg lg:text-[9px]"
+            className="dm-label absolute left-3 top-3 z-20 flex items-center gap-1 rounded-sm px-1.5 py-0.5 font-semibold text-dm-bg"
             style={{ background: stats.color }}
             initial={{ scale: 0, opacity: 0, x: -6 }}
             animate={{ scale: 1, opacity: 1, x: 0 }}
@@ -274,7 +287,7 @@ function ClassCard({
       >
         {stats.label}
       </h2>
-      <p className="relative mb-2 font-mono text-[8px] uppercase tracking-[0.3em] text-zinc-500 lg:text-[10px]">
+      <p className="dm-label relative mb-2 text-zinc-400">
         {CLASS_ROLES[cls]}
       </p>
 
@@ -286,7 +299,7 @@ function ClassCard({
         role="button"
         tabIndex={0}
         aria-expanded={tooltipOpen}
-        className="relative mb-2 flex w-fit cursor-pointer items-center gap-1 font-pixel text-[9px] text-dm-gold/70 transition-colors hover:text-dm-gold lg:text-[10px] xl:text-[11px] 2xl:text-[13px]"
+        className="dm-label relative -my-1 mb-1 flex w-fit cursor-pointer items-center gap-1.5 py-1 text-dm-gold/80 transition-colors hover:text-dm-gold"
         onClick={(e) => {
           e.stopPropagation();
           onToggleTooltip(cls);
@@ -300,7 +313,7 @@ function ClassCard({
       >
         <motion.span aria-hidden animate={{ rotate: tooltipOpen ? 45 : 0 }} transition={{ type: 'spring', stiffness: 400, damping: 18 }}>
           ✦
-        </motion.span>{' '}
+        </motion.span>
         Yetenek Bilgisi
       </span>
 
@@ -325,12 +338,10 @@ function ClassCard({
       </AnimatePresence>
 
       {/* Stats */}
-      <div className="relative mt-2 flex flex-col gap-2">
-        <StatBar label="HP" value={stats.maxHp} max={150} color="#ef4444" />
-        <StatBar label="ATK" value={stats.attack} max={25} color="#f59e0b" />
-        <StatBar label="DEF" value={stats.defense} max={15} color="#3b82f6" />
-        <StatBar label="SPD" value={stats.speed * 10} max={30} color="#10b981" />
-        <StatBar label="RNG" value={stats.attackRange} max={10} color="#8b5cf6" />
+      <div className="relative mt-2 flex flex-col gap-2 sm:gap-2.5">
+        {STAT_ROWS.map(({ label, key, color }) => (
+          <StatBar key={key} label={label} value={stats[key]} max={STAT_MAX[key]} color={color} />
+        ))}
       </div>
     </motion.button>
   );
@@ -346,6 +357,8 @@ function CountdownRing({ countdown, urgent }: { countdown: number; urgent: boole
   return (
     <motion.div
       className="relative h-14 w-14 sm:h-16 sm:w-16 lg:h-20 lg:w-20"
+      role="timer"
+      aria-label={`Kalan süre ${countdown} saniye`}
       animate={urgent ? { scale: [1, 1.08, 1] } : { scale: 1 }}
       transition={urgent ? { duration: 1, repeat: Infinity } : { duration: 0.3 }}
     >
@@ -408,8 +421,11 @@ export function ClassSelect({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Countdown timer
+  // Countdown timer — multiplayer only. It keeps a room from waiting forever on
+  // one undecided player; alone there is nobody to wait for, and solo players
+  // were being started as a Warrior while still reading the cards.
   useEffect(() => {
+    if (isSolo) return;
     countdownRef.current = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
@@ -423,10 +439,11 @@ export function ClassSelect({
     return () => {
       if (countdownRef.current) clearInterval(countdownRef.current);
     };
-  }, []);
+  }, [isSolo]);
 
   // Auto-ready when countdown reaches 0
   useEffect(() => {
+    if (isSolo) return;
     if (countdown === 0 && !isReady) {
       if (!selected) {
         onSelectClass('warrior');
@@ -435,7 +452,7 @@ export function ClassSelect({
       setIsReady(true);
       onReady();
     }
-  }, [countdown, isReady, selected, onSelectClass, onReady]);
+  }, [isSolo, countdown, isReady, selected, onSelectClass, onReady]);
 
   const handleSelect = useCallback(
     (cls: PlayerClass) => {
@@ -491,7 +508,9 @@ export function ClassSelect({
   const accent = selected ? CLASS_STATS[selected].color : '#8b5cf6';
 
   return (
-    <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-dm-bg px-4 py-8">
+    // overflow-clip, not overflow-hidden: hidden makes <main> a scroll container
+    // and the sticky ready bar below would stick to nothing.
+    <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-clip bg-dm-bg px-4 pt-8 sm:pb-8">
       {/* Background — the room takes on the chosen class's colour. */}
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-dm-accent/5 via-transparent to-dm-gold/5" />
       <motion.div
@@ -503,31 +522,17 @@ export function ClassSelect({
       <div className="dm-scanlines" aria-hidden />
       <div className="dm-vignette" aria-hidden />
 
-      {/* Countdown timer */}
-      <motion.div
-        className="z-20 mb-4 flex flex-col items-center gap-2"
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
-      >
-        <CountdownRing countdown={countdown} urgent={urgent} />
-      </motion.div>
-
-      <span className="z-10 mb-2 flex items-center gap-3 font-mono text-[9px] uppercase tracking-[0.45em] text-zinc-500 sm:text-[10px]">
-        <motion.span
-          className="block h-px w-6 origin-right bg-dm-accent/60"
-          initial={{ scaleX: 0 }}
-          animate={{ scaleX: 1 }}
-          transition={{ delay: 0.1, duration: 0.8, ease: EASE_OUT_EXPO }}
-        />
-        <MaskReveal delay={0.05} duration={0.7}>Kahramanını Seç</MaskReveal>
-        <motion.span
-          className="block h-px w-6 origin-left bg-dm-accent/60"
-          initial={{ scaleX: 0 }}
-          animate={{ scaleX: 1 }}
-          transition={{ delay: 0.1, duration: 0.8, ease: EASE_OUT_EXPO }}
-        />
-      </span>
+      {/* Countdown timer (multiplayer) */}
+      {!isSolo && (
+        <motion.div
+          className="z-20 mb-4 flex flex-col items-center gap-2"
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
+        >
+          <CountdownRing countdown={countdown} urgent={urgent} />
+        </motion.div>
+      )}
 
       <h1
         className="z-10 mb-2 font-pixel text-lg text-dm-accent sm:text-2xl lg:text-3xl 2xl:text-4xl"
@@ -539,6 +544,11 @@ export function ClassSelect({
       <p className="z-10 mb-6 font-pixel text-[10px] text-zinc-400 sm:mb-8 lg:text-sm xl:text-sm 2xl:text-base">
         <MaskReveal delay={0.35}>Hangi sınıfla dalacaksın?</MaskReveal>
       </p>
+      {!isSolo && (
+        <p className="dm-label z-10 -mt-3 mb-6 max-w-[60ch] text-center text-zinc-400 [text-wrap:balance] sm:-mt-5 sm:mb-8">
+          Süre dolduğunda seçimin onaylanır; seçmezsen Savaşçı olursun.
+        </p>
+      )}
 
       {/* Class cards — stack vertically on small screens, horizontal on larger */}
       <LayoutGroup>
@@ -576,7 +586,7 @@ export function ClassSelect({
               <div className="text-center">
                 <span className="text-lg">{CLASS_STATS[selected].emoji}</span>
                 <p
-                  className="font-pixel text-[7px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px]"
+                  className="font-pixel text-[9px] lg:text-[10px] 2xl:text-[12px]"
                   style={{ color: CLASS_STATS[selected].color }}
                 >
                   {CLASS_STATS[selected].label}
@@ -586,7 +596,7 @@ export function ClassSelect({
               <div className="text-center">
                 <span className="text-lg">{CLASS_STATS[hoveredClass].emoji}</span>
                 <p
-                  className="font-pixel text-[7px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px]"
+                  className="font-pixel text-[9px] lg:text-[10px] 2xl:text-[12px]"
                   style={{ color: CLASS_STATS[hoveredClass].color }}
                 >
                   {CLASS_STATS[hoveredClass].label}
@@ -598,29 +608,29 @@ export function ClassSelect({
                 const selVal = CLASS_STATS[selected][stat];
                 const hovVal = CLASS_STATS[hoveredClass][stat];
                 const labels: Record<string, string> = {
-                  maxHp: 'HP',
-                  attack: 'ATK',
-                  defense: 'DEF',
-                  speed: 'SPD',
+                  maxHp: 'Can',
+                  attack: 'Saldırı',
+                  defense: 'Savunma',
+                  speed: 'Hız',
                 };
                 return (
                   <div key={stat} className="flex items-center justify-between gap-4">
                     <span
-                      className={`font-pixel text-[7px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px] ${
+                      className={`font-pixel text-[9px] lg:text-[10px] 2xl:text-[12px] ${
                         selVal > hovVal ? 'text-dm-xp' : selVal < hovVal ? 'text-dm-health' : 'text-zinc-400'
                       }`}
                     >
-                      {selVal}
+                      {formatStat(selVal)}
                     </span>
-                    <span className="font-pixel text-[6px] text-zinc-500 lg:text-[8px] xl:text-[9px] 2xl:text-[10px]">
+                    <span className="dm-label text-zinc-400">
                       {labels[stat]}
                     </span>
                     <span
-                      className={`font-pixel text-[7px] lg:text-[9px] xl:text-[10px] 2xl:text-[12px] ${
+                      className={`font-pixel text-[9px] lg:text-[10px] 2xl:text-[12px] ${
                         hovVal > selVal ? 'text-dm-xp' : hovVal < selVal ? 'text-dm-health' : 'text-zinc-400'
                       }`}
                     >
-                      {hovVal}
+                      {formatStat(hovVal)}
                     </span>
                   </div>
                 );
@@ -643,7 +653,7 @@ export function ClassSelect({
               key={player.id}
               className="flex items-center gap-2 rounded bg-dm-surface px-3 py-2"
             >
-              <span className="font-pixel text-[9px] text-zinc-300 lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">
+              <span className="font-pixel text-[10px] text-zinc-300 lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">
                 {player.name}
               </span>
               {player.class ? (
@@ -652,11 +662,11 @@ export function ClassSelect({
                 </span>
               ) : (
                 <motion.span
-                  className="font-pixel text-[8px] text-zinc-500 lg:text-[10px] xl:text-[11px] 2xl:text-[13px]"
+                  className="dm-label text-zinc-400"
                   animate={{ opacity: [0.5, 1, 0.5] }}
                   transition={{ duration: 1.5, repeat: Infinity }}
                 >
-                  Seçiyor...
+                  Seçiyor
                 </motion.span>
               )}
             </div>
@@ -679,44 +689,57 @@ export function ClassSelect({
             transition={{ duration: 0.3, ease: EASE }}
           >
             <span className="text-sm">{teamHint.icon}</span>
-            <span className="font-pixel text-[8px] lg:text-[10px] xl:text-[11px] 2xl:text-[13px]" style={{ color: teamHint.color }}>
+            <span className="dm-label" style={{ color: teamHint.color }}>
               {teamHint.text}
             </span>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Ready button */}
-      <motion.div
-        className="z-10 mt-6 sm:mt-8"
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: selected ? 1 : 0.35, y: 0, scale: selected && !isReady ? 1.04 : 1 }}
-        transition={{ type: 'spring', stiffness: 260, damping: 20, delay: selected ? 0 : 0.8 }}
-      >
+      {/* Ready button. On phones the four cards stack ~1400px tall and the
+          button sat below all of them (and below the fold on a 768px laptop);
+          it now rides along at the bottom of the screen and, on phones, says
+          which class it will confirm. */}
+      <div className="sticky bottom-0 z-30 mt-4 flex w-[calc(100%+2rem)] flex-col items-center gap-2 bg-gradient-to-t from-dm-bg from-60% to-transparent px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-10 sm:mt-2 sm:bg-none sm:pb-6 sm:pt-8">
+        <AnimatePresence>
+          {selected && !isReady && (
+            <motion.p
+              className="dm-label text-zinc-400 sm:hidden"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25, ease: EASE }}
+            >
+              Seçimin: <span style={{ color: CLASS_STATS[selected].color }}>{CLASS_STATS[selected].label}</span>
+            </motion.p>
+          )}
+        </AnimatePresence>
         <motion.div
-          animate={
-            selected && !isReady
-              ? {
-                  boxShadow: [
-                    '0 0 0px rgba(139, 92, 246, 0)',
-                    '0 0 20px rgba(139, 92, 246, 0.4)',
-                    '0 0 0px rgba(139, 92, 246, 0)',
-                  ],
-                }
-              : {}
-          }
-          transition={{ duration: 1.5, repeat: Infinity }}
-          style={{ borderRadius: 4 }}
+          className="relative"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0, scale: selected && !isReady ? 1.04 : 1 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 20, delay: selected ? 0 : 0.8 }}
         >
+          {/* Breathing glow: an opacity loop on a blurred layer instead of an
+              animated box-shadow, which repainted every frame. */}
+          {selected && !isReady && (
+            <motion.span
+              aria-hidden
+              className="pointer-events-none absolute -inset-2 rounded-md bg-dm-accent/40 blur-md"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: [0, 0.8, 0] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+            />
+          )}
           <PixelButton
             variant="primary"
             onClick={handleReady}
             disabled={!selected || isReady}
           >
-            {isReady ? 'Hazır! Bekleniyor...' : 'Hazırım!'}
+            {isReady ? (isSolo ? 'Hazır' : 'Diğerleri Bekleniyor') : selected ? 'Hazırım' : 'Bir Sınıf Seç'}
           </PixelButton>
         </motion.div>
-      </motion.div>
+      </div>
     </main>
   );
 }
