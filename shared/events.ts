@@ -45,6 +45,8 @@ export type ClientEvents = {
   'room:create': (data: { playerName: string }) => void;
   'room:create_solo': (data: { playerName: string }) => void;
   'room:join': (data: { roomCode: string; playerName: string }) => void;
+  /** Any player in a multiplayer lobby moves the whole room on to class select. */
+  'room:start': () => void;
   'player:class_select': (data: { playerClass: PlayerClass; meta?: MetaBonusPayload }) => void;
   'player:ready': () => void;
   'player:input': (data: PlayerInput) => void;

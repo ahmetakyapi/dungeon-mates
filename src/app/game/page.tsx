@@ -26,15 +26,17 @@ import { BuildSheet } from '@/components/game/BuildSheet';
 import { PixelButton } from '@/components/ui/PixelButton';
 import { PixelHero } from '@/components/game/PixelHero';
 import { GameErrorBoundary } from '@/components/game/ErrorBoundary';
+import { JoinPrompt } from '@/components/game/JoinPrompt';
 import { useTransitionRouter } from '@/components/fx/PageTransition';
 import { SplitReveal } from '@/components/fx/RevealText';
 import { EASE_OUT_EXPO } from '@/lib/motion';
 import type { PlayerInput, GamePhase, PlayerState } from '../../../shared/types';
-import { CLASS_STATS, DIFFICULTY_INFO, ABILITY_MAX_COOLDOWNS, TICK_RATE, monsterDisplay } from '../../../shared/types';
+import { CLASS_STATS, DIFFICULTY_INFO, ABILITY_MAX_COOLDOWNS, TICK_RATE, MIN_PLAYERS_TO_START, monsterDisplay } from '../../../shared/types';
 import type { PlayerClass } from '../../../shared/types';
 import { haptic, setHapticsEnabled } from '@/lib/haptics';
 import { loadMeta, saveMeta, recordRun, metaBonuses, shardsForRun } from '@/lib/meta-progression';
 import { loadSettings, saveSettings, DEFAULT_SETTINGS, type GameSettings } from '@/lib/settings';
+import { DEFAULT_PLAYER_NAME, cleanPlayerName, inviteUrl, joinGameUrl, loadPlayerName, savePlayerName, soloGameUrl } from '@/lib/player-name';
 
 // Mirrors DODGE_COOLDOWN_TICKS in server/entities/Player.ts
 const DODGE_COOLDOWN_TICKS = 30;
@@ -116,6 +118,7 @@ function GamePage() {
     createRoom,
     createSoloRoom,
     joinRoom,
+    startRoom,
     selectClass,
     ready,
     sendInput,
@@ -208,6 +211,11 @@ function GamePage() {
   const [showBossIntro, setShowBossIntro] = useState(false);
   const storyShownRef = useRef(false);
   const [copied, setCopied] = useState(false);
+  const [linkShared, setLinkShared] = useState<'copied' | 'shared' | null>(null);
+  // An invite link carries only the room code; the name is asked for here.
+  const isInvite = !!roomParam && roomParam !== 'new' && !nameParam && modeParam !== 'solo';
+  const [inviteName, setInviteName] = useState<string | null>(null);
+  const awaitingName = isInvite && inviteName === null;
   const [roomEntryFlash, setRoomEntryFlash] = useState<{ roomId: number; roomNum: number } | null>(null);
   const [showRoomCleared, setShowRoomCleared] = useState(false);
   const previousPhaseRef = useRef<GamePhase | null>(null);
@@ -259,16 +267,19 @@ function GamePage() {
   useEffect(() => {
     // Solo mode
     if (modeParam === 'solo') {
-      const soloName = nameParam ?? 'Kahraman';
-      createSoloRoom(soloName);
+      createSoloRoom(cleanPlayerName(nameParam ?? '') || loadPlayerName() || DEFAULT_PLAYER_NAME);
       return;
     }
 
     if (!nameParam) {
+      // Invite links land here without a name: JoinPrompt asks for one. They
+      // used to be bounced to the landing, losing the room code on the way.
+      if (isInvite) return;
       router.push('/');
       return;
     }
 
+    savePlayerName(nameParam);
     if (roomParam === 'new') {
       createRoom(nameParam);
     } else if (roomParam) {
@@ -276,6 +287,16 @@ function GamePage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleInviteJoin = useCallback((name: string) => {
+    if (!roomParam) return;
+    const code = roomParam.toUpperCase();
+    savePlayerName(name);
+    setInviteName(name);
+    joinRoom(code, name);
+    // Keep a reload in the same room under the same name.
+    window.history.replaceState(window.history.state, '', joinGameUrl(code, name));
+  }, [roomParam, joinRoom]);
 
   // Handle phase transitions
   useEffect(() => {
@@ -723,12 +744,12 @@ function GamePage() {
 
   const handlePlayAgain = useCallback(() => {
     if (isSolo) {
-      // Restart solo
-      window.location.href = '/game?mode=solo&name=Kahraman';
+      // Restart solo under the same name
+      window.location.href = soloGameUrl(nameParam ?? undefined);
     } else {
       navigate('/', EXIT_TO_MENU);
     }
-  }, [navigate, isSolo]);
+  }, [navigate, isSolo, nameParam]);
 
   const handleMainMenu = useCallback(() => {
     navigate('/', EXIT_TO_MENU);
@@ -745,13 +766,30 @@ function GamePage() {
     }
   }, [roomCode]);
 
+  // The invite used to end in `&name=`, which the page read as "no name" and
+  // redirected home — every shared link dropped the friend on the landing.
+  // Phones get the system share sheet (WhatsApp is where invites go); desktops
+  // get the clipboard.
   const handleShareLink = useCallback(async () => {
     if (!roomCode) return;
-    const url = `${window.location.origin}/game?room=${roomCode}&name=`;
+    const url = inviteUrl(window.location.origin, roomCode);
+    const touch = window.matchMedia?.('(pointer: coarse)').matches ?? false;
+    if (touch && typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title: 'Dungeon Mates', text: `${roomCode} odasında seni bekliyorum.`, url });
+        setLinkShared('shared');
+        setTimeout(() => setLinkShared(null), 2000);
+        return;
+      } catch (e) {
+        // The user closed the sheet: nothing to do. Anything else falls through
+        // to the clipboard.
+        if (e instanceof DOMException && e.name === 'AbortError') return;
+      }
+    }
     try {
       await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setLinkShared('copied');
+      setTimeout(() => setLinkShared(null), 2000);
     } catch {
       // Clipboard API not available
     }
@@ -919,14 +957,23 @@ function GamePage() {
   }, [setShowFps, showFps]);
 
   const handlePauseRestart = useCallback(() => {
-    window.location.href = '/game?mode=solo&name=Kahraman';
-  }, []);
+    window.location.href = soloGameUrl(nameParam ?? undefined);
+  }, [nameParam]);
 
   const handlePauseLeave = useCallback(() => {
     navigate('/', EXIT_TO_MENU);
   }, [navigate]);
 
   const playerList = useMemo(() => Object.values(players), [players]);
+
+  // ====== INVITE: ASK FOR A NAME ======
+  if (awaitingName && roomParam) {
+    return (
+      <MotionConfig reducedMotion={settings.reducedMotion ? 'always' : 'user'}>
+        <JoinPrompt roomCode={roomParam} onJoin={handleInviteJoin} onBack={handleMainMenu} />
+      </MotionConfig>
+    );
+  }
 
   // ====== CONNECTING / COLD START ======
   // Only show WaitingScreen in pre-game phases (lobby, class_select).
@@ -954,6 +1001,7 @@ function GamePage() {
   // ====== LOBBY PHASE ======
   if (phase === 'lobby') {
     const difficultyInfo = DIFFICULTY_INFO[Math.min(playerList.length, 4)] ?? DIFFICULTY_INFO[1];
+    const canStart = !isSolo && playerList.length >= MIN_PLAYERS_TO_START;
 
     return (
       <MotionConfig reducedMotion={settings.reducedMotion ? 'always' : 'user'}>
@@ -985,25 +1033,26 @@ function GamePage() {
           initial="hidden"
           animate="show"
         >
-          {/* Title */}
-          <motion.div className="flex flex-col items-center gap-3" variants={LOBBY_ITEM}>
-            <span className="flex items-center gap-3 font-mono text-[9px] uppercase tracking-[0.45em] text-zinc-500 sm:text-[10px]">
-              <span className="block h-px w-6 bg-dm-accent/50" aria-hidden />
-              {isSolo ? 'Tek Kişilik Sefer' : 'Zephara · Kapı Önü'}
-              <span className="block h-px w-6 bg-dm-accent/50" aria-hidden />
-            </span>
+          {/* Title — what the room is for sits under the heading, not above it */}
+          <motion.div className="flex flex-col items-center gap-3 text-center" variants={LOBBY_ITEM}>
             <h1
               className="font-pixel text-lg text-dm-accent sm:text-2xl lg:text-3xl 2xl:text-4xl"
               style={{ textShadow: '0 0 24px rgba(139,92,246,0.45)' }}
             >
-              <SplitReveal text={isSolo ? 'Hazırlanıyor...' : 'Bekleme Odası'} delay={0.15} stagger={0.035} />
+              <SplitReveal text={isSolo ? 'Hazırlanıyor' : 'Bekleme Odası'} delay={0.15} stagger={0.035} />
             </h1>
+            {!isSolo && (
+              <p className="max-w-[40ch] text-sm leading-relaxed text-zinc-400 lg:text-base [text-wrap:balance]">
+                Kodu ya da bağlantıyı arkadaşlarına gönder. Dört kişiye kadar aynı zindana inebilirsiniz.
+              </p>
+            )}
           </motion.div>
 
           {/* Error */}
           <AnimatePresence>
             {error && (
               <motion.p
+                role="alert"
                 className="pixel-border rounded bg-red-900/40 px-4 py-2 font-pixel text-[10px] text-dm-health lg:text-sm xl:text-sm 2xl:text-base"
                 initial={{ scale: 0.9, opacity: 0, y: -6 }}
                 animate={{ scale: 1, opacity: 1, y: 0, x: [0, -4, 4, -2, 2, 0] }}
@@ -1018,7 +1067,7 @@ function GamePage() {
           {/* Room code (multiplayer only) */}
           {roomCode && !isSolo && (
             <motion.div className="flex flex-col items-center gap-3" variants={LOBBY_ITEM}>
-              <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-zinc-400 lg:text-xs">Oda Kodu</p>
+              <p className="dm-label text-zinc-400">Oda Kodu</p>
               <motion.button
                 className="dm-corners group relative flex cursor-pointer gap-1.5 rounded-sm border border-dm-gold/20 bg-dm-surface/80 px-4 py-4 sm:gap-2 sm:px-6 sm:py-5"
                 style={{ perspective: 600, ['--dm-corner' as string]: 'rgba(245,158,11,0.8)' }}
@@ -1026,13 +1075,14 @@ function GamePage() {
                 whileHover={{ y: -3, boxShadow: '0 12px 40px -10px rgba(245,158,11,0.45)' }}
                 whileTap={{ scale: 0.97, y: 0 }}
                 transition={{ type: 'spring', stiffness: 380, damping: 24 }}
-                aria-label={`Oda kodu ${roomCode}, kopyalamak için tıkla`}
+                aria-label={`Oda kodu ${roomCode}, kopyalamak için bas`}
               >
-                {/* Sheen that sweeps across on hover */}
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full"
-                />
+                {/* Sheen that sweeps across on hover. It sits in its own clipped
+                    layer: unclipped, its parked -100% position showed as a grey
+                    bar beside the code. The corner brackets stay outside the clip. */}
+                <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-sm">
+                  <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full" />
+                </span>
                 {Array.from(roomCode).map((ch, i) => (
                   <motion.span
                     key={`${ch}-${i}`}
@@ -1046,31 +1096,35 @@ function GamePage() {
                   </motion.span>
                 ))}
               </motion.button>
-              <div className="relative h-4 overflow-hidden">
+              <div className="relative h-5 overflow-hidden" aria-live="polite">
                 <AnimatePresence mode="wait" initial={false}>
                   <motion.p
                     key={copied ? 'copied' : 'default'}
-                    className="font-pixel text-[10px] lg:text-sm xl:text-sm 2xl:text-base"
-                    style={{ color: copied ? '#10b981' : '#8b5cf6' }}
+                    className={`dm-label ${copied ? 'text-dm-xp' : 'text-zinc-400'}`}
                     initial={{ y: '100%' }}
                     animate={{ y: '0%' }}
                     exit={{ y: '-100%' }}
                     transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
                   >
-                    {copied ? 'Kopyalandı!' : 'Kodu paylaş! (Tıkla kopyala)'}
+                    {copied ? 'Kod kopyalandı' : 'Kopyalamak için koda bas'}
                   </motion.p>
                 </AnimatePresence>
               </div>
 
-              {/* Share link */}
+              {/* Invite link */}
               <motion.button
-                className="flex items-center gap-2 rounded border border-dm-border bg-dm-surface/60 px-4 py-2 font-pixel text-[9px] text-zinc-400 transition-colors hover:border-dm-accent/40 hover:text-dm-accent lg:text-[11px] xl:text-[12px] 2xl:text-[14px]"
+                className="flex items-center gap-2 rounded border border-dm-border bg-dm-surface/60 px-4 py-2.5 text-sm font-medium text-zinc-300 transition-colors hover:border-dm-accent/40 hover:text-white lg:text-[15px]"
                 onClick={handleShareLink}
                 whileHover={{ scale: 1.03, y: -1 }}
                 whileTap={{ scale: 0.97 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 22 }}
               >
-                <span>🔗</span> Link Paylaş
+                <svg aria-hidden viewBox="0 0 16 16" className="h-4 w-4 text-dm-accent" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                  <path d="M6.5 9.5l3-3M7 4.5l1-1a2.83 2.83 0 014 4l-1 1M9 11.5l-1 1a2.83 2.83 0 01-4-4l1-1" />
+                </svg>
+                <span aria-live="polite">
+                  {linkShared === 'copied' ? 'Bağlantı Kopyalandı' : linkShared === 'shared' ? 'Bağlantı Gönderildi' : 'Davet Bağlantısını Paylaş'}
+                </span>
               </motion.button>
             </motion.div>
           )}
@@ -1079,13 +1133,13 @@ function GamePage() {
           {!isSolo && (
             <motion.div className="mt-2 w-full" variants={LOBBY_ITEM}>
               <div className="mb-3 flex items-center justify-between">
-                <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-zinc-400 lg:text-xs">
-                  Oyuncular <span className="text-dm-accent">{playerList.length}</span>/4
+                <p className="dm-label text-zinc-400">
+                  Oyuncular <span className="font-mono text-dm-accent">{playerList.length}/4</span>
                 </p>
                 <AnimatePresence>
                   {playerList.length >= 2 && (
                     <motion.span
-                      className="rounded border px-2 py-0.5 font-pixel text-[8px] lg:text-[10px] xl:text-[11px] 2xl:text-[13px]"
+                      className="dm-label rounded border px-2 py-0.5"
                       style={{
                         color: difficultyInfo.color,
                         borderColor: `${difficultyInfo.color}40`,
@@ -1096,7 +1150,7 @@ function GamePage() {
                       exit={{ scale: 0, opacity: 0 }}
                       transition={{ type: 'spring', stiffness: 420, damping: 20 }}
                     >
-                      {playerList.length} Oyuncu — {difficultyInfo.label}
+                      Zorluk: {difficultyInfo.label}
                     </motion.span>
                   )}
                 </AnimatePresence>
@@ -1136,18 +1190,11 @@ function GamePage() {
                           animate
                           glow={isMe}
                         />
-                        <div className="flex max-w-full items-center gap-1">
-                          {player.class && (
-                            <span className="text-[10px] lg:text-xs 2xl:text-sm">{CLASS_STATS[player.class].emoji}</span>
-                          )}
-                          <span className="max-w-full truncate font-pixel text-[9px] text-white lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">
-                            {player.name}
-                          </span>
-                        </div>
+                        <span className="max-w-full truncate font-pixel text-[10px] text-white lg:text-[11px] xl:text-[12px] 2xl:text-[14px]">
+                          {player.name}
+                        </span>
                         {isMe && (
-                          <span className="font-pixel text-[7px] text-dm-accent lg:text-[9px] xl:text-[10px] 2xl:text-[12px]">
-                            (Sen)
-                          </span>
+                          <span className="dm-label -mt-1 text-dm-accent">Sen</span>
                         )}
                       </motion.div>
                     );
@@ -1164,11 +1211,13 @@ function GamePage() {
                       exit={{ opacity: 0, scale: 0.9 }}
                       transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
                     >
-                      {/* Scanning beam */}
+                      {/* Scanning beam — a transform sweep. It animated `top`, a
+                          layout property, on every frame in every empty slot. */}
                       <motion.span
                         aria-hidden
-                        className="pointer-events-none absolute inset-x-0 h-1/3 bg-gradient-to-b from-transparent via-dm-accent/10 to-transparent"
-                        animate={{ top: ['-35%', '110%'] }}
+                        className="pointer-events-none absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-transparent via-dm-accent/10 to-transparent"
+                        initial={{ y: '-105%' }}
+                        animate={{ y: ['-105%', '330%'] }}
                         transition={{ duration: 2.4, repeat: Infinity, ease: 'linear', delay: i * 0.5 }}
                       />
                       <div className="grid grid-cols-3 gap-[2px] opacity-40" aria-hidden>
@@ -1180,9 +1229,7 @@ function GamePage() {
                           />
                         ))}
                       </div>
-                      <span className="font-pixel text-[8px] text-zinc-600 lg:text-[10px] xl:text-[11px] 2xl:text-[13px]">
-                        Boş
-                      </span>
+                      <span className="dm-label text-zinc-400">Boş Yer</span>
                     </motion.div>
                   ))}
                 </AnimatePresence>
@@ -1190,17 +1237,47 @@ function GamePage() {
             </motion.div>
           )}
 
-          {/* Waiting message */}
-          {!isSolo && playerList.length < 2 && (
-            <motion.div className="mt-2 flex flex-col items-center gap-2" variants={LOBBY_ITEM}>
-              <div className="flex gap-[3px]" aria-hidden>
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <span key={i} className="dm-loader-block block h-[5px] w-[5px] bg-dm-accent" style={{ animationDelay: `${i * 80}ms` }} />
-                ))}
-              </div>
-              <p className="text-center font-pixel text-[10px] text-zinc-500 lg:text-sm xl:text-sm 2xl:text-base">
-                Oyuncu bekleniyor...
-              </p>
+          {/* Start — the lobby had no way forward at all; see GameRoom.startClassSelect */}
+          {!isSolo && (
+            <motion.div className="mt-2 flex flex-col items-center gap-3 text-center" variants={LOBBY_ITEM}>
+              <AnimatePresence mode="wait" initial={false}>
+                {canStart ? (
+                  <motion.div
+                    key="start"
+                    className="flex flex-col items-center gap-3"
+                    initial={{ opacity: 0, y: 10, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.45, ease: EASE_OUT_EXPO }}
+                  >
+                    <PixelButton variant="primary" onClick={startRoom}>
+                      Oyunu Başlat
+                    </PixelButton>
+                    <p className="dm-label max-w-[36ch] text-zinc-400">
+                      Herkes geldiyse başlat. Geç kalan arkadaşın sınıf seçimi sırasında da katılabilir.
+                    </p>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="waiting"
+                    className="flex flex-col items-center gap-2"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <div className="flex gap-[3px]" aria-hidden>
+                      {Array.from({ length: 8 }).map((_, i) => (
+                        <span key={i} className="dm-loader-block block h-[5px] w-[5px] bg-dm-accent" style={{ animationDelay: `${i * 80}ms` }} />
+                      ))}
+                    </div>
+                    <p className="font-pixel text-[10px] text-zinc-400 lg:text-sm xl:text-sm 2xl:text-base">
+                      Arkadaşın bekleniyor
+                    </p>
+                    <p className="dm-label text-zinc-400">Oyun en az iki kişiyle başlar.</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           )}
 
@@ -1318,12 +1395,14 @@ function GamePage() {
               : 'right-2 top-14 h-10 w-10 text-lg sm:right-4 sm:top-16'
           }`}
           onClick={() => setShowPauseMenu(true)}
+          aria-label="Duraklat ve ayarlar"
+          title="Duraklat (Esc)"
           whileTap={{ scale: 0.9 }}
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.5, duration: 0.3, ease: EASE }}
         >
-          ⚙️
+          <span aria-hidden>⚙️</span>
         </motion.button>
       )}
 

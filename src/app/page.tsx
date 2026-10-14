@@ -36,6 +36,7 @@ import { MetaProgression } from '@/components/game/MetaProgression';
 import { loadMeta, type MetaState } from '@/lib/meta-progression';
 import { useTransitionRouter } from '@/components/fx/PageTransition';
 import { EASE_OUT_EXPO, EASE_IN_OUT } from '@/lib/motion';
+import { PLAYER_NAME_MAX, cleanPlayerName, joinGameUrl, loadPlayerName, savePlayerName, soloGameUrl } from '@/lib/player-name';
 import { SmoothScroll, scrollToTarget, setScrollLocked } from '@/components/landing/motion/SmoothScroll';
 import { DungeonGate } from '@/components/landing/motion/DungeonGate';
 import { RevealText } from '@/components/landing/motion/RevealText';
@@ -72,9 +73,20 @@ const PHASE_ROWS: ReadonlyArray<{ key: ScenePhase; num: string; label: string; t
   { key: 'recovery', num: '03', label: 'Toparlanma', time: '0,2 – 0,7 sn', note: 'Saldırma sırası sende' },
 ];
 
-const CONTROLS: ReadonlyArray<readonly [string, string]> = [
-  ['W A S D', 'Hareket'], ['Fare', 'Nişan'], ['Sol Tık', 'Saldırı'],
-  ['Q', 'Takla'], ['E', 'Yetenek'], ['F', 'Ultimate'], ['R', 'Etkileşim'],
+// Each entry is a list of key caps and what they do.
+type ControlRow = readonly [ReadonlyArray<string>, string];
+
+const KEY_CONTROLS: ReadonlyArray<ControlRow> = [
+  [['W', 'A', 'S', 'D'], 'Hareket'], [['Fare'], 'Nişan'], [['Sol Tık'], 'Saldırı'],
+  [['Q'], 'Takla'], [['E'], 'Yetenek'], [['F'], 'Ultimate'], [['R'], 'Etkileşim'],
+];
+
+// What a phone actually shows (src/game/input/TouchControls.ts). The list used
+// to be keyboard-only, so a phone visitor read about WASD and a mouse.
+// The caps mirror the icons drawn on the on-screen buttons.
+const TOUCH_CONTROLS: ReadonlyArray<ControlRow> = [
+  [['Ekranın Solu'], 'Hareket'], [['⚔️'], 'Saldırı'], [['⚔️', 'Sürükle'], 'Nişan'],
+  [['Takla'], 'Saldırıdan Kaç'], [['✨'], 'Yetenek'], [['★'], 'Ultimate'], [['🔑'], 'Etkileşim'],
 ];
 
 const NAV: ReadonlyArray<readonly [string, string]> = [
@@ -140,6 +152,7 @@ export default function HomePage() {
   const [navHidden, setNavHidden] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [statsRun, setStatsRun] = useState(false);
+  const [touch, setTouch] = useState(false);
   const statsRef = useRef<HTMLElement>(null);
 
   // Live phase readout from the telegraph scene. `seq` remounts the fill so the
@@ -154,6 +167,11 @@ export default function HomePage() {
   const onReady = useCallback(() => setReady(true), []);
 
   useEffect(() => { setMeta(loadMeta()); }, [metaOpen]);
+  // Remembered name and pointer type are client-only; read after mount.
+  useEffect(() => {
+    setName((n) => n || loadPlayerName());
+    setTouch(window.matchMedia?.('(pointer: coarse)').matches ?? false);
+  }, []);
   // Lock only while the menu is open, and release on unmount — an unconditional
   // setScrollLocked(menuOpen) would undo the preloader's lock on mount (parent
   // effects run after children) and leave <html> overflow:hidden if the page is
@@ -188,20 +206,24 @@ export default function HomePage() {
   const go = useCallback((id: string) => { setMenuOpen(false); scrollToTarget(id); }, []);
 
   const playSolo = useCallback(() => {
-    navigate('/game?mode=solo&name=Kahraman', { label: GAME_LABEL, edge: EMBER });
+    navigate(soloGameUrl(), { label: GAME_LABEL, edge: EMBER });
   }, [navigate]);
 
   const createRoom = useCallback(() => {
-    if (!name.trim()) { setError('Önce bir isim gir.'); return; }
+    const clean = cleanPlayerName(name);
+    if (!clean) { setError('Önce bir isim gir.'); return; }
     setError('');
-    navigate(`/game?room=new&name=${encodeURIComponent(name.trim())}`, { label: 'Oda kuruluyor', edge: EMBER });
+    savePlayerName(clean);
+    navigate(joinGameUrl('new', clean), { label: 'Oda kuruluyor', edge: EMBER });
   }, [name, navigate]);
 
   const joinRoom = useCallback(() => {
-    if (!name.trim()) { setError('Önce bir isim gir.'); return; }
+    const clean = cleanPlayerName(name);
+    if (!clean) { setError('Önce bir isim gir.'); return; }
     if (code.trim().length !== 4) { setError('Oda kodu 4 haneli.'); return; }
     setError('');
-    navigate(`/game?room=${code.trim().toUpperCase()}&name=${encodeURIComponent(name.trim())}`, { label: 'Odaya katılınıyor', edge: EMBER });
+    savePlayerName(clean);
+    navigate(joinGameUrl(code.trim().toUpperCase(), clean), { label: 'Odaya katılınıyor', edge: EMBER });
   }, [name, code, navigate]);
 
   const floorNames = useMemo(() => Array.from({ length: 10 }, (_, i) => floorTheme(i + 1)), []);
@@ -328,7 +350,7 @@ export default function HomePage() {
               <Magnetic>
                 <button className="dm-btn dm-btn--solid" onClick={playSolo}>
                   <span className="dm-btn-label" data-text="Tek Oyna">Tek Oyna</span>
-                  <span aria-hidden className="dm-btn-arrow">↓</span>
+                  <span aria-hidden className="dm-btn-arrow">→</span>
                 </button>
               </Magnetic>
               <Magnetic>
@@ -547,8 +569,8 @@ export default function HomePage() {
                       transition={{ duration: 0.45, ease: EASE_OUT_EXPO }}
                     >
                       <label className="dm-field">
-                        <input value={name} maxLength={12} placeholder=" "
-                               onChange={(e) => setName(e.target.value.slice(0, 12))}
+                        <input value={name} maxLength={PLAYER_NAME_MAX} placeholder=" " autoComplete="nickname"
+                               onChange={(e) => setName(e.target.value.slice(0, PLAYER_NAME_MAX))}
                                onKeyDown={(e) => { if (e.key === 'Enter') createRoom(); }} />
                         <span>İsmin</span>
                       </label>
@@ -559,8 +581,14 @@ export default function HomePage() {
                       <div className="dm-play-or" aria-hidden><span>ya da</span></div>
 
                       <label className="dm-field">
-                        <input value={code} maxLength={4} placeholder=" "
+                        <input value={code} maxLength={4} placeholder=" " autoComplete="off" autoCapitalize="characters"
                                style={{ letterSpacing: '0.35em', textTransform: 'uppercase' }}
+                               // A pasted invite link is cut to its first four
+                               // characters by maxLength; take the code out of it.
+                               onPaste={(e) => {
+                                 const m = e.clipboardData.getData('text').match(/room=([A-Za-z0-9]{4})/);
+                                 if (m) { e.preventDefault(); setCode(m[1].toUpperCase()); }
+                               }}
                                onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 4))}
                                onKeyDown={(e) => { if (e.key === 'Enter') joinRoom(); }} />
                         <span>Oda Kodu</span>
@@ -591,18 +619,18 @@ export default function HomePage() {
               </div>
 
               <div>
-                <p className="dm-eyebrow">Kontroller</p>
+                <p className="dm-eyebrow">{touch ? 'Dokunmatik Kontroller' : 'Kontroller'}</p>
                 <ul className="dm-keys">
-                  {CONTROLS.map(([k, v], i) => (
+                  {(touch ? TOUCH_CONTROLS : KEY_CONTROLS).map(([caps, v], i) => (
                     <motion.li
-                      key={k}
+                      key={v}
                       initial={{ opacity: 0, y: 20 }}
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true }}
                       transition={{ duration: 0.7, ease: EASE_OUT_EXPO, delay: i * 0.05 }}
                     >
                       <span className="dm-keys-caps">
-                        {k.split(' ').map((c) => <kbd key={c}>{c}</kbd>)}
+                        {caps.map((c) => <kbd key={c}>{c}</kbd>)}
                       </span>
                       <span className="dm-muted">{v}</span>
                     </motion.li>

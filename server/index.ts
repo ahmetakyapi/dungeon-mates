@@ -202,7 +202,25 @@ io.on('connection', (socket) => {
       socket.to(code).emit('room:player_joined', { player: joinedPlayer });
     }
 
+    // A friend who arrives while the others are already picking classes has to
+    // be told so: phase changes are only broadcast when they happen, and the
+    // client starts in `lobby`, so a late joiner was left on the waiting screen.
+    // (A reconnect into a running game emits its own phase in addPlayer.)
+    if (room.getPhase() === 'class_select') {
+      socket.emit('game:phase_change', { phase: 'class_select' });
+    }
+
     console.log(`[Room] ${name} joined ${code}`);
+  });
+
+  socket.on('room:start', () => {
+    if (!checkRateLimit(socket.id)) return;
+    if (!currentRoomCode) return;
+    const room = rooms.get(currentRoomCode);
+    if (!room) return;
+    if (room.startClassSelect(socket.id)) {
+      console.log(`[Room] ${currentRoomCode} moved to class select`);
+    }
   });
 
   socket.on('player:class_select', ({ playerClass, meta }) => {

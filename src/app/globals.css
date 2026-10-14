@@ -552,6 +552,21 @@ html.lenis, html.lenis body { height: auto; }
   background: radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.75) 100%);
 }
 
+/* Readable small label for the in-game screens: sans, normal case, 12.5px and
+   up. These were 8–10px uppercase mono with 0.3–0.5em tracking — they read as
+   ornament rather than text (owner rule, Oct 2026; the landing already moved).
+   Colour comes from the call site. */
+.dm-label {
+  font-family: var(--font-body), system-ui, sans-serif;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0.005em;
+}
+@media (min-width: 1024px) {
+  .dm-label { font-size: 13.5px; }
+}
+
 /* Pixel corner brackets — frame a panel the way the HUD frames the world. */
 .dm-corners { position: relative; }
 .dm-corners::before,

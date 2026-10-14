@@ -19,6 +19,7 @@ import {
   TICK_MS,
   TICK_RATE,
   MAX_PLAYERS,
+  MIN_PLAYERS_TO_START,
   MONSTER_STATS,
   LOOT_TABLE,
   SHOP_ITEMS,
@@ -435,6 +436,24 @@ export class GameRoom {
   /** Transition to class_select phase immediately (used for solo mode). */
   skipToClassSelect(): void {
     this.phase = 'class_select';
+  }
+
+  /**
+   * Leave the multiplayer lobby for class select, on behalf of a player in the
+   * room. Nothing used to move a multiplayer room out of `lobby`: the only path
+   * was a class pick, and the class picker only renders in `class_select`, so
+   * every co-op room sat in the waiting screen forever.
+   *
+   * Any member may start once a second player is in — friends can still join
+   * during class select (addPlayer accepts both phases). Returns whether the
+   * room moved, so repeated presses are harmless.
+   */
+  startClassSelect(socketId: string): boolean {
+    if (this.isSolo || this.phase !== 'lobby') return false;
+    if (!this.players.has(socketId)) return false;
+    if (this.players.size < MIN_PLAYERS_TO_START) return false;
+    this.setPhase('class_select');
+    return true;
   }
 
   getAllPlayers(): Record<string, PlayerState> {

@@ -1,25 +1,28 @@
 'use client';
 
-import { type InputHTMLAttributes } from 'react';
+import { forwardRef, type InputHTMLAttributes } from 'react';
 
 type PixelInputProps = InputHTMLAttributes<HTMLInputElement> & {
   label?: string;
 };
 
-export function PixelInput({
+export const PixelInput = forwardRef<HTMLInputElement, PixelInputProps>(function PixelInput({
   label,
   className = '',
+  id,
   ...props
-}: PixelInputProps) {
+}, ref) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1.5">
       {label && (
-        <label className="font-pixel text-[9px] text-zinc-400 sm:text-[10px] lg:text-xs 2xl:text-sm 4xl:text-base">{label}</label>
+        <label htmlFor={id} className="dm-label text-zinc-400">{label}</label>
       )}
       <input
+        ref={ref}
+        id={id}
         className={`
           w-full border-2 border-dm-border bg-dm-surface px-4 py-3
-          font-pixel text-[10px] text-white placeholder-zinc-600
+          font-pixel text-xs text-white placeholder-zinc-600
           outline-none
           transition-all
           focus:border-dm-accent focus:shadow-[0_0_10px_rgba(139,92,246,0.2)]
@@ -37,4 +40,4 @@ export function PixelInput({
       />
     </div>
   );
-}
+});

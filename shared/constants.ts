@@ -12,6 +12,8 @@ export const ROOM_MAX_SIZE = 13;
 export const DUNGEON_WIDTH = 64;
 export const DUNGEON_HEIGHT = 64;
 export const MAX_PLAYERS = 4;
+/** A multiplayer room needs this many players before the lobby can start. */
+export const MIN_PLAYERS_TO_START = 2;
 export const ROOM_CODE_LENGTH = 4;
 
 // --- Savunma Formülü ---

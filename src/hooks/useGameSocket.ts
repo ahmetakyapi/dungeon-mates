@@ -78,6 +78,8 @@ type UseGameSocketReturn = {
   createRoom: (playerName: string) => void;
   createSoloRoom: (playerName: string) => void;
   joinRoom: (roomCode: string, playerName: string) => void;
+  /** Move a multiplayer lobby on to class select (needs a second player). */
+  startRoom: () => void;
   selectClass: (playerClass: PlayerClass, meta?: MetaBonusPayload) => void;
   ready: () => void;
   sendInput: (input: PlayerInput) => void;
@@ -570,6 +572,10 @@ export function useGameSocket(): UseGameSocketReturn {
     socketRef.current?.emit('player:ready');
   }, []);
 
+  const startRoom = useCallback(() => {
+    socketRef.current?.emit('room:start');
+  }, []);
+
   // Throttle input to server tick rate (20fps = 50ms)
   const lastInputTimeRef = useRef(0);
   const pendingAttackRef = useRef(false);
@@ -696,6 +702,7 @@ export function useGameSocket(): UseGameSocketReturn {
     createRoom,
     createSoloRoom,
     joinRoom,
+    startRoom,
     selectClass,
     ready,
     sendInput,
