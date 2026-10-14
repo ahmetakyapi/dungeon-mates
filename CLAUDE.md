@@ -32,7 +32,7 @@ npm run build          # Next production build
 npm run build:server   # tsc -p tsconfig.server.json → dist/server
 npm run start:server   # node dist/server/index.js
 npx tsc --noEmit       # tip kontrolü — her değişiklikten sonra
-npm run check:<ad>     # combat · smoke · decals · hazards · revive · shop · modifiers · audio · boss
+npm run check:<ad>     # combat · smoke · decals · hazards · revive · shop · modifiers · audio · boss · lobby
 ```
 
 `check:*` betikleri `scripts/` altında, sunucusuz çalışır; `check:smoke` ayrıca
@@ -68,6 +68,11 @@ Canvas mantıksal çözünürlüğü masaüstünde 480×270, mobilde 360×240 (`
   boss adı ya da hikâye metni bileşene elle yazılmaz, oradan okunur. Kralın adı
   **Karanmir**, enerjinin adı **Ateş-i Kadim** (eski "Mor'Khan" / "İlk Ateş" adları
   kaldırıldı). Evrenin uzun anlatımı `STORY.md`.
+- **Oda akışı**: çok oyunculu lobi `room:start` ile sınıf seçimine geçer (odadaki herkes
+  basabilir, en az `MIN_PLAYERS_TO_START` = 2 kişi; `GameRoom.startClassSelect`). Sınıf
+  seçimi sırasında katılan oyuncuya faz ayrıca gönderilir. Solo'da lobi ve geri sayım yok.
+- **Davet bağlantısı** `/game?room=KOD` (isim yok) → `JoinPrompt` isim sorar. Oyuncu adı
+  `src/lib/player-name.ts`'te saklanır; solo, "Tekrar Oyna" ve landing formu oradan okur.
 
 ## Kritik Kurallar
 
@@ -95,6 +100,8 @@ Canvas mantıksal çözünürlüğü masaüstünde 480×270, mobilde 360×240 (`
 ### Landing
 - İlk ziyarette piksel zindan kapısı açılışı (`DungeonGate.tsx`, sayaç yok): saf CSS
   keyframe, oturumda bir kez (sessionStorage), reduced-motion'da hiç oynamaz.
+- Oyun içi ekranlarda da başlık üstü künye yok; küçük etiketler `.dm-label` (sans, ≥12,5px,
+  normal harf — `globals.css`). `PixelButton` CSS ile büyük harfe çevirmez, metin elle yazılır.
 - Bölüm başlıklarının üstüne eyebrow/kicker satırı konmaz; `.dm-eyebrow` yalnız işlevsel
   etiketlerde (perde numarası, sınıf rolü, "Kontroller").
 - Başlıklar Title Case, sonda nokta yok (soru işareti kalır), tek kelimelik başlık yok

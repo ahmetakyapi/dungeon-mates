@@ -22,89 +22,61 @@
 
 ## Oyun Hakkında
 
-**Dungeon Mates**, tarayıcı tabanlı bir co-op dungeon crawler oyunudur. Herhangi bir indirme veya kurulum gerektirmeden, oda kodu ile arkadaşlarını davet edip birlikte oynayabilirsin. Her oyun benzersizdir — zindanlar prosedürel olarak üretilir, canavar dağılımları rastgeledir ve zorluk oyuncu sayısına göre dinamik olarak ölçeklenir.
+**Dungeon Mates**, tarayıcıda çalışan bir co-op zindan oyunudur. Kurulum ve hesap yok: tek başına başlarsın ya da bir oda kurup dört haneli kodu (veya davet bağlantısını) arkadaşlarına gönderirsin. Hedef, Zephara'nın 10 katını inip Taht Salonu'nda Kral Karanmir'e ulaşmak. Zindanlar her oyunda yeniden üretilir; zorluk oyuncu sayısına göre ölçeklenir. Hikâyenin tamamı `STORY.md` dosyasında.
 
 ### Nasıl Oynanır
 
-1. **Oda Oluştur** — 4 haneli benzersiz oda kodu al
-2. **Arkadaşlarını Davet Et** — Kodu paylaş, odaya katılsınlar
-3. **Sınıfını Seç** — Savaşçı, Büyücü veya Okçu
-4. **Zindana Dal** — 5 kat, her katta canavarlar, son katta boss
+1. **Tek Oyna** — Solo sefer, 3 can hakkı. Sınıfını seçip hazır olduğunda başlar.
+2. **Oda Kur** — 4 haneli oda kodu alırsın; kodu ya da davet bağlantısını paylaş.
+3. **Odaya Katıl** — Kodu gir ya da davet bağlantısını aç, ismini yaz.
+4. **Oyunu Başlat** — Odada en az iki kişi olunca herkes sınıf seçimine geçer; geç kalan arkadaş sınıf seçimi sırasında da katılabilir.
+5. **Zindana İn** — Her katı temizle, merdiveni bul; 3, 5, 7, 8 ve 10. katlarda boss var.
 
 ### Kontroller
 
-| Eylem | Masaüstü | Mobil |
-|-------|----------|-------|
-| Hareket | WASD / Ok Tuşları | Sol Joystick |
-| Saldırı | Space | Saldırı Butonu |
-| Yetenek | E | Yetenek Butonu |
-| Etkileşim | R (Sandık / Merdiven) | Etkileşim Butonu |
-| Sprint | Shift | — |
-| Sohbet | Enter | — |
+| Eylem | Masaüstü | Dokunmatik |
+|-------|----------|------------|
+| Hareket | WASD / Ok Tuşları | Ekranın solunda sürükle |
+| Nişan | Fare | Saldırı tuşunu sürükle |
+| Saldırı | Sol Tık / Space | ⚔️ tuşu (basılı tutunca seri saldırı) |
+| Takla | Q | Takla tuşu |
+| Yetenek | E | ✨ tuşu |
+| Ultimate (5. seviyeden) | F | ★ tuşu |
+| Etkileşim (sandık, merdiven) | R | 🔑 tuşu (yakındayken belirir) |
+| Koşu | Shift | — |
+| Karakter Özeti | Tab | — |
+| Duraklat | Esc | ⚙️ tuşu |
 
 ---
 
 ## Kahraman Sınıfları
 
-<table>
-  <tr>
-    <td align="center"><strong>Savaşçı</strong></td>
-    <td align="center"><strong>Büyücü</strong></td>
-    <td align="center"><strong>Okçu</strong></td>
-  </tr>
-  <tr>
-    <td align="center">120 HP / 15 ATK / 10 DEF</td>
-    <td align="center">70 HP / 20 ATK / 3 DEF</td>
-    <td align="center">90 HP / 12 ATK / 5 DEF</td>
-  </tr>
-  <tr>
-    <td>Yakın mesafe tank. <strong>Kalkan Duvarı</strong> (E) ile hasarı %70 azaltır. Kızıl pelerin, boynuzlu miğfer, armalı kalkan.</td>
-    <td>Alan hasarcı. <strong>Buz Fırtınası</strong> (E) ile çevre hasarı + yavaşlatma. Asa kristali, takımyıldızı desenli cüppesi.</td>
-    <td>Uzak menzilli DPS. <strong>Ok Yağmuru</strong> (E) ile 5 ok yelpaze atış. Runik yay, ok sadağı, kukuletalı pelerin.</td>
-  </tr>
-</table>
+Değerlerin tek kaynağı `shared/classes.ts`.
+
+| Sınıf | Rol | Can | Saldırı | Savunma | Hız | Yetenek (E) |
+|-------|-----|----:|--------:|--------:|----:|-------------|
+| **Savaşçı** | Ön Saf | 120 | 18 | 10 | 2,2 | Kalkan Duvarı — 4 sn boyunca hasarı %70 azaltır |
+| **Büyücü** | Alan Hasarı | 70 | 20 | 3 | 2,0 | Buz Fırtınası — çevreye hasar ve yavaşlatma |
+| **Okçu** | Menzil | 90 | 12 | 5 | 2,8 | Ok Yağmuru — yelpaze şeklinde 5 ok |
+| **Şifacı** | Destek | 85 | 10 | 6 | 2,2 | Şifa Dalgası — yakındaki takımı iyileştirir |
 
 ---
 
-## Canavar Ansiklopedisi
+## Katlar ve Canavarlar
 
-Oyunda 9 farklı canavar tipi bulunur. Her biri benzersiz AI davranışına, sprite tasarımına ve zorluk seviyesine sahiptir.
+- **10 kat, 3 perde**: Yüzey (1–4), Derinlikler (5–7), Ateşin Kalbi (8–10). Kat adları ve hikâye `shared/lore.ts` içinde.
+- **12 canavar türü**: sıçan, balçık, yarasa, iskelet, örümcek, goblin, zehirli mantar, hayalet, gargoyle, kara şövalye, fantom, lav balçığı. Elit canavarlar ek bir özellik (affix) taşır.
+- **5 boss**: Demirci Koruyucu (kat 3), Selvira — Örümcek Kraliçe (5), Taş Muhafız (7), Alev Şövalyesi (8), Karanmir (10, final).
+- Düşman saldırıları üç aşamalıdır — hazırlık, vuruş, toparlanma. Vurulacak alan hazırlık sırasında zeminde görünür; alandan zamanında çıkan hasar almaz.
 
-| Canavar | HP | Saldırı | Özellik |
-|---------|---:|--------:|---------|
-| **Fare** | 12 | 4 | Sürülerde (2–3) gelir, hızlı ve düzensiz hareket |
-| **Slime** | 20 | 5 | Sıçrar, 3 renk varyantı (yeşil / buz / ateş) |
-| **Yarasa** | 15 | 6 | Çok hızlı, düzensiz uçuş paterni |
-| **İskelet** | 30 | 8 | Kılıçlı, kalkanlı, çene tıkırdaması |
-| **Örümcek** | 25 | 7 | Ağ fırlatır → oyuncuyu yavaşlatır |
-| **Mantar** | 45 | 8 | Zehir aurası, yavaşlatma, dayanıklı |
-| **Hayalet** | 35 | 14 | Duvarlardan geçer, faz değiştirir (dokunulmaz) |
-| **Goblin** | 40 | 10 | Savaş boyalı, dikenli sopalı, düşük HP'de kaçar |
-| **Boss Demon** | 300 | 25 | Şarj saldırısı, alan hasarı, minion çağırır |
+### Oyuncu Sayısına Göre Ölçek
 
-### Kat Bazlı Zorluk
-
-- **Kat 1** — Fare, Slime, Yarasa _(giriş)_
-- **Kat 2** — + İskelet, Örümcek
-- **Kat 3** — + Goblin, Hayalet, Mantar
-- **Kat 4** — Tüm tipler, zor ağırlıklı
-- **Kat 5** — Boss Demon + minion ordusu
-
----
-
-## Dinamik Zorluk Sistemi
-
-Oyun, oyuncu sayısına göre otomatik olarak ölçeklenir:
-
-| Özellik | Solo | 2 Kişi | 3 Kişi | 4 Kişi |
-|---------|:----:|:------:|:------:|:------:|
+| | Solo | 2 Kişi | 3 Kişi | 4 Kişi |
+|---|:---:|:---:|:---:|:---:|
 | Harita Boyutu | 48×48 | 56×56 | 64×64 | 72×72 |
-| Canavar Çarpanı | 0.7x | 1.0x | 1.5x | 2.0x |
-| Canavar HP | 1.0x | 1.35x | 1.70x | 2.05x |
-| Boss HP | 300 | 450 | 600 | 750 |
-| Loot Çarpanı | 1.5x | 1.0x | 1.2x | 1.4x |
-| XP Kazanımı | %100 | %75 | %60 | %50 |
-| Kat Arası İyileşme | %40 | %30 | %25 | %20 |
+| Canavar Çarpanı | 0,85× | 1,5× | 1,9× | 2,4× |
+
+Kaynak: `server/dungeon/DungeonGenerator.ts`.
 
 ---
 
@@ -192,7 +164,7 @@ dungeon-mates/
 │   ├── GameRoom.ts              # Oda yönetimi, oyun döngüsü, combat
 │   ├── entities/
 │   │   ├── Player.ts            # Oyuncu entity, sınıf yetenekleri
-│   │   ├── Monster.ts           # Canavar AI, 9 farklı davranış
+│   │   ├── Monster.ts           # Canavar durumu ve saldırı döngüsü
 │   │   └── Projectile.ts        # Mermi fiziği, çarpışma
 │   └── dungeon/
 │       └── DungeonGenerator.ts  # BSP zindan üretici
@@ -210,8 +182,7 @@ dungeon-mates/
     │   │   ├── GameOverScreen.tsx   # Bitiş istatistikleri
     │   │   ├── ChatBox.tsx          # Oyun içi sohbet
     │   │   ├── WaitingScreen.tsx    # Sunucu bekleme ekranı
-    │   │   ├── VirtualJoystick.tsx  # Mobil dokunmatik kontroller
-    │   │   └── ...                  # +11 diğer bileşen
+        │   │   └── ...                  # +11 diğer bileşen
     │   └── ui/
     │       ├── PixelButton.tsx      # Pixel-art buton
     │       └── PixelInput.tsx       # Pixel-art input
@@ -227,10 +198,10 @@ dungeon-mates/
         ├── audio/
         │   └── SoundManager.ts      # Web Audio sentezleyici
         └── input/
-            └── InputManager.ts      # Klavye + gamepad girdi yönetimi
+            ├── InputManager.ts      # Klavye + gamepad girdi yönetimi
+            └── TouchControls.ts     # Mobil joystick ve aksiyon tuşları
 ```
 
-**Toplam**: 38 kaynak dosya, ~15.000+ satır TypeScript
 
 ---
 
@@ -258,6 +229,15 @@ npm run dev
 Tarayıcıda aç: **http://localhost:3002**
 
 Sunucu otomatik olarak `localhost:3001` üzerinde çalışır.
+
+### Kontrol Betikleri
+
+```bash
+npx tsc --noEmit        # tip kontrolü
+npm run check:lobby     # çok oyunculu lobi: başlatma, geç katılım, hazır olma
+npm run check:combat    # ayrıca: decals, hazards, revive, shop, modifiers, audio, boss
+npm run check:smoke     # çalışan sunucuya karşı gerçek bir solo oyun (DM_SERVER ile port)
+```
 
 ### Environment Variables
 
@@ -310,10 +290,11 @@ Environment variable olarak `ALLOWED_ORIGINS` değerini frontend domain'ine ayar
 ## Özellikler
 
 - **Gerçek Zamanlı Co-op** — 2–4 oyuncu, oda kodu ile anında bağlantı
+- **Davet Bağlantısı** — Bağlantıyı açan arkadaş ismini yazıp doğrudan odaya katılır
 - **Solo Mod** — Tek başına 3 canla oyna
 - **Prosedürel Zindanlar** — Her oyun benzersiz harita
-- **9 Canavar Tipi** — Farklı AI, sprite ve zorluk
-- **3 Kahraman Sınıfı** — Benzersiz yetenekler ve oyun tarzları
+- **12 Canavar + 5 Boss** — Farklı AI, sprite ve zorluk
+- **4 Kahraman Sınıfı** — Benzersiz yetenekler ve oyun tarzları
 - **Dinamik Zorluk** — Oyuncu sayısına göre otomatik ölçekleme
 - **Pixel Art Görseller** — 2.500+ satır prosedürel sprite kodu
 - **Dinamik Aydınlatma** — Entity bazlı ışık ve gölge sistemi
