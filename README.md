@@ -108,7 +108,7 @@ Tüm oyun mantığı sunucu tarafında çalışır. Client sadece input gönderi
 
 Oyun HTML5 Canvas üzerinde pixel-art tarzında render edilir:
 
-1. **Mantıksal Çözünürlük** — 480×270 (masaüstü), 280×210 (mobil)
+1. **Mantıksal Çözünürlük** — 480×270 (masaüstü), 360×240 (mobil)
 2. **Offscreen Buffer** — Piksel artifact'larını önlemek için
 3. **Render Katmanları** — Zemin → Çevre Dekor → Loot → Canavarlar → Mermiler → Oyuncular → Parçacıklar → Sis → UI
 4. **Dinamik Aydınlatma** — Entity bazlı ışık (meşale, oyuncu, canavar, loot)
@@ -182,7 +182,7 @@ dungeon-mates/
     │   │   ├── GameOverScreen.tsx   # Bitiş istatistikleri
     │   │   ├── ChatBox.tsx          # Oyun içi sohbet
     │   │   ├── WaitingScreen.tsx    # Sunucu bekleme ekranı
-        │   │   └── ...                  # +11 diğer bileşen
+    │   │   └── ...                  # +18 diğer bileşen
     │   └── ui/
     │       ├── PixelButton.tsx      # Pixel-art buton
     │       └── PixelInput.tsx       # Pixel-art input
