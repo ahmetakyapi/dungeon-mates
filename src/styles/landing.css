@@ -646,7 +646,7 @@ html[data-dm-intro="done"] .dm-gate { display: none; }
 .dm-phase-fill { position: absolute; inset: 0; transform-origin: left center; background: color-mix(in srgb, var(--color-ember) 15%, transparent); }
 .dm-phase-fill[data-kind='active'] { background: color-mix(in srgb, #fff 24%, transparent); }
 .dm-phase > span:not(.dm-phase-fill) { position: relative; }
-.dm-phase-num { font: 500 11px var(--font-mono), monospace; color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+.dm-phase-num { font: 500 12px var(--font-mono), monospace; color: color-mix(in srgb, var(--color-text) 62%, transparent); }
 .dm-phase-label { font: 600 clamp(20px, 2vw, 26px)/1 var(--font-heading); letter-spacing: -0.03em; }
 .dm-phase-time { font: 500 13px var(--font-mono), monospace; color: var(--color-ember); }
 .dm-phase-note { grid-column: 2 / -1; font-size: 12px; color: color-mix(in srgb, var(--color-text) 55%, transparent); }
@@ -659,7 +659,9 @@ html[data-dm-intro="done"] .dm-gate { display: none; }
 .dm-corner { position: absolute; width: 22px; height: 22px; pointer-events: none; border-color: var(--color-ember); border-style: solid; }
 .dm-corner--tl { left: 12px; top: 12px; border-width: 1.5px 0 0 1.5px; }
 .dm-corner--br { right: 12px; bottom: 12px; border-width: 0 1.5px 1.5px 0; }
-.dm-mech-figure figcaption { margin-top: 12px !important; }
+/* The shared .nocturne figcaption is 11px at 55%: under the 12px floor for
+   small text. This caption explains the slowed scene, so it has to be read. */
+.dm-mech-figure figcaption { margin-top: 12px !important; font-size: 12.5px; line-height: 1.5; color: color-mix(in srgb, var(--color-text) 66%, transparent); }
 
 @media (min-width: 960px) {
   .dm-mech-grid { grid-template-columns: 0.95fr 1.05fr; }
@@ -681,7 +683,7 @@ html[data-dm-intro="done"] .dm-gate { display: none; }
 .dm-acc-item[data-on],
 .dm-acc-item:focus-visible { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cls) 60%, transparent), 0 30px 80px -40px var(--cls); }
 .dm-acc-spine { display: flex; align-items: baseline; gap: 12px; padding: 18px 20px 0; }
-.dm-acc-idx { font: 500 11px var(--font-mono), monospace; color: var(--cls); letter-spacing: 0.1em; }
+.dm-acc-idx { font: 500 12px var(--font-mono), monospace; color: var(--cls); letter-spacing: 0.06em; }
 .dm-acc-spine-name { font: 600 22px var(--font-heading); letter-spacing: -0.03em; }
 .dm-acc-body { display: grid; grid-template-columns: auto 1fr; gap: 18px; padding: 14px 20px 22px; align-items: center; }
 .dm-acc-portrait { width: 120px; }
