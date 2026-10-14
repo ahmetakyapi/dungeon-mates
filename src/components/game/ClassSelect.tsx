@@ -420,6 +420,19 @@ export function ClassSelect({
   const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // The ready bar is sticky. Its fade is drawn only while it is actually stuck
+  // over content: without one, card stats and the team hint showed through the
+  // button; with one all the time, the fade sat on the vignette as a lighter
+  // band whenever the page fitted the screen.
+  const readyEndRef = useRef<HTMLDivElement>(null);
+  const [readyStuck, setReadyStuck] = useState(false);
+  useEffect(() => {
+    const end = readyEndRef.current;
+    if (!end || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(([entry]) => setReadyStuck(!entry.isIntersecting));
+    io.observe(end);
+    return () => io.disconnect();
+  }, []);
 
   // Countdown timer — multiplayer only. It keeps a room from waiting forever on
   // one undecided player; alone there is nobody to wait for, and solo players
@@ -700,7 +713,13 @@ export function ClassSelect({
           button sat below all of them (and below the fold on a 768px laptop);
           it now rides along at the bottom of the screen and, on phones, says
           which class it will confirm. */}
-      <div className="sticky bottom-0 z-30 mt-4 flex w-[calc(100%+2rem)] flex-col items-center gap-2 bg-gradient-to-t from-dm-bg from-60% to-transparent px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-10 sm:mt-2 sm:bg-none sm:pb-6 sm:pt-8">
+      <div className="sticky bottom-0 z-30 mt-4 flex w-[calc(100%+2rem)] flex-col items-center gap-2 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-10 sm:mt-2 sm:pb-6 sm:pt-8">
+        <span
+          aria-hidden
+          className={`pointer-events-none absolute inset-0 -z-10 bg-gradient-to-t from-dm-bg from-60% to-transparent transition-opacity duration-300 motion-reduce:transition-none ${
+            readyStuck ? 'opacity-100' : 'opacity-0'
+          }`}
+        />
         <AnimatePresence>
           {selected && !isReady && (
             <motion.p
@@ -740,6 +759,8 @@ export function ClassSelect({
           </PixelButton>
         </motion.div>
       </div>
+      {/* Where the ready bar would sit unstuck; out of view means it is stuck. */}
+      <div ref={readyEndRef} aria-hidden className="h-0 w-px" />
     </main>
   );
 }

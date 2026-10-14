@@ -37,7 +37,8 @@ export function JoinPrompt({ roomCode, onJoin, onBack }: JoinPromptProps) {
   const validCode = code.length === ROOM_CODE_LENGTH && /^[A-Z0-9]+$/.test(code);
 
   useEffect(() => {
-    setName(loadPlayerName());
+    // Only fill an empty field: a name typed before this effect ran must stay.
+    setName((n) => n || loadPlayerName());
     // Desktop only: on a phone, focusing pops the keyboard over the room code
     // before the player has seen which room they are joining.
     if (window.matchMedia?.('(pointer: fine)').matches) inputRef.current?.focus();

@@ -41,6 +41,14 @@ import { DEFAULT_PLAYER_NAME, cleanPlayerName, inviteUrl, joinGameUrl, loadPlaye
 // Mirrors DODGE_COOLDOWN_TICKS in server/entities/Player.ts
 const DODGE_COOLDOWN_TICKS = 30;
 
+/** What to do next when the server refuses a join (keys are its room:error messages). */
+const JOIN_FAILED_HINT: Record<string, string> = {
+  'Oda bulunamadı': 'Bu oda artık yok; odadaki herkes çıkınca kapanıyor. Arkadaşından yeni bir kod iste ya da kendi odanı kur.',
+  'Oda dolu': 'Bu odada dört kişi var. Başka bir oda kur ya da arkadaşlarınla yeni bir odada buluş.',
+  'Oyun devam ediyor': 'Bu odadaki sefer başladı, yeni oyuncu alınmıyor. Bir sonraki oyunda katılabilirsin.',
+  'Geçersiz oda kodu': 'Oda kodu dört harf ya da rakamdan oluşur. Kodu arkadaşından yeniden iste.',
+};
+
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 /** Lobby choreography — children arrive one after another, lifting out of blur. */
@@ -1002,6 +1010,10 @@ function GamePage() {
   if (phase === 'lobby') {
     const difficultyInfo = DIFFICULTY_INFO[Math.min(playerList.length, 4)] ?? DIFFICULTY_INFO[1];
     const canStart = !isSolo && playerList.length >= MIN_PLAYERS_TO_START;
+    // The server turned the join down (a stale invite, a full room, a run that
+    // already started), so this player is in no room. The lobby used to render
+    // anyway: the dead code, an invite button for it and "Arkadaşın bekleniyor".
+    const joinFailed = !isSolo && !!error && !playerId;
 
     return (
       <MotionConfig reducedMotion={settings.reducedMotion ? 'always' : 'user'}>
@@ -1039,11 +1051,18 @@ function GamePage() {
               className="font-pixel text-lg text-dm-accent sm:text-2xl lg:text-3xl 2xl:text-4xl"
               style={{ textShadow: '0 0 24px rgba(139,92,246,0.45)' }}
             >
-              <SplitReveal text={isSolo ? 'Hazırlanıyor' : 'Bekleme Odası'} delay={0.15} stagger={0.035} />
+              <SplitReveal
+                key={joinFailed ? 'failed' : 'lobby'}
+                text={isSolo ? 'Hazırlanıyor' : joinFailed ? 'Odaya Girilemedi' : 'Bekleme Odası'}
+                delay={0.15}
+                stagger={0.035}
+              />
             </h1>
             {!isSolo && (
               <p className="max-w-[40ch] text-sm leading-relaxed text-zinc-400 lg:text-base [text-wrap:balance]">
-                Kodu ya da bağlantıyı arkadaşlarına gönder. Dört kişiye kadar aynı zindana inebilirsiniz.
+                {joinFailed
+                  ? JOIN_FAILED_HINT[error] ?? 'Ana menüden yeniden dene ya da kendi odanı kur.'
+                  : 'Kodu ya da bağlantıyı arkadaşlarına gönder. Dört kişiye kadar aynı zindana inebilirsiniz.'}
               </p>
             )}
           </motion.div>
@@ -1065,7 +1084,7 @@ function GamePage() {
           </AnimatePresence>
 
           {/* Room code (multiplayer only) */}
-          {roomCode && !isSolo && (
+          {roomCode && !isSolo && !joinFailed && (
             <motion.div className="flex flex-col items-center gap-3" variants={LOBBY_ITEM}>
               <p className="dm-label text-zinc-400">Oda Kodu</p>
               <motion.button
@@ -1130,7 +1149,7 @@ function GamePage() {
           )}
 
           {/* Player slots */}
-          {!isSolo && (
+          {!isSolo && !joinFailed && (
             <motion.div className="mt-2 w-full" variants={LOBBY_ITEM}>
               <div className="mb-3 flex items-center justify-between">
                 <p className="dm-label text-zinc-400">
@@ -1238,7 +1257,7 @@ function GamePage() {
           )}
 
           {/* Start — the lobby had no way forward at all; see GameRoom.startClassSelect */}
-          {!isSolo && (
+          {!isSolo && !joinFailed && (
             <motion.div className="mt-2 flex flex-col items-center gap-3 text-center" variants={LOBBY_ITEM}>
               <AnimatePresence mode="wait" initial={false}>
                 {canStart ? (
