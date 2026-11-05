@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PixelButton } from '@/components/ui/PixelButton';
+import { ScreenAtmosphere } from '@/components/fx/ScreenAtmosphere';
 import { BlockBar, MaskReveal } from '@/components/fx/RevealText';
 import { EASE_OUT_EXPO } from '@/lib/motion';
 
@@ -182,6 +183,7 @@ export function WaitingScreen({ connectionState, reconnectAttempt, error, onRetr
           WebkitMaskImage: 'radial-gradient(ellipse at center, black 10%, transparent 70%)',
         }}
       />
+      <ScreenAtmosphere tone="arcane" density={0.35} />
       <div className="dm-scanlines" />
       <div className="dm-vignette" />
       </div>

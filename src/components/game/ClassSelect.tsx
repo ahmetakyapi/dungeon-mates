@@ -12,6 +12,7 @@ import {
   useTransform,
 } from 'framer-motion';
 import { PixelButton } from '@/components/ui/PixelButton';
+import { ScreenAtmosphere } from '@/components/fx/ScreenAtmosphere';
 import { MaskReveal, SplitReveal } from '@/components/fx/RevealText';
 import { EASE_OUT_EXPO } from '@/lib/motion';
 import { ClassPortrait } from '@/components/landing/ClassPortrait';
@@ -262,7 +263,7 @@ function ClassCard({
             className="pointer-events-none absolute inset-x-2 bottom-0 h-6 rounded-full blur-xl transition-opacity duration-300"
             style={{ background: stats.color, opacity: isSelected ? 0.45 : 0.12 }}
           />
-          <ClassPortrait cls={cls} height={124} />
+          <ClassPortrait cls={cls} height={124} className="dm-cs-portrait" />
         </motion.div>
         {isSelected && !reduce && (
           <div aria-hidden className="pointer-events-none absolute left-1/2 top-1/2">
@@ -532,6 +533,7 @@ export function ClassSelect({
         animate={{ backgroundColor: accent, opacity: selected ? 0.14 : 0.06 }}
         transition={{ duration: 0.8, ease: EASE_OUT_EXPO }}
       />
+      <ScreenAtmosphere tone="ember" density={selected ? 0.55 : 0.3} />
       <div className="dm-scanlines" aria-hidden />
       <div className="dm-vignette" aria-hidden />
 
@@ -567,7 +569,7 @@ export function ClassSelect({
       <LayoutGroup>
         <div
           ref={scrollContainerRef}
-          className="z-10 flex w-full max-w-4xl flex-col gap-3 px-2 pb-2 pt-2 sm:flex-row sm:snap-x sm:snap-mandatory sm:gap-6 sm:overflow-x-auto lg:gap-8 2xl:max-w-6xl 2xl:gap-10"
+          className="z-10 flex w-full max-w-4xl flex-col gap-3 px-2 pb-2 pt-2 sm:flex-row sm:snap-x sm:snap-mandatory sm:gap-6 sm:overflow-x-auto lg:max-w-5xl lg:gap-8 xl:max-w-6xl 2xl:max-w-7xl 2xl:gap-10"
         >
           {CLASSES.map((cls, i) => (
             <ClassCard

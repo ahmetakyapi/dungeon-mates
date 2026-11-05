@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { motion, type Variants } from 'framer-motion';
 import { PixelButton } from '@/components/ui/PixelButton';
+import { ScreenAtmosphere } from '@/components/fx/ScreenAtmosphere';
 import { PixelInput } from '@/components/ui/PixelInput';
 import { SplitReveal } from '@/components/fx/RevealText';
 import { EASE_OUT_EXPO } from '@/lib/motion';
@@ -62,6 +63,7 @@ export function JoinPrompt({ roomCode, onJoin, onBack }: JoinPromptProps) {
         className="pointer-events-none absolute left-1/2 top-1/2 h-[min(600px,120vw)] w-[min(600px,120vw)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-dm-gold/[0.05] blur-3xl"
       />
       <div className="dm-scanlines" aria-hidden />
+      <ScreenAtmosphere tone="ember" density={0.35} />
       <div className="dm-vignette" aria-hidden />
 
       <motion.div

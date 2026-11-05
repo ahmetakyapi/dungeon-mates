@@ -108,6 +108,13 @@ Canvas mantıksal çözünürlüğü masaüstünde 480×270, mobilde 360×240 (`
   ("İn." kaldırıldı). Küçük etiketler sans, normal harf, ≥12px.
 - Katlar dikey kuyu (`FloorShaft.tsx`: yapışkan derinlik göstergesi + alt alta katlar).
   Yatay kayan sabit galeri başka projelerde var, buraya geri getirme. Özel imleç yok.
+- Derinlik dili: `DepthAtmosphere` (sabit katman — perdeye göre renk, `fx/PixelMotes` korları,
+  imleci izleyen meşale ışığı), bölümler arası `Strata` (parallax piksel kaya katmanları + derinlik
+  etiketi), alt bilgide `PixelFire` (Doom tarzı hücresel ateş, "Tek Oyna" üstünde harlanır) önünde
+  silüet imza, kat kuyusunda zincirle inen fener ve `DigitRoll` derinlik sayacı. Hepsi
+  ekranda değilken / gizli sekmede durur, reduced-motion'da durağan.
+- Oyun içi menü ekranları (lobi, sınıf seçimi, davet, oyun sonu) `fx/ScreenAtmosphere` taşır:
+  duvar meşaleleri (md+) ve ekranın tonunda piksel toz/kor.
 - Kaydırmaya bağlı efektler yalnız transform/opacity; her karede `clip-path` (hero penceresi
   tek istisna) ve kaydırmada sayfa state'i güncellemek yok — sayılar `useTransform` ile DOM'a.
 

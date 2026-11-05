@@ -633,3 +633,50 @@ html.lenis, html.lenis body { height: auto; }
   color: transparent;
   -webkit-text-stroke: 1px var(--dm-outline, rgba(139, 92, 246, 0.35));
 }
+
+
+/* ── Menu room (components/fx/ScreenAtmosphere) ───────────────────────── */
+
+.dm-room { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.dm-room-floor {
+  position: absolute; left: -10%; right: -10%; bottom: -20%; height: 55%;
+  background: radial-gradient(ellipse 50% 50% at 50% 100%, var(--room-glow, rgba(255, 138, 61, .14)), transparent 70%);
+}
+.dm-room[data-tone='arcane'] { --room-glow: rgba(139, 92, 246, .16); }
+.dm-room[data-tone='gold'] { --room-glow: rgba(245, 185, 66, .16); }
+.dm-room[data-tone='ash'] { --room-glow: rgba(160, 60, 50, .12); }
+
+.dm-room-torch { display: none; }
+@media (min-width: 768px) {
+  .dm-room-torch {
+    display: block; position: absolute; top: 30%;
+    width: 30px; height: 78px;
+  }
+  .dm-room-torch[data-side='left'] { left: clamp(20px, 4vw, 72px); }
+  .dm-room-torch[data-side='right'] { right: clamp(20px, 4vw, 72px); }
+  .dm-room-torch svg { position: relative; width: 100%; height: 100%; display: block; }
+  .dm-room-torch-glow {
+    position: absolute; left: 50%; top: 8px; width: 420px; height: 420px; translate: -50% -50%;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(255, 170, 90, .3), rgba(255, 138, 61, .09) 45%, transparent);
+    animation: dm-room-flicker 640ms steps(1, end) infinite;
+  }
+  .dm-room-torch[data-side='right'] .dm-room-torch-glow { animation-delay: -310ms; }
+  .dm-room-flame { opacity: 0; animation: dm-room-frame 390ms steps(1, end) infinite; }
+  .dm-room-flame--b { animation-delay: -130ms; }
+  .dm-room-flame--c { animation-delay: -260ms; }
+  .dm-room-torch[data-side='right'] .dm-room-flame { animation-duration: 420ms; }
+}
+@media (min-width: 1280px) {
+  .dm-room-torch { width: 40px; height: 104px; }
+}
+@keyframes dm-room-frame { 0% { opacity: 1; } 33.34%, 100% { opacity: 0; } }
+@keyframes dm-room-flicker { 0% { opacity: .85; } 25% { opacity: 1; } 50% { opacity: .7; } 75% { opacity: .95; } }
+@media (prefers-reduced-motion: reduce) {
+  .dm-room-torch-glow, .dm-room-flame { animation: none; }
+  .dm-room-flame--a { opacity: 1; }
+}
+
+/* Class select: on a wide screen the cards grow, so the portraits do too. */
+@media (min-width: 1280px) { .dm-cs-portrait { height: 156px !important; } }
+@media (min-width: 1536px) { .dm-cs-portrait { height: 184px !important; } }

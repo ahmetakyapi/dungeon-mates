@@ -27,6 +27,7 @@ import { PixelButton } from '@/components/ui/PixelButton';
 import { PixelHero } from '@/components/game/PixelHero';
 import { GameErrorBoundary } from '@/components/game/ErrorBoundary';
 import { JoinPrompt } from '@/components/game/JoinPrompt';
+import { ScreenAtmosphere } from '@/components/fx/ScreenAtmosphere';
 import { useTransitionRouter } from '@/components/fx/PageTransition';
 import { SplitReveal } from '@/components/fx/RevealText';
 import { EASE_OUT_EXPO } from '@/lib/motion';
@@ -66,37 +67,6 @@ const EXIT_TO_MENU = { label: 'Yüzeye çıkılıyor', direction: 'up' } as cons
 
 // DIFFICULTY_INFO imported from shared/types
 
-// Floating particles for lobby background
-function LobbyParticles() {
-  const PARTICLE_COUNT = 20;
-  return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      {Array.from({ length: PARTICLE_COUNT }).map((_, i) => (
-        <motion.div
-          key={i}
-          className="absolute h-1 w-1 rounded-full"
-          style={{
-            backgroundColor: i % 3 === 0 ? '#8b5cf6' : i % 3 === 1 ? '#f59e0b' : '#3b82f6',
-            left: `${(i * 17 + 5) % 100}%`,
-            top: `${(i * 23 + 10) % 100}%`,
-            opacity: 0.15 + (i % 4) * 0.05,
-          }}
-          animate={{
-            y: [0, -30 - (i % 3) * 20, 0],
-            x: [0, (i % 2 === 0 ? 15 : -15), 0],
-            opacity: [0.1, 0.3, 0.1],
-          }}
-          transition={{
-            duration: 4 + (i % 3) * 2,
-            repeat: Infinity,
-            delay: (i * 0.3) % 4,
-            ease: 'easeInOut',
-          }}
-        />
-      ))}
-    </div>
-  );
-}
 
 export default function GamePageWrapper() {
   return (
@@ -1035,7 +1005,7 @@ function GamePage() {
             WebkitMaskImage: 'radial-gradient(ellipse at center, black 5%, transparent 70%)',
           }}
         />
-        <LobbyParticles />
+        <ScreenAtmosphere tone="arcane" density={0.3} />
         <div className="dm-scanlines" aria-hidden />
         <div className="dm-vignette" aria-hidden />
 

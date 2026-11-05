@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, animate, useMotionValue, useTransform } from 'framer-motion';
 import { PixelButton } from '@/components/ui/PixelButton';
+import { ScreenAtmosphere } from '@/components/fx/ScreenAtmosphere';
 import { SplitReveal } from '@/components/fx/RevealText';
 import { EASE_OUT_EXPO, prefersReducedMotion } from '@/lib/motion';
 
@@ -251,6 +252,7 @@ export function GameOverScreen({
               : 'radial-gradient(ellipse at 50% 25%, rgba(127,29,29,0.35), transparent 60%)',
           }}
         />
+        <ScreenAtmosphere tone={isVictory ? 'gold' : 'ash'} torches={false} density={isVictory ? 0.7 : 0.2} />
         <div className="dm-scanlines" />
         <div className="dm-vignette" />
       </div>
