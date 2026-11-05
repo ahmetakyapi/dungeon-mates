@@ -496,6 +496,10 @@ html[data-dm-intro="done"] .dm-gate { display: none; }
   background: linear-gradient(180deg, #fff 20%, color-mix(in srgb, var(--color-accent) 70%, #fff) 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
+@media (max-width: 559px) {
+  .dm-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dm-stat:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
 .dm-stat-label { font-size: 15px; font-weight: 500; color: color-mix(in srgb, var(--color-text) 65%, transparent); }
 
 /* ── Story ─────────────────────────────────────────────── */
@@ -567,13 +571,13 @@ html[data-dm-intro="done"] .dm-gate { display: none; }
 .dm-shaft-act-name { font-size: 15px; font-weight: 600; color: var(--color-text); }
 .dm-shaft-act-q { font-size: 14px; color: color-mix(in srgb, var(--color-text) 60%, transparent); }
 
-.dm-shaft-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; }
+.dm-shaft-list { position: relative; list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; }
 .dm-shaft-divider {
   margin: 30px 0 14px !important;
   display: flex; align-items: baseline; gap: 10px;
   font-size: 15px; font-weight: 600; color: color-mix(in srgb, var(--color-text) 70%, transparent);
 }
-.dm-shaft-list > li:first-child .dm-shaft-divider { margin-top: 0 !important; }
+.dm-shaft-list > li[data-floor='1'] .dm-shaft-divider { margin-top: 0 !important; }
 .dm-shaft-divider span { color: var(--color-ember); }
 .dm-shaft-divider::after { content: ''; flex: 1; height: 1px; background: color-mix(in srgb, var(--color-text) 12%, transparent); }
 
@@ -760,7 +764,7 @@ html[data-dm-intro="done"] .dm-gate { display: none; }
 
 /* ── Play ──────────────────────────────────────────────── */
 
-.dm-play { position: relative; padding-top: clamp(110px, 18vh, 200px); overflow: hidden; }
+.dm-play { position: relative; padding-top: clamp(110px, 18vh, 200px); overflow-x: clip; }
 .dm-play-glow {
   position: absolute; left: 50%; top: 30%; width: 120vw; height: 80vh; translate: -50% 0;
   background: radial-gradient(closest-side, color-mix(in srgb, var(--color-ember) 14%, transparent), transparent);
@@ -876,9 +880,172 @@ html[data-dm-intro="done"] .dm-gate { display: none; }
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 
+/* ── Depth atmosphere ──────────────────────────────────── */
+/* Fixed, behind the content. The page's own sections sit above it
+   (main/footer z-index 1), so it shows through every transparent band. */
+
+.dm-landing > main,
+.dm-landing > footer { position: relative; z-index: 1; }
+
+.dm-atmos { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.dm-atmos-tint { position: absolute; inset: 0; will-change: opacity; }
+.dm-atmos-tint--surface {
+  background:
+    radial-gradient(ellipse 70% 45% at 85% 0%, rgba(120, 132, 255, .09), transparent 70%),
+    radial-gradient(ellipse 50% 35% at 0% 100%, rgba(90, 110, 160, .06), transparent 70%);
+}
+.dm-atmos-tint--depths {
+  background:
+    radial-gradient(ellipse 60% 50% at 10% 30%, rgba(124, 92, 255, .10), transparent 70%),
+    radial-gradient(ellipse 55% 45% at 95% 85%, rgba(60, 170, 190, .06), transparent 70%);
+}
+.dm-atmos-tint--fire {
+  background:
+    radial-gradient(ellipse 90% 55% at 50% 110%, rgba(255, 106, 42, .20), transparent 70%),
+    radial-gradient(ellipse 40% 30% at 100% 40%, rgba(255, 138, 61, .07), transparent 70%);
+}
+.dm-atmos-motes {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  image-rendering: pixelated;
+}
+.dm-atmos-torch {
+  position: absolute; left: -280px; top: -280px; width: 560px; height: 560px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 170, 90, .075), rgba(255, 138, 61, .03) 45%, transparent);
+  opacity: 0; transition: opacity .6s ease;
+  will-change: transform;
+}
+.dm-atmos-torch[data-on] { opacity: 1; }
+
+/* ── Strata ────────────────────────────────────────────── */
+/* A band of pixel rock between sections; it fades into the page at the
+   bottom so the next section starts on the same ground. */
+
+.dm-strata {
+  position: relative; z-index: 1;
+  /* The band's own aspect (240 × 56), so ridges are never cropped flat. */
+  height: clamp(180px, calc(100vw * 56 / 240), 360px);
+  margin-top: clamp(64px, 10vh, 120px);
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent);
+  mask-image: linear-gradient(to bottom, #000 62%, transparent);
+}
+.dm-strata svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.dm-strata-vein { animation: dm-vein 3.2s steps(4, end) infinite; }
+@keyframes dm-vein { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+.dm-strata-label {
+  position: absolute; right: var(--gutter); top: 18%;
+  margin: 0 !important;
+  display: flex; align-items: baseline; gap: 12px;
+  font-size: 13px; font-weight: 500;
+  color: color-mix(in srgb, var(--color-text) 62%, transparent);
+}
+.dm-strata-depth {
+  font: 500 13px var(--font-mono), monospace; letter-spacing: .08em;
+  color: var(--color-ember); font-variant-numeric: tabular-nums;
+}
+.dm-strata[data-variant='depths'] .dm-strata-depth { color: #b49cff; }
+.dm-strata-label::before {
+  content: ''; align-self: center; width: clamp(28px, 6vw, 80px); height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-text) 30%, transparent));
+}
+
+.dm-strata + .dm-section,
+.dm-strata + .dm-play { padding-top: clamp(28px, 6vh, 72px); }
+
+/* ── Card rim light ───────────────────────────────────── */
+
+.dm-edge-light {
+  position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  padding: 1px;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  opacity: 0; transition: opacity .5s var(--ease-expo);
+}
+[data-lit] > .dm-edge-light { opacity: 1; }
+
+/* Floor cards: torchlight under the pointer (FloorShaft writes --mx/--my). */
+.dm-shaft-floor::before {
+  content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none; border-radius: inherit;
+  background: radial-gradient(380px circle at var(--mx, 50%) var(--my, 0%), color-mix(in srgb, var(--floor-accent) 16%, transparent), transparent 65%);
+  opacity: 0; transition: opacity .5s var(--ease-expo);
+}
+.dm-shaft-floor::after {
+  content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none; border-radius: inherit;
+  padding: 1px;
+  background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 0%), color-mix(in srgb, var(--floor-accent) 85%, #fff), transparent 70%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  opacity: 0; transition: opacity .5s var(--ease-expo);
+}
+@media (pointer: fine) {
+  .dm-shaft-floor:hover::before,
+  .dm-shaft-floor:hover::after { opacity: 1; }
+}
+
+/* ── Shaft chain + lantern ────────────────────────────── */
+
+.dm-shaft-chain { display: none; }
+@media (min-width: 960px) {
+  .dm-shaft-chain {
+    display: block; position: absolute; top: 0; bottom: 0; left: -34px; width: 9px;
+    pointer-events: none;
+  }
+  .dm-shaft-chain::before {
+    content: ''; position: absolute; left: 4px; top: 0; bottom: 0; width: 1px;
+    background: repeating-linear-gradient(to bottom, color-mix(in srgb, var(--color-text) 18%, transparent) 0 3px, transparent 3px 6px);
+  }
+  .dm-shaft-chain-run {
+    position: absolute; left: 4px; top: 0; bottom: 0; width: 1px; display: block;
+    transform-origin: 50% 0;
+    background: repeating-linear-gradient(to bottom, var(--floor-accent) 0 3px, transparent 3px 6px);
+    transition: background .6s;
+  }
+  .dm-shaft-lantern-track { position: absolute; inset: 0; display: block; }
+  .dm-shaft-lantern {
+    position: absolute; left: -9px; top: -20px; width: 27px; height: 39px; display: block;
+    filter: drop-shadow(0 0 10px color-mix(in srgb, var(--floor-accent) 70%, transparent));
+    animation: dm-lantern-sway 3.6s ease-in-out infinite;
+    transform-origin: 50% 0;
+  }
+  .dm-shaft-lantern svg { width: 100%; height: 100%; display: block; }
+  .dm-shaft-lantern::after {
+    content: ''; position: absolute; left: 50%; top: 50%; width: 220px; height: 220px; translate: -50% -50%;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--floor-accent) 16%, transparent), transparent);
+    pointer-events: none;
+  }
+  .dm-shaft-lantern-flame { animation: dm-lantern-flame 0.9s steps(3, end) infinite; }
+}
+@keyframes dm-lantern-sway { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
+@keyframes dm-lantern-flame { 0% { opacity: 1; } 33% { opacity: .7; } 66% { opacity: .9; } }
+
+/* ── Footer fire ──────────────────────────────────────── */
+
+.dm-footer-fire {
+  position: absolute; left: 0; right: 0; bottom: 0; height: clamp(120px, 30vw, 460px);
+  width: 100%;
+  image-rendering: pixelated;
+  pointer-events: none;
+  opacity: .78;
+  -webkit-mask-image: linear-gradient(to top, #000 30%, transparent);
+  mask-image: linear-gradient(to top, #000 30%, transparent);
+}
+.dm-footer-mark { position: relative; z-index: 1; }
+/* The wordmark stands in front of the fire: lit from above, a silhouette
+   where the flames are. */
+.dm-footer-mark span {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-text) 92%, transparent) 0%, #c9b8a6 38%, #120b0a 72%) !important;
+  -webkit-background-clip: text !important; background-clip: text !important;
+  filter: drop-shadow(0 -1px 0 rgba(255, 170, 90, .25));
+}
+
 /* ── Reduced motion ────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
   .dm-grain { display: none; }
+  .dm-strata-vein, .dm-shaft-lantern, .dm-shaft-lantern-flame { animation: none; }
   .dm-shaft-floor, .dm-shaft-acts li, .dm-shaft-ticks i, .dm-shaft-depth { transition: none; }
 }

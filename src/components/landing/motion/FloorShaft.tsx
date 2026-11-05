@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { motion, useScroll, useSpring, useTransform } from 'framer-motion';
 import { ACTS, FLOOR_LORE, floorTheme } from '../../../../shared/types';
 import { FloorStrip } from '../FloorStrip';
 import { RevealText } from './RevealText';
+import { DigitRoll } from './DigitRoll';
 
 /**
  * The lore keeps plain ASCII quotes. Printed inside the card's own “…” they
@@ -53,6 +55,38 @@ export function FloorShaft() {
     return () => io.disconnect();
   }, []);
 
+  // Torchlight on the floor cards: one delegated listener writes the pointer
+  // position into the hovered card's custom properties (no React state).
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list || !window.matchMedia?.('(pointer: fine)').matches) return;
+    let raf = 0;
+    let target: HTMLElement | null = null;
+    let cx = 0;
+    let cy = 0;
+    const apply = () => {
+      raf = 0;
+      if (!target) return;
+      const r = target.getBoundingClientRect();
+      target.style.setProperty('--mx', `${cx - r.left}px`);
+      target.style.setProperty('--my', `${cy - r.top}px`);
+    };
+    const onMove = (e: PointerEvent) => {
+      target = (e.target as HTMLElement).closest<HTMLElement>('.dm-shaft-floor');
+      cx = e.clientX; cy = e.clientY;
+      if (!raf) raf = requestAnimationFrame(apply);
+    };
+    list.addEventListener('pointermove', onMove, { passive: true });
+    return () => { cancelAnimationFrame(raf); list.removeEventListener('pointermove', onMove); };
+  }, []);
+
+  // A lantern lowered on a chain beside the floors, at the reader's depth.
+  const { scrollYProgress: lp } = useScroll({ target: listRef, offset: ['start 50%', 'end 50%'] });
+  const lantern = useSpring(lp, { stiffness: 120, damping: 26, mass: 0.6 });
+  // Transform only: the track is as tall as the chain, so y in % is depth.
+  const lanternY = useTransform(lantern, (v) => `${Math.min(1, Math.max(0, v)) * 100}%`);
+  const chain = useTransform(lantern, (v) => Math.min(1, Math.max(0, v)));
+
   const floor = Math.max(1, active);
   const theme = floorTheme(floor);
   const act = ACTS.find((a) => a.floors.includes(floor)) ?? ACTS[0];
@@ -69,9 +103,7 @@ export function FloorShaft() {
 
           {/* Where the reader is. Desktop only: on a phone the column is not sticky. */}
           <div className="dm-shaft-gauge" aria-hidden>
-            <span className="dm-shaft-depth">
-              −{String(active * METERS_PER_FLOOR).padStart(3, '0')} m
-            </span>
+            <DigitRoll className="dm-shaft-depth" value={`−${String(active * METERS_PER_FLOOR).padStart(3, '0')} m`} />
             <span className="dm-shaft-here">
               {active === 0 ? 'Yüzeydesin' : `Kat ${active} · ${theme.name}`}
             </span>
@@ -92,7 +124,24 @@ export function FloorShaft() {
           </ol>
         </aside>
 
-        <ol ref={listRef} className="dm-shaft-list">
+        <ol ref={listRef} className="dm-shaft-list" style={{ ['--floor-accent' as string]: theme.accent }}>
+          <li aria-hidden className="dm-shaft-chain">
+            <motion.span className="dm-shaft-chain-run" style={{ scaleY: chain }} />
+            <motion.span className="dm-shaft-lantern-track" style={{ y: lanternY }}>
+            <span className="dm-shaft-lantern">
+              <svg viewBox="0 0 9 13" shapeRendering="crispEdges">
+                <rect x="3" y="0" width="3" height="1" fill="#6d6a8e" />
+                <rect x="1" y="1" width="7" height="2" fill="#3a3c58" />
+                <rect x="1" y="3" width="1" height="7" fill="#3a3c58" />
+                <rect x="7" y="3" width="1" height="7" fill="#3a3c58" />
+                <rect x="2" y="3" width="5" height="7" fill="var(--floor-accent)" opacity="0.35" />
+                <rect className="dm-shaft-lantern-flame" x="3" y="5" width="3" height="4" fill="#ffd27a" />
+                <rect x="4" y="4" width="1" height="1" fill="#ff8a3d" />
+                <rect x="1" y="10" width="7" height="2" fill="#3a3c58" />
+              </svg>
+            </span>
+            </motion.span>
+          </li>
           {FLOORS.map((f) => {
             const t = floorTheme(f);
             const lore = FLOOR_LORE[f];

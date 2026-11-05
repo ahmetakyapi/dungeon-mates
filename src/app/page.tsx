@@ -47,6 +47,9 @@ import { HeroStage } from '@/components/landing/motion/HeroStage';
 import { FloorShaft } from '@/components/landing/motion/FloorShaft';
 import { ClassAccordion } from '@/components/landing/motion/ClassAccordion';
 import { TiltCard } from '@/components/landing/motion/TiltCard';
+import { DepthAtmosphere } from '@/components/landing/motion/DepthAtmosphere';
+import { Strata } from '@/components/landing/motion/Strata';
+import { PixelFire } from '@/components/landing/motion/PixelFire';
 import '../styles/nocturne.css';
 import '../styles/landing.css';
 
@@ -153,6 +156,8 @@ export default function HomePage() {
   const [scrolled, setScrolled] = useState(false);
   const [statsRun, setStatsRun] = useState(false);
   const [touch, setTouch] = useState(false);
+  // Hovering the call to play feeds the fire at the bottom of the page.
+  const [stoke, setStoke] = useState(false);
   const statsRef = useRef<HTMLElement>(null);
 
   // Live phase readout from the telegraph scene. `seq` remounts the fill so the
@@ -248,6 +253,7 @@ export default function HomePage() {
       <DungeonGate onDone={onReady} />
       <SmoothScroll />
       <div aria-hidden className="dm-grain" />
+      <DepthAtmosphere />
 
       {/* Scroll rail — the whole page as one shaft */}
       <motion.div aria-hidden className="dm-rail" style={{ scaleX: rail }} />
@@ -382,6 +388,8 @@ export default function HomePage() {
           </div>
         </section>
 
+        <Strata variant="surface" seed={2} depth="−006 m" label="Kapıların Ardı" />
+
         {/* ── Story ─────────────────────────────────────────── */}
         <section id="hikaye" className="dm-section dm-wrap">
           <SectionHead title="Zephara Neden Karanlıkta?" maxCh={14} />
@@ -416,6 +424,8 @@ export default function HomePage() {
             Merdiveni Bul · Bir Alt Kata İn · Her Katta Yeni Düşmanlar ·
           </motion.p>
         </section>
+
+        <Strata variant="depths" seed={5} depth="−130 m" label="Derinlikler" />
 
         {/* ── Core mechanic ─────────────────────────────────── */}
         <section id="telegraf" className="dm-section dm-wrap">
@@ -525,6 +535,8 @@ export default function HomePage() {
           </div>
         </section>
 
+        <Strata variant="fire" seed={9} depth="−240 m" label="Ateşin Kalbi" />
+
         {/* ── Play ──────────────────────────────────────────── */}
         <section id="oyna" className="dm-play">
           <div className="dm-play-glow" aria-hidden />
@@ -547,7 +559,11 @@ export default function HomePage() {
                       transition={{ duration: 0.45, ease: EASE_OUT_EXPO }}
                     >
                       <Magnetic strength={0.4}>
-                        <button className="dm-orb" onClick={playSolo}>
+                        <button
+                          className="dm-orb" onClick={playSolo}
+                          onPointerEnter={() => setStoke(true)} onPointerLeave={() => setStoke(false)}
+                          onFocus={() => setStoke(true)} onBlur={() => setStoke(false)}
+                        >
                           <span className="dm-orb-ring" aria-hidden />
                           <span className="dm-orb-label">Tek Oyna<small>3 can</small></span>
                         </button>
@@ -647,6 +663,7 @@ export default function HomePage() {
 
       {/* ── Footer ──────────────────────────────────────────── */}
       <footer ref={footRef} className="dm-footer">
+        <PixelFire className="dm-footer-fire" stoke={stoke} height={0.34} />
         <div className="dm-wrap dm-footer-row">
           <span>© Dungeon Mates</span>
           <span className="dm-muted">Tüm sprite&apos;lar Canvas ile prosedürel çizilir — sprite sheet yok.</span>
